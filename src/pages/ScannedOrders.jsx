@@ -164,48 +164,234 @@ export default function ScannedOrders() {
         return orderNumber.replace(/\n/g, "").replace(/\r/g, "").trim();
     };
 
-    const handleScanSuccess = async (decodedText) => {
-        if (!decodedText || scanLoading) return;
+const handleScanSuccess = async (decodedText) => {
 
-        const orderNumber = processScannedValue(decodedText);
-        if (!orderNumber) return;
+    /*
+    =========================================
+    BASIC VALIDATION
+    =========================================
+    */
 
-        const now = Date.now();
-        if (scanCooldownRef.current[orderNumber] && now - scanCooldownRef.current[orderNumber] < 3000) return;
-        scanCooldownRef.current[orderNumber] = now;
+    if (!decodedText) return;
 
-        // Force check GPS if missing before API call
-        if (!location.lat || !location.lng) {
-            toast.error("GPS missing! Refreshing location...");
-            getGeoLocation(true);
-            return;
+    if (scanLoading) return;
+
+    /*
+    =========================================
+    CLEAN QR VALUE
+    =========================================
+    */
+
+    let orderNumber = decodedText;
+
+    console.log("RAW SCAN:", orderNumber);
+
+    /*
+    =========================================
+    REMOVE URL PART
+    =========================================
+    */
+
+    if (orderNumber.includes("/")) {
+
+        const parts = orderNumber.split("/");
+
+        orderNumber = parts[parts.length - 1];
+    }
+
+    /*
+    =========================================
+    HANDLE JSON QR
+    =========================================
+    */
+
+    try {
+
+        const parsed = JSON.parse(orderNumber);
+
+        if (parsed.order_number) {
+            orderNumber = parsed.order_number;
         }
 
-        setScanLoading(true);
-        const toastId = toast.loading(`Processing ${orderNumber}...`);
+    } catch (e) {
+        // normal barcode
+    }
+
+    /*
+    =========================================
+    REMOVE EXTRA CHARACTERS
+    =========================================
+    */
+
+    orderNumber = orderNumber
+        .replace(/\n/g, "")
+        .replace(/\r/g, "")
+        .replace(/\t/g, "")
+        .trim();
+
+    console.log("FINAL ORDER:", orderNumber);
+
+    /*
+    =========================================
+    EMPTY CHECK
+    =========================================
+    */
+
+    if (!orderNumber) {
+
+        toast.error("Invalid QR Code");
+
+        return;
+    }
+
+    /*
+    =========================================
+    DUPLICATE BLOCK
+    =========================================
+    */
+
+    const now = Date.now();
+
+    if (
+        scanCooldownRef.current[orderNumber] &&
+        now - scanCooldownRef.current[orderNumber] < 3000
+    ) {
+        console.log("Duplicate blocked");
+        return;
+    }
+
+    scanCooldownRef.current[orderNumber] = now;
+
+    /*
+    =========================================
+    GPS VALIDATION
+    =========================================
+    */
+
+    if (
+        location.lat === null ||
+        location.lng === null
+    ) {
+
+        toast.error("Waiting for GPS location");
+
+        getGeoLocation();
+
+        return;
+    }
+
+    console.log("GPS:", {
+        lat: location.lat,
+        lng: location.lng
+    });
+
+    setScanLoading(true);
+
+    const toastId = toast.loading(
+        `Processing ${orderNumber}...`
+    );
+
+    try {
+
+        /*
+        =========================================
+        API CALL
+        =========================================
+        */
+
+        const res = await getOrderPincodeApi(
+            orderNumber,
+            Number(location.lat),
+            Number(location.lng)
+        );
+
+        console.log("API RESPONSE:", res);
+
+        /*
+        =========================================
+        SUCCESS FEEDBACK
+        =========================================
+        */
 
         try {
-            const res = await getOrderPincodeApi(orderNumber, location.lat, location.lng);
-            
-            // Audio/Vibrate Feedback
-            try { new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg").play(); } catch(e){}
-            if (navigator.vibrate) navigator.vibrate(200);
 
-            toast.success(res?.message || `Order ${orderNumber} scanned`, { id: toastId });
-            await loadScannedOrders();
+            const audio = new Audio(
+                "https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"
+            );
 
-            if (isScanning) await stopCamera();
+            audio.play();
 
-        } catch (error) {
-            toast.error(error?.response?.data?.message || "Invalid Barcode", { id: toastId });
-        } finally {
-            setScanLoading(false);
-            if (inputRef.current) {
-                inputRef.current.value = "";
-                inputRef.current.focus();
-            }
+        } catch (e) {
+            console.log(e);
         }
-    };
+
+        if (navigator.vibrate) {
+            navigator.vibrate(200);
+        }
+
+        toast.success(
+            res?.message ||
+            `Order ${orderNumber} scanned`,
+            {
+                id: toastId
+            }
+        );
+
+        /*
+        =========================================
+        REFRESH TABLE
+        =========================================
+        */
+
+        await loadScannedOrders();
+
+        /*
+        =========================================
+        STOP CAMERA AFTER SUCCESS
+        =========================================
+        */
+
+        if (isScanning) {
+
+            await stopCamera();
+        }
+
+    } catch (error) {
+
+        console.log("SCAN ERROR:", error);
+
+        console.log(
+            "BACKEND RESPONSE:",
+            error?.response?.data
+        );
+
+        toast.error(
+            error?.response?.data?.message ||
+            error?.response?.data?.detail ||
+            "Invalid Barcode",
+            {
+                id: toastId
+            }
+        );
+
+    } finally {
+
+        setScanLoading(false);
+
+        /*
+        =========================================
+        REFOCUS USB SCANNER
+        =========================================
+        */
+
+        if (inputRef.current) {
+
+            inputRef.current.value = "";
+
+            inputRef.current.focus();
+        }
+    }
+};
 
     /* =====================================================
        CAMERA CONTROLS
