@@ -209,7 +209,7 @@ const handleScanSuccess = async (decodedText) => {
 
         const parsed = JSON.parse(orderNumber);
 
-        if (parsed.order_number) {
+        if (parsed?.order_number) {
             orderNumber = parsed.order_number;
         }
 
@@ -223,10 +223,11 @@ const handleScanSuccess = async (decodedText) => {
     =========================================
     */
 
-    orderNumber = orderNumber
+    orderNumber = String(orderNumber)
         .replace(/\n/g, "")
         .replace(/\r/g, "")
         .replace(/\t/g, "")
+        .replace(/"/g, "")
         .trim();
 
     console.log("FINAL ORDER:", orderNumber);
@@ -269,8 +270,10 @@ const handleScanSuccess = async (decodedText) => {
     */
 
     if (
-        location.lat === null ||
-        location.lng === null
+        location?.lat === null ||
+        location?.lng === null ||
+        location?.lat === undefined ||
+        location?.lng === undefined
     ) {
 
         toast.error("Waiting for GPS location");
@@ -284,6 +287,12 @@ const handleScanSuccess = async (decodedText) => {
         lat: location.lat,
         lng: location.lng
     });
+
+    /*
+    =========================================
+    START LOADING
+    =========================================
+    */
 
     setScanLoading(true);
 
@@ -299,8 +308,14 @@ const handleScanSuccess = async (decodedText) => {
         =========================================
         */
 
-        const res = await getOrderPincodeApi(
+        console.log("CALLING API WITH:", {
             orderNumber,
+            lat: Number(location.lat),
+            lng: Number(location.lng)
+        });
+
+        const res = await getOrderPincodeApi(
+            encodeURIComponent(orderNumber), // important
             Number(location.lat),
             Number(location.lng)
         );
@@ -319,10 +334,10 @@ const handleScanSuccess = async (decodedText) => {
                 "https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"
             );
 
-            audio.play();
+            await audio.play();
 
         } catch (e) {
-            console.log(e);
+            console.log("Audio Error:", e);
         }
 
         if (navigator.vibrate) {
@@ -368,6 +383,7 @@ const handleScanSuccess = async (decodedText) => {
         toast.error(
             error?.response?.data?.message ||
             error?.response?.data?.detail ||
+            error?.message ||
             "Invalid Barcode",
             {
                 id: toastId
