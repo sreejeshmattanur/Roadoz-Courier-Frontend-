@@ -283,10 +283,35 @@ export const fetchInvoiceByIdApi = async (id) => {
 };
 
 export const getOrderPincodeApi = async (orderNumber, lat, lng) => {
-  const res = await API.post(`/orders/get-pincode/${orderNumber}`, { lat, lng });
-  return res.data;
-};
 
+  console.log("[API CALL] getOrderPincodeApi");
+  const body = {
+    order_number: orderNumber,
+    lat: Number(lat),
+    lng: Number(lng)
+  };
+
+  console.log("📤 JSON Body:", body);
+
+  try {
+
+    const res = await API.post(
+      `/orders/get-pincode`,
+      `/orders/get-pincode/${orderNumber}`,
+      body
+    );
+
+    console.log("✅ API SUCCESS");
+    console.log("📥 Response:", res.data);
+
+    return res.data;
+
+  } catch (error) {
+    console.error("❌ API ERROR:", error);
+
+    throw error;
+  }
+};
 
 
 export const scanOrderApi = async (orderNumber) => {
@@ -294,11 +319,21 @@ export const scanOrderApi = async (orderNumber) => {
   return res.data;
 };
 
-export const fetchTodayScannedOrdersApi = async (params) => {
-  const cleanParams = Object.fromEntries(
-    Object.entries(params).filter(([_, v]) => v != null && v !== "")
-  );
-  const res = await API.get("/orders/orders/today-status", { params: cleanParams });
+export const fetchTodayScannedOrdersApi = async (filters) => {
+  const { date, status, page, limit } = filters;
+
+  const body = { date: date };
+
+  const config = {
+    params: {
+      status: status,
+      page: page,
+      limit: limit
+    }
+  };
+
+  const res = await API.post("/orders/orders/today-status", body, config);
+
   return res.data;
 };
 
