@@ -4,7 +4,7 @@ import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import {
     Download, RotateCcw, Loader2, Maximize,
-    StopCircle, CheckCircle2, MapPin, PackageSearch, Scan, CreditCard, Layers
+    StopCircle, CheckCircle2, MapPin, PackageSearch, Scan, CreditCard
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Html5Qrcode } from "html5-qrcode";
@@ -71,6 +71,7 @@ export default function ScannedOrders() {
                 page: filters.page,
                 limit: filters.limit
             });
+            // Update based on provided JSON structure
             setOrders(res.orders || []);
             setPagination(res.pagination || { page: 1, total_pages: 1 });
         } catch (error) {
@@ -100,6 +101,7 @@ export default function ScannedOrders() {
 
         let orderNumber = String(decodedText).replace(/["\n\r\t\s+]/g, "").trim();
 
+        // Duplicate Check
         const now = Date.now();
         if (scanCooldownRef.current[orderNumber] && now - scanCooldownRef.current[orderNumber] < 3000) return;
         scanCooldownRef.current[orderNumber] = now;
@@ -115,11 +117,13 @@ export default function ScannedOrders() {
 
         try {
             const res = await getOrderPincodeApi(orderNumber, location.lat, location.lng);
+            
+            // Success Feedback
             try { new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg").play(); } catch (e) {}
             if (navigator.vibrate) navigator.vibrate(200);
 
             toast.success(res?.message || `Order ${orderNumber} Processed`, { id: toastId });
-            loadScannedOrders();
+            loadScannedOrders(); // Refresh table
         } catch (error) {
             const errorMsg = error?.response?.data?.message || "Scan failed";
             toast.error(errorMsg, { id: toastId });
@@ -165,11 +169,10 @@ export default function ScannedOrders() {
 
     const handleExport = () => {
         if (orders.length === 0) return toast.error("No data");
-        const headers = ["Order ID", "Order Number", "Total Boxes", "Consignee", "Status", "Payment", "Weight", "Scan Time"];
+        const headers = ["Order Number", "Type", "Consignee", "Status", "Payment", "Weight", "Scan Time"];
         const csv = [headers, ...orders.map(o => [
-            o.id,
             o.order_number, 
-            o.total_boxes,
+            o.order_type, 
             o.consignee?.name, 
             o.status, 
             o.payment_method, 
@@ -180,7 +183,7 @@ export default function ScannedOrders() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Logistics_Scan_Report_${filters.date}.csv`;
+        a.download = `Scanned_Orders_${filters.date}.csv`;
         a.click();
     };
 
@@ -201,10 +204,10 @@ export default function ScannedOrders() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-text-main flex items-center gap-2 uppercase tracking-tight">
-                        <Scan className="text-primary" /> Speed Scan Log
+                        <Scan className="text-primary" /> Today's Scan Log
                     </h1>
                     <p className="text-[10px] text-text-muted font-bold uppercase tracking-[0.2em]">
-                        Handheld Scanner / Camera Mode
+                        Mode: {isScanning ? "Camera Active" : "USB / Manual Ready"}
                     </p>
                 </div>
 
@@ -248,7 +251,7 @@ export default function ScannedOrders() {
                             />
                         </div>
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-text-muted uppercase ml-1">Status Filter</label>
+                            <label className="text-[10px] font-black text-text-muted uppercase ml-1">Operation Status</label>
                             <select
                                 className="w-full bg-card-bg border border-border-subtle rounded-xl px-3 py-2 text-xs text-text-main focus:border-primary transition-all"
                                 value={filters.status}
@@ -260,10 +263,10 @@ export default function ScannedOrders() {
                             </select>
                         </div>
                         <div className="flex gap-2 lg:col-span-2">
-                            <Button onClick={loadScannedOrders} className="flex-1 bg-white/5 text-text-main text-xs font-bold h-10 border border-border-subtle rounded-xl">
-                                <RotateCcw size={14} className="mr-2" /> Refresh
+                            <Button onClick={loadScannedOrders} className="flex-1 bg-white/5 text-text-main text-xs font-bold h-10 border border-border-subtle rounded-xl hover:bg-white/10">
+                                <RotateCcw size={14} className="mr-2" /> Refresh List
                             </Button>
-                            <Button onClick={handleExport} className="flex-1 bg-primary/10 text-primary text-xs font-bold h-10 border border-primary/20 rounded-xl">
+                            <Button onClick={handleExport} className="flex-1 bg-primary/10 text-primary text-xs font-bold h-10 border border-primary/20 rounded-xl hover:bg-primary/20">
                                 <Download size={14} className="mr-2" /> Export CSV
                             </Button>
                         </div>
@@ -278,9 +281,8 @@ export default function ScannedOrders() {
                         <table className="w-full text-left">
                             <thead>
                                 <tr className="bg-dashboard-bg/50 text-text-muted text-[10px] font-black uppercase tracking-widest border-b border-border-subtle">
-                                    <th className="px-6 py-5">Order ID & Ref</th>
+                                    <th className="px-6 py-5">Order Reference</th>
                                     <th className="px-6 py-5">Consignee</th>
-                                    <th className="px-6 py-5 text-center">Total Boxes</th>
                                     <th className="px-6 py-5">Payment</th>
                                     <th className="px-6 py-5">Logistics</th>
                                     <th className="px-6 py-5">Status</th>
@@ -295,23 +297,15 @@ export default function ScannedOrders() {
                                                 <div className="text-sm font-black text-text-main group-hover:text-primary transition-colors">
                                                     {order.order_number}
                                                 </div>
-                                                <div className="text-[9px] text-text-muted font-mono mt-1 truncate max-w-[120px]" title={order.id}>
-                                                    ID: {order.id.split('-')[0]}...
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-xs font-bold text-text-main uppercase">
-                                                    {order.consignee?.name || "N/A"}
-                                                </div>
-                                                <div className="text-[9px] bg-primary/10 text-primary w-fit px-1 py-0.5 rounded mt-1 font-bold">
+                                                <div className="text-[9px] bg-primary/10 text-primary w-fit px-1.5 py-0.5 rounded mt-1 font-bold">
                                                     {order.order_type}
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 text-center">
-                                                <div className="inline-flex items-center gap-2 px-3 py-1 bg-dashboard-bg border border-border-subtle rounded-lg">
-                                                    <Layers size={14} className="text-primary" />
-                                                    <span className="text-sm font-black text-text-main">{order.total_boxes}</span>
+                                            <td className="px-6 py-4">
+                                                <div className="text-xs font-bold text-text-main uppercase tracking-tight">
+                                                    {order.consignee?.name || "N/A"}
                                                 </div>
+                                                <div className="text-[10px] text-text-muted mt-0.5">Customer</div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-1.5 text-xs font-bold text-text-main">
@@ -326,7 +320,7 @@ export default function ScannedOrders() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="text-xs font-black text-text-main">{order.total_weight_kg} KG</div>
-                                                <div className="text-[9px] text-text-muted uppercase font-bold tracking-tighter">Gross Weight</div>
+                                                <div className="text-[10px] text-text-muted font-bold">{order.total_boxes} Piece(s)</div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className={cn(
@@ -341,13 +335,13 @@ export default function ScannedOrders() {
                                                 <div className="text-xs font-mono font-bold text-text-main">
                                                     {new Date(order.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                                                 </div>
-                                                <div className="text-[9px] text-text-muted uppercase font-bold">Updated At</div>
+                                                <div className="text-[9px] text-text-muted uppercase font-bold">Logged At</div>
                                             </td>
                                         </tr>
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={7} className="px-6 py-28 text-center">
+                                        <td colSpan={6} className="px-6 py-28 text-center">
                                             <div className="flex flex-col items-center gap-4 opacity-30">
                                                 <div className="p-6 bg-dashboard-bg rounded-full">
                                                     <PackageSearch size={64} className="text-text-muted" />
