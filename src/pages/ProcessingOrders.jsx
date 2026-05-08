@@ -494,7 +494,13 @@ export function ProcessingOrders() {
                     setSearchParams({});
 
                     // 3. Fetch fresh data
-                    dispatch(fetchOrders({ page: 1, limit: 25, status_filter: "processing" }));
+                    dispatch(
+                      fetchOrders({
+                        page: 1,
+                        limit: 25,
+                        status_filter: "processing",
+                      }),
+                    );
                   }}
                   className="text-xs font-bold text-primary flex items-center gap-1 mt-2"
                 >
@@ -544,9 +550,6 @@ export function ProcessingOrders() {
                       className="w-4 h-4"
                     />
                   </th>
-                  {isProcessing && (
-                    <th className="px-6 py-4">Transaction ID</th>
-                  )}
                   <th className="px-6 py-4">Customer</th>
                   {!isProcessing && <th className="px-6 py-4">Shipment</th>}
                   <th className="px-6 py-4">Route</th>
@@ -634,17 +637,6 @@ export function ProcessingOrders() {
                         />
                       </td>
 
-                      {isProcessing && (
-                        <td className="px-6 py-6">
-                          <span className="text-xs font-bold text-text-main block">
-                            {mappedOrder.transactionId}
-                          </span>
-                          <span className="text-[10px] text-text-muted">
-                            ID: {mappedOrder.id}
-                          </span>
-                        </td>
-                      )}
-
                       <td className="px-6 py-6">
                         <div className="space-y-1">
                           <p className="text-sm font-bold text-text-main">
@@ -705,12 +697,20 @@ export function ProcessingOrders() {
                       </td>
 
                       {isProcessing ? (
-                        <td className="px-6 py-6 text-xs font-bold text-text-main">
-                          {mappedOrder.order.id}
-                          <br />
-                          <span className="font-normal text-text-muted">
-                            Channel: {mappedOrder.order.channel}
-                          </span>
+                        <td className="px-6 py-6 text-xs">
+                          <p className="font-bold text-text-main">
+                            #{mappedOrder.order.id}
+                          </p>
+
+                          <p className="text-text-main">
+                            {mappedOrder.items?.[0]?.product_name ||
+                              "No Product"}
+                          </p>
+
+                          <p className="text-text-muted">
+                            Qty: {mappedOrder.items?.[0]?.qty || 0} SKU:{" "}
+                            {mappedOrder.items?.[0]?.sku || "N/A"}
+                          </p>
                         </td>
                       ) : (
                         <td className="px-6 py-6 text-[11px]">
