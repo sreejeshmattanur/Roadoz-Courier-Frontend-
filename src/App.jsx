@@ -44,6 +44,7 @@ import { RolesManagement } from "./pages/admin/RolesManagement";
 import AddRolePage from "./pages/admin/AddRolePage";
 import RoleWizard from "./components/common/RoleWizard";
 import ScannedOrders from "./pages/ScannedOrders";
+import ActivityLogs from "./pages/ActivityLogs";
 
 const PermissionRoute = ({ children, permission }) => {
   const { role, permissions, isAuthenticated } = useSelector(
@@ -274,8 +275,9 @@ export default function App() {
                   <ScannedOrders />
                 </PermissionRoute>
               }
-             />
-             
+            />
+
+
 
             {/* Settings */}
             <Route
@@ -335,6 +337,14 @@ export default function App() {
               element={
                 <PermissionRoute permission="users:view">
                   <Users />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="admin/activity-logs"
+              element={
+                <PermissionRoute permission="logs:view">
+                  <ActivityLogs />
                 </PermissionRoute>
               }
             />
