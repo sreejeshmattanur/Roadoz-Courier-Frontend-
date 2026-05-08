@@ -74,6 +74,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
       { name: "User Management", to: `${base}/admin/users`, perm: "users:view" },
       { name: "Role Permissions", to: `${base}/admin/roles`, perm: "roles:view" },
       { name: "Assign Roles", to: `${base}/admin/assign-roles`, perm: "user_roles:assign" },
+      { name: "Activity Logs", to: `${base}/admin/activity-logs`, perm: "logs:view" },
     ],
 
     tools: [
@@ -321,7 +322,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
 
         <NavLink
           to={`${base}/scanned-orders`}
-          icon={<Package size={20} />} 
+          icon={<Package size={20} />}
           hideText={!isOpen}
         >
           Scanned Orders

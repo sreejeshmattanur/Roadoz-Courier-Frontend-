@@ -10,6 +10,7 @@ import walletReducer from "./walletSlice";
 import remittanceReducer from "./remittanceSlice";
 import invoiceReducer from "./invoiceSlice";
 import consigneeReducer from "./consigneeSlice";
+import activityLogReducer from "./activityLogSlice";
 
 export const store = configureStore({
   reducer: {
@@ -24,6 +25,7 @@ export const store = configureStore({
     wallet: walletReducer,
     remittance: remittanceReducer,
     invoices: invoiceReducer,
+    activityLogs: activityLogReducer,
   },
 });
 
