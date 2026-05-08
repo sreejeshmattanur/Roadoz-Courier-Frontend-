@@ -103,30 +103,40 @@ export default function ScannedOrders() {
     const handleScanSuccess = async (decodedText) => {
         if (!decodedText || scanLoading) return;
 
+        // Clean Barcode Logic
         let orderNumber = decodedText;
+
+        // Extract ID if URL is provided
         if (typeof orderNumber === "string" && orderNumber.includes("/")) {
             const parts = orderNumber.split("/");
             orderNumber = parts[parts.length - 1];
         }
+
+        // Handle JSON cases
         try {
             const parsed = JSON.parse(orderNumber);
             if (parsed?.order_number) orderNumber = parsed.order_number;
         } catch (e) {}
+
+        // Remove whitespace and quotes
         orderNumber = String(orderNumber).replace(/["\n\r\t\s+]/g, "").trim();
 
         if (!orderNumber) {
-            toast.error("Invalid Code format");
+            toast.error("Invalid QR Code");
             return;
         }
 
-        // Duplicate Check (3s cooldown)
+        // Duplicate Check (3 second cooldown)
         const now = Date.now();
-        if (scanCooldownRef.current[orderNumber] && now - scanCooldownRef.current[orderNumber] < 3000) return;
+        if (scanCooldownRef.current[orderNumber] && now - scanCooldownRef.current[orderNumber] < 3000) {
+            return;
+        }
         scanCooldownRef.current[orderNumber] = now;
 
+        // GPS Check
         if (!location.lat || !location.lng) {
-            toast.error("GPS location not locked. Please wait...");
-            startGPSWatch();
+            toast.error("Waiting for GPS location...");
+            getGeoLocation();
             return;
         }
 
@@ -134,15 +144,26 @@ export default function ScannedOrders() {
         const toastId = toast.loading(`Processing ${orderNumber}...`);
 
         try {
-            const res = await getOrderPincodeApi(orderNumber, location.lat, location.lng);
-            
-            try { new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg").play(); } catch (e) {}
+            // API CALL: POST /orders/get-pincode/${orderNumber} with {lat, lng} body
+            const res = await getOrderPincodeApi(
+                orderNumber,
+                location.lat,
+                location.lng
+            );
+
+            // Audio Feedback
+            try {
+                new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg").play();
+            } catch (e) {}
             if (navigator.vibrate) navigator.vibrate(200);
 
-            toast.success(res?.message || `Order ${orderNumber} Processed`, { id: toastId });
-            loadScannedOrders();
+            toast.success(res?.message || `Order ${orderNumber} scanned`, { id: toastId });
+
+            // Refresh List
+            await loadScannedOrders();
+
         } catch (error) {
-            const errorMsg = error?.response?.data?.message || "Scan failed";
+            const errorMsg = error?.response?.data?.message || error?.response?.data?.detail || "Scan failed";
             toast.error(errorMsg, { id: toastId });
         } finally {
             setScanLoading(false);
