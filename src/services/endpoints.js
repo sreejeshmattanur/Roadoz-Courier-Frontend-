@@ -18,6 +18,8 @@ export const ENDPOINTS = {
   SCAN_ORDER: "/orders/scan",
   GET_ORDER_PINCODE: "/orders/get-pincode",
   TODAY_STATUS: "/orders/orders/today-status",
+  ACTIVITY_LOGS: "/activity-logs", 
+
 
 
 

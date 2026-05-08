@@ -341,3 +341,11 @@ export const getOrderBarcodeApi = async (orderId) => {
   const res = await API.get(`${ENDPOINTS.ORDERS}/${orderId}/barcode`);
   return res.data;
 };
+
+export const fetchActivityLogsApi = async (params) => {
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(([_, v]) => v != null && v !== "")
+  );
+  const res = await API.get(ENDPOINTS.ACTIVITY_LOGS, { params: cleanParams });
+  return res.data;
+};
