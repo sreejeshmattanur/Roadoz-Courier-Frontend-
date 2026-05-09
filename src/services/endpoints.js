@@ -10,7 +10,7 @@ export const ENDPOINTS = {
   FRANCHISE: "/franchise",
   USERS: "/rbac/users",
   ROLES: "/rbac/roles",
-  WALLET: "/wallet/transactions", 
+  WALLET: "/wallet/transactions",
   REMITTANCE: "/remittance",
   INVOICES: "/invoices",
   CONSIGNEES: "/orders/consignees",
@@ -18,11 +18,13 @@ export const ENDPOINTS = {
   SCAN_ORDER: "/orders/scan",
   GET_ORDER_PINCODE: "/orders/get-pincode",
   TODAY_STATUS: "/orders/orders/today-status",
-  ACTIVITY_LOGS: "/activity-logs", 
+  ACTIVITY_LOGS: "/activity-logs",
+  BULK_ORDER_UPLOAD: "/orders/bulk",
 
 
 
 
 
-  
+
+
 };

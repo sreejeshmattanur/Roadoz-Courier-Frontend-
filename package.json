@@ -27,6 +27,7 @@
     "lucide-react": "^0.546.0",
     "motion": "^12.38.0",
     "react": "^19.0.0",
+    "react-barcode": "^1.6.1",
     "react-dom": "^19.0.0",
     "react-hot-toast": "^2.6.0",
     "react-redux": "^9.2.0",

@@ -1,10 +1,9 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Link } from "react-router-dom";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import {
     Download, RotateCcw, Loader2, Maximize,
-    StopCircle, CheckCircle2, MapPin, PackageSearch, Scan, CreditCard, Layers
+    StopCircle, MapPin, PackageSearch, Scan, CreditCard, Layers
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Html5Qrcode } from "html5-qrcode";
@@ -16,21 +15,15 @@ import Pagination from "../components/ui/Pagination";
 import { cn } from "../lib/utils";
 
 export default function ScannedOrders() {
-    // Data States
+    // --- Data States ---
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(false);
     const [scanLoading, setScanLoading] = useState(false);
     
-    // UI States
+    // --- UI States ---
     const [isScanning, setIsScanning] = useState(false);
     const [location, setLocation] = useState({ lat: null, lng: null });
-    const [pagination, setPagination] = useState({ page: 1, total: 0, total_pages: 1 });
-
-    // Refs
-    const scannerRef = useRef(null);
-    const inputRef = useRef(null);
-    const scanCooldownRef = useRef({}); 
-    const gpsWatchRef = useRef(null);
+    const [pagination, setPagination] = useState({ page: 1, total_pages: 1 });
 
     const [filters, setFilters] = useState({
         date: new Date().toISOString().split('T')[0],
@@ -39,10 +32,16 @@ export default function ScannedOrders() {
         limit: 10
     });
 
-    // 1. IMPROVED Geolocation Logic for Mobile
+    // --- Refs ---
+    const scannerRef = useRef(null);
+    const inputRef = useRef(null);
+    const scanCooldownRef = useRef({}); 
+    const gpsWatchRef = useRef(null);
+    const isFirstRender = useRef(true);
+
+    // 1. IMPROVED Geolocation Logic
     const startGPSWatch = useCallback(() => {
         if ("geolocation" in navigator) {
-            // watchPosition is better for mobile as it stays active
             gpsWatchRef.current = navigator.geolocation.watchPosition(
                 (position) => {
                     setLocation({ 
@@ -52,19 +51,12 @@ export default function ScannedOrders() {
                 },
                 (error) => {
                     console.error("GPS Error:", error.message);
-                    // Only show toast if we haven't gotten a location yet
-                    if (!location.lat) {
-                        toast.error("GPS Signal Weak. Please ensure Location is ON.", { id: 'gps-error' });
+                    if (!location.lat && !isFirstRender.current) {
+                        toast.error("GPS Signal Weak.", { id: 'gps-error' });
                     }
                 },
-                { 
-                    enableHighAccuracy: true, 
-                    timeout: 10000, 
-                    maximumAge: 0 
-                }
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
             );
-        } else {
-            toast.error("Browser does not support GPS");
         }
     }, [location.lat]);
 
@@ -75,7 +67,7 @@ export default function ScannedOrders() {
         };
     }, [startGPSWatch]);
 
-    // 2. Load Table Data
+    // 2. Load Table Data (With Filter Fix)
     const loadScannedOrders = useCallback(async () => {
         setLoading(true);
         try {
@@ -88,19 +80,26 @@ export default function ScannedOrders() {
             setOrders(res.orders || []);
             setPagination(res.pagination || { page: 1, total_pages: 1 });
         } catch (error) {
-            toast.error("Failed to load today's scans");
+            setOrders([]);
+            // Don't show error if it's just a 404 (No data found)
+            if (error.response?.status !== 404 && !isFirstRender.current) {
+                toast.error("Failed to load scans");
+            }
         } finally {
             setLoading(false);
+            isFirstRender.current = false;
         }
-    }, [filters]);
+    }, [filters.date, filters.status, filters.page, filters.limit]);
 
     useEffect(() => {
         loadScannedOrders();
     }, [loadScannedOrders]);
 
-    // 3. USB Scanner Auto-focus Logic
+    // 3. USB Scanner Auto-focus Logic (Dropdown Fix Included)
     useEffect(() => {
-        const focusInput = () => {
+        const focusInput = (e) => {
+            // FIX: If the user clicked on a Select or Input, don't steal focus
+            if (e && (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT')) return;
             if (!isScanning && inputRef.current) inputRef.current.focus();
         };
         focusInput();
@@ -108,38 +107,24 @@ export default function ScannedOrders() {
         return () => window.removeEventListener("click", focusInput);
     }, [isScanning]);
 
-    // 4. ROBUST Scan Success Logic (From Referral)
+    // 4. Robust Scan Success Logic
     const handleScanSuccess = async (decodedText) => {
         if (!decodedText || scanLoading) return;
 
-        // --- BARCODE CLEANING LOGIC ---
         let orderNumber = decodedText;
-        // Extract ID if URL
         if (typeof orderNumber === "string" && orderNumber.includes("/")) {
-            const parts = orderNumber.split("/");
-            orderNumber = parts[parts.length - 1];
+            orderNumber = orderNumber.split("/").pop();
         }
-        // Handle JSON
-        try {
-            const parsed = JSON.parse(orderNumber);
-            if (parsed?.order_number) orderNumber = parsed.order_number;
-        } catch (e) {}
-        // Cleanup whitespace
         orderNumber = String(orderNumber).replace(/["\n\r\t\s+]/g, "").trim();
 
-        if (!orderNumber) {
-            toast.error("Invalid Code format");
-            return;
-        }
+        if (!orderNumber) return;
 
-        // Duplicate Check (3s cooldown)
         const now = Date.now();
         if (scanCooldownRef.current[orderNumber] && now - scanCooldownRef.current[orderNumber] < 3000) return;
         scanCooldownRef.current[orderNumber] = now;
 
-        if (!location.lat || !location.lng) {
-            toast.error("GPS location not locked. Please wait...");
-            startGPSWatch();
+        if (!location.lat) {
+            toast.error("GPS location not locked.");
             return;
         }
 
@@ -147,17 +132,12 @@ export default function ScannedOrders() {
         const toastId = toast.loading(`Processing ${orderNumber}...`);
 
         try {
-            const res = await getOrderPincodeApi(orderNumber, location.lat, location.lng);
-            
-            // Success Feedback
+            await getOrderPincodeApi(orderNumber, location.lat, location.lng);
             try { new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg").play(); } catch (e) {}
-            if (navigator.vibrate) navigator.vibrate(200);
-
-            toast.success(res?.message || `Order ${orderNumber} Processed`, { id: toastId });
+            toast.success(`Order ${orderNumber} Processed`, { id: toastId });
             loadScannedOrders();
         } catch (error) {
-            const errorMsg = error?.response?.data?.message || "Scan failed";
-            toast.error(errorMsg, { id: toastId });
+            toast.error(error?.response?.data?.message || "Scan failed", { id: toastId });
         } finally {
             setScanLoading(false);
             if (inputRef.current) {
@@ -170,10 +150,7 @@ export default function ScannedOrders() {
     // 5. Camera Management
     const toggleScanner = async () => {
         if (isScanning) {
-            if (scannerRef.current) {
-                await scannerRef.current.stop().catch(() => {});
-                scannerRef.current = null;
-            }
+            if (scannerRef.current) await scannerRef.current.stop().catch(() => {});
             setIsScanning(false);
             return;
         }
@@ -182,15 +159,11 @@ export default function ScannedOrders() {
             try {
                 const html5QrCode = new Html5Qrcode("reader");
                 scannerRef.current = html5QrCode;
-                const devices = await Html5Qrcode.getCameras();
-                if (devices?.length > 0) {
-                    const backCam = devices.find(d => d.label.toLowerCase().includes("back") || d.label.toLowerCase().includes("rear"));
-                    await html5QrCode.start(
-                        backCam ? backCam.id : devices[0].id,
-                        { fps: 20, qrbox: { width: 250, height: 150 }, aspectRatio: 1.777 },
-                        (text) => handleScanSuccess(text)
-                    );
-                }
+                await html5QrCode.start(
+                    { facingMode: "environment" },
+                    { fps: 20, qrbox: { width: 250, height: 150 }, aspectRatio: 1.777 },
+                    (text) => handleScanSuccess(text)
+                );
             } catch (err) {
                 toast.error("Camera Access Denied");
                 setIsScanning(false);
@@ -198,21 +171,31 @@ export default function ScannedOrders() {
         }, 300);
     };
 
+    // 6. Export CSV (Fixed Time formatting)
     const handleExport = () => {
-        if (orders.length === 0) return toast.error("No data");
-        const headers = ["Order ID", "Order Number", "Boxes", "Consignee", "Status", "Payment", "Weight", "Scan Time"];
+        if (orders.length === 0) return toast.error("No data to export");
+        const headers = ["Order ID", "Order Number", "Boxes", "Consignee", "Status", "Payment", "Amount", "Scan Time"];
         const csv = [headers, ...orders.map(o => [
-            o.id, o.order_number, o.total_boxes, o.consignee?.name, o.status, o.payment_method, o.total_weight_kg,
-            new Date(o.updated_at).toLocaleTimeString()
+            o.id, 
+            o.order_number, 
+            o.total_boxes, 
+            o.consignee?.name || "N/A", 
+            o.status, 
+            o.payment_method, 
+            o.cod_amount || 0,
+            `'${new Date(o.updated_at).toLocaleTimeString()}` // Added ' prefix to prevent Excel ###
         ])].map(r => r.join(",")).join("\n");
+        
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = `ScanLog_${filters.date}.csv`; a.click();
+        const a = document.createElement('a'); 
+        a.href = url; 
+        a.download = `ScanLog_${filters.status}_${filters.date}.csv`; 
+        a.click();
     };
 
     return (
         <div className="space-y-6 p-4 lg:p-6 bg-dashboard-bg min-h-screen">
-            {/* HIDDEN INPUT FOR USB SCANNERS */}
             <input
                 ref={inputRef}
                 type="text"
@@ -231,13 +214,13 @@ export default function ScannedOrders() {
                     <h1 className="text-2xl font-bold text-text-main flex items-center gap-2">
                         <Scan className="text-primary" /> Speed Scan Log
                     </h1>
-                    <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">
+                    <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest mt-1">
                         Status: {location.lat ? "GPS Ready" : "Searching GPS..."}
                     </p>
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-card-bg border border-border-subtle rounded-xl">
+                    <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-card-bg border border-border-subtle rounded-xl shadow-sm">
                         <MapPin size={14} className={location.lat ? "text-green-500" : "text-red-500 animate-pulse"} />
                         <span className="text-[11px] font-mono font-bold text-text-main">
                             {location.lat ? `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}` : "SIGNAL SEARCHING..."}
@@ -265,6 +248,7 @@ export default function ScannedOrders() {
 
             <Card className="bg-card-bg border-border-subtle shadow-xl overflow-hidden rounded-2xl">
                 <CardContent className="p-0">
+                    {/* FILTERS */}
                     <div className="p-5 bg-dashboard-bg/30 border-b border-border-subtle grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-black text-text-muted uppercase ml-1">Scan Date</label>
@@ -272,15 +256,15 @@ export default function ScannedOrders() {
                                 type="date"
                                 className="w-full bg-card-bg border border-border-subtle rounded-xl px-3 py-2 text-xs text-text-main"
                                 value={filters.date}
-                                onChange={(e) => setFilters({ ...filters, date: e.target.value, page: 1 })}
+                                onChange={(e) => setFilters(prev => ({ ...prev, date: e.target.value, page: 1 }))}
                             />
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-black text-text-muted uppercase ml-1">Target Status</label>
                             <select
-                                className="w-full bg-card-bg border border-border-subtle rounded-xl px-3 py-2 text-xs text-text-main"
+                                className="w-full bg-card-bg border border-border-subtle rounded-xl px-3 py-2 text-xs text-text-main cursor-pointer"
                                 value={filters.status}
-                                onChange={(e) => setFilters({ ...filters, status: e.target.value, page: 1 })}
+                                onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value, page: 1 }))}
                             >
                                 <option value="Picked">Picked (In-Scan)</option>
                                 <option value="Dispatched">Dispatched (Out-Scan)</option>
@@ -297,6 +281,7 @@ export default function ScannedOrders() {
                         </div>
                     </div>
 
+                    {/* TABLE */}
                     <div className="overflow-x-auto relative min-h-[400px]">
                         {loading && (
                             <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-20">
@@ -306,11 +291,10 @@ export default function ScannedOrders() {
                         <table className="w-full text-left">
                             <thead>
                                 <tr className="bg-dashboard-bg/50 text-text-muted text-[10px] font-black uppercase tracking-widest border-b border-border-subtle">
-                                    <th className="px-6 py-5">Order ID & Reference</th>
+                                    <th className="px-6 py-5">Order Reference</th>
                                     <th className="px-6 py-5">Consignee</th>
                                     <th className="px-6 py-5 text-center">Boxes</th>
-                                    <th className="px-6 py-5">Payment</th>
-                                    <th className="px-6 py-5">Logistics</th>
+                                    <th className="px-6 py-5">Payment & Amount</th>
                                     <th className="px-6 py-5">Status</th>
                                     <th className="px-6 py-5">Scan Time</th>
                                 </tr>
@@ -323,16 +307,10 @@ export default function ScannedOrders() {
                                                 <div className="text-sm font-black text-text-main group-hover:text-primary transition-colors">
                                                     {order.order_number}
                                                 </div>
-                                                <div className="text-[9px] text-text-muted font-mono mt-1" title={order.id}>
-                                                    UUID: {order.id.split('-')[0]}...
-                                                </div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="text-xs font-bold text-text-main uppercase">
                                                     {order.consignee?.name || "N/A"}
-                                                </div>
-                                                <div className="text-[9px] bg-primary/10 text-primary w-fit px-1 py-0.5 rounded mt-1 font-bold">
-                                                    {order.order_type}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 text-center">
@@ -353,10 +331,6 @@ export default function ScannedOrders() {
                                                 )}
                                             </td>
                                             <td className="px-6 py-4">
-                                                <div className="text-xs font-black text-text-main">{order.total_weight_kg} KG</div>
-                                                <div className="text-[9px] text-text-muted uppercase font-bold tracking-tighter">Gross Wt</div>
-                                            </td>
-                                            <td className="px-6 py-4">
                                                 <span className={cn(
                                                     "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase flex items-center w-fit gap-2",
                                                     order.status === 'Picked' ? 'bg-blue-500/10 text-blue-500' : 'bg-green-500/10 text-green-500'
@@ -374,10 +348,10 @@ export default function ScannedOrders() {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={7} className="px-6 py-28 text-center">
+                                        <td colSpan={6} className="px-6 py-28 text-center">
                                             <div className="flex flex-col items-center gap-4 opacity-30">
                                                 <PackageSearch size={64} className="text-text-muted" />
-                                                <p className="text-sm font-black text-text-main uppercase tracking-widest">No Scans Found</p>
+                                                <p className="text-sm font-black text-text-main uppercase tracking-widest">No {filters.status} Scans Found</p>
                                             </div>
                                         </td>
                                     </tr>
@@ -389,7 +363,7 @@ export default function ScannedOrders() {
                     <Pagination
                         currentPage={pagination.page}
                         totalPages={pagination.total_pages}
-                        onPageChange={(p) => setFilters({ ...filters, page: p })}
+                        onPageChange={(p) => setFilters(prev => ({ ...prev, page: p }))}
                     />
                 </CardContent>
             </Card>

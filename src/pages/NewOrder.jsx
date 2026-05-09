@@ -165,7 +165,7 @@ export default function NewOrder() {
 
       await dispatch(createOrder(payload)).unwrap();
       toast.success("Order Placed Successfully!");
-      navigate("/dashboard/orders");
+      navigate("/dashboard/processing-order");
     } catch (err) {
       toast.error("Failed to create order.");
     }

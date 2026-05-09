@@ -32,7 +32,7 @@ import OrderDetailsModal from "../components/modals/OrderDetailsModal";
 
 export function ProcessingOrders() {
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [selectedOrders, setSelectedOrders] = useState([]); // for table selection
+  const [selectedOrders, setSelectedOrders] = useState([]); 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [filters, setFilters] = useState({
@@ -84,8 +84,7 @@ export function ProcessingOrders() {
     const status = tabStatusMap[tabName];
 
     if (!status) {
-      // All Orders
-      setSearchParams({ status: "all" }); // force change
+      setSearchParams({ status: "all" }); 
     } else {
       setSearchParams({ status });
     }
@@ -147,12 +146,10 @@ export function ProcessingOrders() {
   useEffect(() => {
     let statusFromUrl = searchParams.get("status");
 
-    // default initial tab
     if (!statusFromUrl) {
       statusFromUrl = "processing";
     }
 
-    // backend expects empty for all
     if (statusFromUrl === "all") {
       statusFromUrl = "";
     }
@@ -253,18 +250,15 @@ export function ProcessingOrders() {
                     onClick={() => {
                       const getOrderId = (order) => order.id;
 
-                      // ✅ filter selected rows
                       const selected = orders.filter((o) =>
                         selectedOrders.includes(getOrderId(o)),
                       );
 
-                      // ❌ if nothing selected → stop
                       if (selected.length === 0) {
                         alert("Please select at least one order");
                         return;
                       }
 
-                      // ✅ map to your excel format
                       const mappedOrders = selected.map((order) => ({
                         transactionId: order.id,
                         id: order.order_number,
@@ -294,7 +288,6 @@ export function ProcessingOrders() {
                         },
                       }));
 
-                      // export ONLY selected
                       downloadInvoiceExcel(mappedOrders);
                     }}
                   >
@@ -490,10 +483,8 @@ export function ProcessingOrders() {
                       limit: 25,
                     });
 
-                    // 2. Clear URL params (VERY IMPORTANT)
                     setSearchParams({});
 
-                    // 3. Fetch fresh data
                     dispatch(
                       fetchOrders({
                         page: 1,
@@ -590,7 +581,7 @@ export function ProcessingOrders() {
                     payment: {
                       method: order.payment_method || "N/A",
 
-                      total: `₹${order.order_value || 0}`, // always total order value
+                      total: `₹${order.order_value || 0}`, 
 
                       payable:
                         order.payment_method === "COD"

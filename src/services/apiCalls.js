@@ -346,3 +346,13 @@ export const fetchActivityLogsApi = async (params) => {
   const res = await API.get(ENDPOINTS.ACTIVITY_LOGS, { params: cleanParams });
   return res.data;
 };
+
+
+export const uploadBulkOrderApi = async (formData) => {
+  const res = await API.post(ENDPOINTS.BULK_ORDER_UPLOAD, formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return res.data;
+};
