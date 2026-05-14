@@ -2,30 +2,35 @@ import { useState, useRef, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
     Menu, Bell, Search, Moon, Sun, Plus, Zap, X, ShoppingBag, List,
-    Calculator, FileText, History, Copy, Download, QrCode, ChevronDown, User, Loader2
+    Calculator, FileText, History, Copy, Download, QrCode, ChevronDown, User, Loader2, Package, Wallet
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { useTheme } from "../../contexts/ThemeContext";
 import Logo from "../../assets/images/Roadoz Golden hd.png";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { cn } from "../../lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { fetchProfile } from "../../redux/profileSlice";
-import  bulkUploadOrders  from "../../redux/bulkOrderSlice";
-import { resetOrderState } from "../../redux/bulkOrderSlice";
-import { fetchPickupAddressesApi } from "../../services/apiCalls";
+import { bulkUploadOrders, resetOrderState } from "../../redux/bulkOrderSlice";
+import { fetchPickupAddressesApi, getNotificationsWSUrl } from "../../services/apiCalls";
 import { toast } from "react-hot-toast";
+import Cookies from "js-cookie";
+
+import { addNotification, markNotificationAsRead, fetchNotifications } from "../../redux/notificationSlice";
 
 const IMAGE_BASE_URL = "http://api.roadozcourier.com";
 
 export function Header({ toggleSidebar }) {
     const { theme, toggleTheme } = useTheme();
     const dispatch = useDispatch();
+    const navigate = useNavigate();
 
     const { user } = useSelector((state) => state.profile);
     const role = useSelector((state) => state.auth.role);
     const { loading: uploadLoading, error: uploadError, success: uploadSuccess } = useSelector((state) => state.bulkOrders);
+    const { items: notifications, unreadCount } = useSelector((state) => state.notifications);
 
+    // Component State
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -43,7 +48,47 @@ export function Header({ toggleSidebar }) {
 
     useEffect(() => {
         dispatch(fetchProfile());
+        dispatch(fetchNotifications({ limit: 50 })); 
     }, [dispatch]);
+
+    useEffect(() => {
+        const wsUrl = getNotificationsWSUrl();
+        const socket = new WebSocket(wsUrl);
+
+        socket.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                dispatch(addNotification(data));
+                toast.success(data.message, { icon: '📦' });
+            } catch (err) {
+                console.error("WS Parsing Error:", err);
+            }
+        };
+
+        socket.onclose = () => console.log("Notification Socket Closed");
+        socket.onerror = (err) => console.error("WS Socket Error", err);
+
+        return () => socket.close();
+    }, [dispatch]);
+
+    const handleNotifyClick = (notification) => {
+        if (!notification.is_read) {
+            dispatch(markNotificationAsRead(notification.id));
+        }
+
+        if (notification.type === "order" && notification.order_id) {
+            // navigate(`/orders/${notification.order_id}`); 
+            // setIsNotificationsOpen(false);
+        }
+    };
+
+    const filteredNotifications = notifications.filter(item => {
+        const type = item.type?.toLowerCase();
+        if (activeNotifyTab === "Orders") return type === "order" || !type;
+        if (activeNotifyTab === "Wallet") return type === "wallet";
+        if (activeNotifyTab === "COD") return type === "cod";
+        return true;
+    });
 
     useEffect(() => {
         if (isImportModalOpen) {
@@ -114,15 +159,13 @@ export function Header({ toggleSidebar }) {
         }
     };
 
-    const handleImportSubmit = () => {
+    const handleImportSubmit = async () => {
         if (!selectedFile) return toast.error("Please select an Excel file first");
         if (!pickupAddressId) return toast.error("Please select a pickup address");
-
         const formData = new FormData();
         formData.append("file", selectedFile); 
         formData.append("order_type", orderType);
         formData.append("pickup_address_id", pickupAddressId);
-
         dispatch(bulkUploadOrders(formData));
     };
 
@@ -161,7 +204,7 @@ export function Header({ toggleSidebar }) {
                     </button>
 
                     <div onClick={() => setIsWalletModalOpen(true)} className="flex items-center gap-1 bg-dashboard-bg px-2 md:px-3 py-1.5 rounded-full border border-border-subtle cursor-pointer hover:border-primary/50 transition-all">
-                        <span className="text-text-main font-bold text-xs md:text-sm">₹ 689</span>
+                        <span className="text-text-main font-bold text-xs md:text-sm">₹ {user?.wallet_balance || "689"}</span>
                         <div className="w-4 h-4 md:w-5 md:h-5 bg-primary rounded-full flex items-center justify-center text-black ml-0.5">
                             <Plus size={10} strokeWidth={4} />
                         </div>
@@ -169,23 +212,64 @@ export function Header({ toggleSidebar }) {
 
                     <div className="relative" ref={notificationRef}>
                         <button onClick={() => setIsNotificationsOpen(!isNotificationsOpen)} className="text-text-muted hover:text-text-main p-2 relative group">
-                            <Bell size={20} className="group-hover:animate-shake" />
-                            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-card-bg"></span>
+                            <Bell size={20} className={unreadCount > 0 ? "animate-shake" : "group-hover:animate-shake"} />
+                            {unreadCount > 0 && (
+                                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-card-bg">
+                                    {unreadCount > 99 ? '99+' : unreadCount}
+                                </span>
+                            )}
                         </button>
                         <AnimatePresence>
                             {isNotificationsOpen && (
                                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="fixed sm:absolute right-0 left-0 sm:left-auto top-16 sm:top-full mx-4 sm:mx-0 mt-2 w-auto sm:w-80 bg-card-bg border border-border-subtle rounded-xl shadow-2xl overflow-hidden z-50">
                                     <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-dashboard-bg/30">
                                         <h3 className="font-bold text-text-main text-sm">Notifications</h3>
-                                        <span className="bg-red-500/10 text-red-500 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">9 Unread</span>
+                                        <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">{unreadCount} Unread</span>
                                     </div>
                                     <div className="flex border-b border-border-subtle bg-dashboard-bg/10">
                                         {["Orders", "Wallet", "COD"].map((tab) => (
-                                            <button key={tab} onClick={() => setActiveNotifyTab(tab)} className={cn("flex-1 py-2.5 text-[11px] font-bold transition-all border-b-2", activeNotifyTab === tab ? "text-primary border-primary" : "text-text-muted border-transparent")}>{tab}</button>
+                                            <button 
+                                                key={tab} 
+                                                onClick={() => setActiveNotifyTab(tab)} 
+                                                className={cn("flex-1 py-2.5 text-[11px] font-bold transition-all border-b-2", activeNotifyTab === tab ? "text-primary border-primary" : "text-text-muted border-transparent")}
+                                            >
+                                                {tab}
+                                            </button>
                                         ))}
                                     </div>
-                                    <div className="p-10 text-center bg-card-bg">
-                                        <p className="text-text-muted text-xs italic">No {activeNotifyTab} notifications</p>
+                                    <div className="max-h-[350px] overflow-y-auto bg-card-bg scrollbar-thin">
+                                        {filteredNotifications.length > 0 ? (
+                                            filteredNotifications.map((item) => (
+                                                <div 
+                                                    key={item.id} 
+                                                    onClick={() => handleNotifyClick(item)}
+                                                    className={cn(
+                                                        "p-4 border-b border-border-subtle flex gap-3 cursor-pointer transition-colors hover:bg-dashboard-bg/30",
+                                                        !item.is_read ? "bg-primary/5" : "opacity-70"
+                                                    )}
+                                                >
+                                                    <div className={cn("w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0", 
+                                                        !item.is_read ? "bg-primary/20 text-primary" : "bg-dashboard-bg text-text-muted")}>
+                                                        {item.type === 'wallet' ? <Wallet size={16} /> : <Package size={16} />}
+                                                    </div>
+                                                    <div className="flex flex-col gap-0.5 overflow-hidden">
+                                                        <p className="text-xs font-bold text-text-main truncate">{item.title}</p>
+                                                        <p className="text-[11px] text-text-muted line-clamp-2 leading-relaxed">{item.message}</p>
+                                                        <p className="text-[9px] text-text-muted mt-1 uppercase font-medium">
+                                                            {new Date(item.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                                                        </p>
+                                                    </div>
+                                                    {!item.is_read && <div className="w-2 h-2 bg-primary rounded-full mt-2 flex-shrink-0" />}
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="p-10 text-center">
+                                                <p className="text-text-muted text-xs italic">No {activeNotifyTab} notifications</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="p-3 text-center border-t border-border-subtle bg-dashboard-bg/20">
+                                        <button className="text-[11px] font-bold text-primary uppercase hover:underline">View All Notifications</button>
                                     </div>
                                 </motion.div>
                             )}
@@ -222,34 +306,15 @@ export function Header({ toggleSidebar }) {
                             <div className="p-6 md:p-8 space-y-5 md:space-y-6">
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-bold text-text-muted uppercase">Order Type *</label>
-                                    <select 
-                                        className="w-full bg-dashboard-bg border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-main focus:border-primary outline-none cursor-pointer"
-                                        value={orderType}
-                                        onChange={(e) => setOrderType(e.target.value)}
-                                    >
+                                    <select className="w-full bg-dashboard-bg border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-main focus:border-primary outline-none cursor-pointer" value={orderType} onChange={(e) => setOrderType(e.target.value)}>
                                         <option value="B2C">B2C</option>
                                         <option value="B2B">B2B</option>
                                     </select>
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-bold text-text-muted uppercase">Pickup Address *</label>
-                                    <select 
-                                        disabled={addressLoading}
-                                        className="w-full bg-dashboard-bg border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-main focus:border-primary outline-none cursor-pointer disabled:opacity-50"
-                                        value={pickupAddressId}
-                                        onChange={(e) => setPickupAddressId(e.target.value)}
-                                    >
-                                        {addressLoading ? (
-                                            <option>Loading addresses...</option>
-                                        ) : pickupAddresses.length > 0 ? (
-                                            pickupAddresses.map((addr) => (
-                                                <option key={addr.id} value={addr.id}>
-                                                    {addr.nickname} - {addr.city} ({addr.pincode})
-                                                </option>
-                                            ))
-                                        ) : (
-                                            <option value="">No active addresses found</option>
-                                        )}
+                                    <select disabled={addressLoading} className="w-full bg-dashboard-bg border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-main focus:border-primary outline-none cursor-pointer disabled:opacity-50" value={pickupAddressId} onChange={(e) => setPickupAddressId(e.target.value)}>
+                                        {addressLoading ? (<option>Loading addresses...</option>) : pickupAddresses.length > 0 ? (pickupAddresses.map((addr) => (<option key={addr.id} value={addr.id}>{addr.nickname} - {addr.city} ({addr.pincode})</option>))) : (<option value="">No active addresses found</option>)}
                                     </select>
                                 </div>
                                 <div className="space-y-1.5">
@@ -259,9 +324,7 @@ export function Header({ toggleSidebar }) {
                                             Choose File 
                                             <input id="bulk-file-input" type="file" className="hidden" onChange={handleFileChange} accept=".xlsx, .xls" />
                                         </label>
-                                        <span className="px-4 py-3 text-sm text-text-muted italic truncate">
-                                            {selectedFile ? selectedFile.name : "No file chosen (.xlsx only)"}
-                                        </span>
+                                        <span className="px-4 py-3 text-sm text-text-muted italic truncate">{selectedFile ? selectedFile.name : "No file chosen (.xlsx only)"}</span>
                                     </div>
                                 </div>
                                 <div className="space-y-3 pt-2">
@@ -271,11 +334,7 @@ export function Header({ toggleSidebar }) {
                             </div>
                             <div className="p-6 border-t border-border-subtle bg-dashboard-bg/50 flex justify-end gap-3">
                                 <button onClick={() => setIsImportModalOpen(false)} className="px-6 py-2 text-sm font-bold text-text-muted">Close</button>
-                                <Button 
-                                    disabled={uploadLoading || addressLoading}
-                                    onClick={handleImportSubmit}
-                                    className="bg-primary text-black px-10 h-10 font-bold shadow-lg min-w-[120px]"
-                                >
+                                <Button disabled={uploadLoading || addressLoading} onClick={handleImportSubmit} className="bg-primary text-black px-10 h-10 font-bold shadow-lg min-w-[120px]">
                                     {uploadLoading ? <Loader2 className="animate-spin" size={20} /> : "Import"}
                                 </Button>
                             </div>

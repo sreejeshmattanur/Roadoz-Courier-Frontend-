@@ -14,6 +14,7 @@ import activityLogReducer from "./activityLogSlice";
 import warehouseReducer from "./warehouseSlice";
 import reviewReducer from "./reviewSlice";
 import bulkOrderReducer from "./bulkOrderSlice";
+import notificationReducer from "./notificationSlice";
 export const store = configureStore({
   reducer: {
     auth: authReducer,

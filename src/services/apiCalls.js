@@ -421,3 +421,21 @@ export const fetchServiceReviewsApi = async (params) => {
 
   return res.data;
 };
+
+
+export const fetchNotificationsApi = async (params) => {
+  const res = await API.get("/notifications", { params });
+  return res.data;
+};
+
+export const markNotificationReadApi = async (id) => {
+  const res = await API.put(`/notifications/${id}/read`);
+  return res.data;
+};
+
+export const getNotificationsWSUrl = () => {
+  const base = import.meta.env.VITE_APP_BASE_URL || "http://api.roadozcourier.com/api/v1";
+  const wsBase = base.replace(/^http/, "ws");
+  const token = Cookies.get("access_token");
+  return `${wsBase}/websocket/ws/notifications${token ? `?token=${token}` : ""}`;
+};
