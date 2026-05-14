@@ -32,5 +32,6 @@ export const store = configureStore({
     bulkOrders: bulkOrderReducer,
     warehouse: warehouseReducer,
     review: reviewReducer,
+    notifications: notificationReducer,
   },
 });
