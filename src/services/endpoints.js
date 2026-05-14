@@ -19,12 +19,8 @@ export const ENDPOINTS = {
   GET_ORDER_PINCODE: "/orders/get-pincode",
   TODAY_STATUS: "/orders/orders/today-status",
   ACTIVITY_LOGS: "/activity-logs",
+  WAREHOUSE: "/warehouse",
+  SERVICE_REVIEWS: "/project/reviews",
+  ORDER_REVIEWS: "/product-reviews",
   BULK_ORDER_UPLOAD: "/orders/bulk",
-
-
-
-
-
-
-
 };

@@ -35,6 +35,8 @@ import { Permissions } from "./pages/admin/Permissions";
 import { Roles } from "./pages/admin/Roles";
 import { Users } from "./pages/admin/Users";
 import { Franchise } from "./pages/Franchise";
+import { Warehouse } from "./pages/Warehouse";
+import { Review } from "./pages/Review";
 import StaffRegistration from "./pages/StaffRegistration";
 import FranchiseWizard from "./components/common/FranchiseWizard";
 import { ProtectedRoute } from "./components/common/ProtectedRoute";
@@ -273,6 +275,25 @@ export default function App() {
                 </PermissionRoute>
               }
             />
+
+            <Route
+              path="warehouse"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <Warehouse />
+                </PermissionRoute>
+              }
+            />
+
+            <Route
+              path="reviews"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <Review />
+                </PermissionRoute>
+              }
+            />
+
             <Route path="tickets" element={<Tickets />} />
             <Route path="reports" element={<Reports />} />
 

@@ -17,6 +17,8 @@ import {
   X,
   ShieldCheck,
   Store,
+  Warehouse,
+  ClipboardCheck,
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { NavLink } from "../NavLink";
@@ -58,43 +60,107 @@ export function Sidebar({ isOpen, setIsOpen }) {
     orders: [
       { name: "All Orders", to: `${base}/all-orders`, perm: "orders:view" },
       { name: "Manifested", to: `${base}/manifested`, perm: "orders:view" },
-      { name: "Scanned Orders", to: `${base}/scanned-orders`, perm: "orders:view" },
+      {
+        name: "Scanned Orders",
+        to: `${base}/scanned-orders`,
+        perm: "orders:view",
+      },
       { name: "Not Picked", to: `${base}/not-picked`, perm: "orders:view" },
-      { name: "In Transit Orders", to: `${base}/in-transit`, perm: "orders:view" },
+      {
+        name: "In Transit Orders",
+        to: `${base}/in-transit`,
+        perm: "orders:view",
+      },
       { name: "Pending", to: `${base}/pending`, perm: "orders:view" },
-      { name: "Out For Delivery", to: `${base}/out-for-delivery`, perm: "orders:view" },
+      {
+        name: "Out For Delivery",
+        to: `${base}/out-for-delivery`,
+        perm: "orders:view",
+      },
       { name: "Delivered", to: `${base}/delivered`, perm: "orders:view" },
-      { name: "RTO In Transit", to: `${base}/rto-in-transit`, perm: "orders:view" },
-      { name: "RTO Delivered", to: `${base}/rto-delivered`, perm: "orders:view" },
+      {
+        name: "RTO In Transit",
+        to: `${base}/rto-in-transit`,
+        perm: "orders:view",
+      },
+      {
+        name: "RTO Delivered",
+        to: `${base}/rto-delivered`,
+        perm: "orders:view",
+      },
       { name: "Returned", to: `${base}/returned`, perm: "orders:view" },
       { name: "Cancelled", to: `${base}/cancelled`, perm: "orders:view" },
     ],
 
     admin: [
-      { name: "User Management", to: `${base}/admin/users`, perm: "users:view" },
-      { name: "Role Permissions", to: `${base}/admin/roles`, perm: "roles:view" },
-      { name: "Assign Roles", to: `${base}/admin/assign-roles`, perm: "user_roles:assign" },
-      { name: "Activity Logs", to: `${base}/admin/activity-logs`, perm: "logs:view" },
+      {
+        name: "User Management",
+        to: `${base}/admin/users`,
+        perm: "users:view",
+      },
+      {
+        name: "Role Permissions",
+        to: `${base}/admin/roles`,
+        perm: "roles:view",
+      },
+      {
+        name: "Assign Roles",
+        to: `${base}/admin/assign-roles`,
+        perm: "user_roles:assign",
+      },
+      {
+        name: "Activity Logs",
+        to: `${base}/admin/activity-logs`,
+        perm: "logs:view",
+      },
     ],
 
     tools: [
-      { name: "Serviceable Pincode", to: `${base}/serviceable-pincode`, perm: "tools:view" },
-      { name: "Rate Calculator", to: `${base}/rate-calculator`, perm: "tools:view" },
-      { name: "Channel Integration", to: `${base}/channel-integration`, perm: "tools:view" },
+      {
+        name: "Serviceable Pincode",
+        to: `${base}/serviceable-pincode`,
+        perm: "tools:view",
+      },
+      {
+        name: "Rate Calculator",
+        to: `${base}/rate-calculator`,
+        perm: "tools:view",
+      },
+      {
+        name: "Channel Integration",
+        to: `${base}/channel-integration`,
+        perm: "tools:view",
+      },
     ],
 
     finance: [
       { name: "Wallet", to: `${base}/wallet`, perm: "finance:view" },
-      { name: "COD Remittance", to: `${base}/cod-remittance`, perm: "finance:view" },
+      {
+        name: "COD Remittance",
+        to: `${base}/cod-remittance`,
+        perm: "finance:view",
+      },
       { name: "Invoices", to: `${base}/invoices`, perm: "finance:view" },
     ],
 
     settings: [
-      { name: "General Details", to: `${base}/settings/general`, perm: "profile:view" },
+      {
+        name: "General Details",
+        to: `${base}/settings/general`,
+        perm: "profile:view",
+      },
       { name: "Change Password", to: `${base}/settings/password` },
-      { name: "Pickup Address", to: `${base}/settings/pickup`, perm: "profile:edit" },
+      {
+        name: "Pickup Address",
+        to: `${base}/settings/pickup`,
+        perm: "profile:edit",
+      },
       { name: "RTO Address", to: `${base}/settings/rto`, perm: "profile:edit" },
-      { name: "Label Setting", to: `${base}/settings/label"`, perm: "profile:edit" },
+      {
+        name: "Label Setting",
+        to: `${base}/settings/label"`,
+        perm: "profile:edit",
+      },
       { name: "KYC", to: `${base}/settings/kyc`, perm: "profile:edit" },
     ],
   };
@@ -106,7 +172,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
     const currentPath = location.pathname;
 
     const activeSection = Object.keys(sections).find((key) =>
-      sections[key].some((item) => currentPath.startsWith(item.to))
+      sections[key].some((item) => currentPath.startsWith(item.to)),
     );
 
     if (activeSection) {
@@ -173,7 +239,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
             isOpen ? "justify-between" : "justify-center",
             openMenus[id]
               ? "bg-primary/10 text-text-main"
-              : "text-text-muted hover:bg-text-muted/5"
+              : "text-text-muted hover:bg-text-muted/5",
           )}
         >
           <div className="flex items-center gap-3">
@@ -200,7 +266,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
                     "py-2 pl-8 pr-4 text-xs rounded-md flex items-center gap-2",
                     isActive
                       ? "text-primary bg-primary/10 font-bold"
-                      : "text-text-muted hover:bg-text-muted/5"
+                      : "text-text-muted hover:bg-text-muted/5",
                   )
                 }
               >
@@ -219,7 +285,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
         "fixed lg:static inset-y-0 left-0 z-50 flex flex-col h-screen bg-dashboard-bg border-r border-border-subtle transition-all duration-300",
         isOpen
           ? "w-64 translate-x-0"
-          : "w-0 lg:w-20 -translate-x-full lg:translate-x-0"
+          : "w-0 lg:w-20 -translate-x-full lg:translate-x-0",
       )}
     >
       {/* Logo */}
@@ -229,7 +295,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
           alt="Logo"
           className={cn(
             "object-contain transition-all",
-            isOpen ? "w-40 h-12" : "w-10 h-10"
+            isOpen ? "w-40 h-12" : "w-10 h-10",
           )}
         />
 
@@ -317,6 +383,26 @@ export function Sidebar({ isOpen, setIsOpen }) {
             hideText={!isOpen}
           >
             Consignees
+          </NavLink>
+        )}
+        
+        {hasPerm("orders:view") && (
+          <NavLink
+            to={`${base}/warehouse`}
+            icon={<Warehouse size={20} />}
+            hideText={!isOpen}
+          >
+            Warehouse
+          </NavLink>
+        )}
+
+        {hasPerm("orders:view") && (
+          <NavLink
+            to={`${base}/reviews`}
+            icon={<ClipboardCheck size={20} />}
+            hideText={!isOpen}
+          >
+            Review
           </NavLink>
         )}
 

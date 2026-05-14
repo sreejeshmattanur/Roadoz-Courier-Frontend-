@@ -11,6 +11,8 @@ import remittanceReducer from "./remittanceSlice";
 import invoiceReducer from "./invoiceSlice";
 import consigneeReducer from "./consigneeSlice";
 import activityLogReducer from "./activityLogSlice";
+import warehouseReducer from "./warehouseSlice";
+import reviewReducer from "./reviewSlice";
 import bulkOrderReducer from "./bulkOrderSlice";
 export const store = configureStore({
   reducer: {
@@ -27,7 +29,7 @@ export const store = configureStore({
     invoices: invoiceReducer,
     activityLogs: activityLogReducer,
     bulkOrders: bulkOrderReducer,
-
+    warehouse: warehouseReducer,
+    review: reviewReducer,
   },
 });
-

@@ -364,11 +364,60 @@ export const fetchActivityLogsApi = async (params) => {
   return res.data;
 };
 
+export const fetchWarehousesApi = async () => {
+  const res = await API.get(`${ENDPOINTS.WAREHOUSE}/getall/`);
+
+  return res.data;
+};
+
+export const fetchWarehouseByPincodeApi = async (pincode) => {
+  const res = await API.get(
+    `${ENDPOINTS.WAREHOUSE}/getonebyonewithpincode/${pincode}`,
+  );
+
+  return res.data;
+};
+
+export const createWarehouseApi = async (data) => {
+  const res = await API.post(`${ENDPOINTS.WAREHOUSE}/warehousecreate/`, data);
+
+  return res.data;
+};
+
+export const updateWarehouseApi = async (addressId, data) => {
+  const res = await API.patch(
+    `${ENDPOINTS.WAREHOUSE}/update/${addressId}`,
+    data,
+  );
+
+  return res.data;
+};
+
 export const uploadBulkOrderApi = async (formData) => {
   const res = await API.post(ENDPOINTS.BULK_ORDER_UPLOAD, formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
   });
+  return res.data;
+};
+
+// ORDER REVIEWS
+export const fetchOrderReviewsApi = async (params) => {
+  const res = await API.get(`${ENDPOINTS.ORDER_REVIEWS}/all-reviews/`, {
+    params,
+  });
+
+  return res.data;
+};
+
+// SERVICE REVIEWS
+export const fetchServiceReviewsApi = async (params) => {
+  const res = await API.get(`${ENDPOINTS.SERVICE_REVIEWS}/all`, {
+    params,
+  });
+
+  console.log("SERVICE REVIEWS RESPONSE", res.data);
+
   return res.data;
 };
