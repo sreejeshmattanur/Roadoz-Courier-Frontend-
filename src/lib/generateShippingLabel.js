@@ -152,7 +152,7 @@ function drawLabel(doc, order, pageHeight) {
   doc.setFontSize(5);
   doc.setTextColor(0, 0, 0);
 
-  doc.text("LOGISTICS AND COURIER SERVICES", LEFT + 2.5, currentY + 13);
+  doc.text("LOGISTICS & COURIER SERVICES", LEFT + 2.5, currentY + 13);
 
   currentY += headerHeight;
 
