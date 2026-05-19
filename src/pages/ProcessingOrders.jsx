@@ -553,17 +553,35 @@ export function ProcessingOrders() {
                   <Button
                     className="bg-primary text-black hover:bg-primary/90 text-xs font-bold gap-2 h-9"
                     onClick={() => {
-                      if (selectedOrders.length === 0) {
-                        return toast.error("Please select at least one order");
+                      try {
+                        console.log("BUTTON CLICKED");
+
+                        console.log("orders:", orders);
+
+                        console.log("selectedOrders:", selectedOrders);
+
+                        if (!Array.isArray(orders)) {
+                          alert("Orders is not array");
+                          return;
+                        }
+
+                        if (!selectedOrders?.length) {
+                          toast.error("Please select at least one order");
+                          return;
+                        }
+
+                        const selectedOrdersData = orders.filter((o) =>
+                          selectedOrders.includes(o.id),
+                        );
+
+                        console.log("selectedOrdersData:", selectedOrdersData);
+
+                        generateShippingLabel(selectedOrdersData);
+                      } catch (error) {
+                        console.error(error);
+
+                        alert(error.message);
                       }
-
-                      const selectedOrdersData = orders.filter((o) =>
-                        selectedOrders.includes(o.id),
-                      );
-
-                      console.log(selectedOrdersData);
-
-                      generateShippingLabel(selectedOrdersData);
                     }}
                   >
                     <Tag size={16} /> Labels
