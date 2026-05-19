@@ -39,7 +39,7 @@ import OrderDetailsModal from "../components/modals/OrderDetailsModal";
 import EditWeightModal from "../components/modals/EditWeightModal";
 import ChangePickupAddressModal from "../components/modals/ChangePickupAddressModal";
 import toast from "react-hot-toast";
-import { generateInvoicePDF } from "../lib/generateInvoicePDf";
+import { generateInvoicePDF } from "../lib/generateInvoicePDF";
 import { mapOrderToInvoice } from "../lib/invoiceMapper";
 import { generateShippingLabel } from "../lib/generateShippingLabel";
 
