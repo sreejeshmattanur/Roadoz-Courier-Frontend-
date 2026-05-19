@@ -28,6 +28,41 @@ const TX = {
 };
 
 // ─────────────────────────────────────────────────────────────
+// SAFE PDF DOWNLOAD (VERCEL FIX)
+// ─────────────────────────────────────────────────────────────
+function downloadPDF(doc, filename) {
+  try {
+    console.log("DOWNLOADING PDF");
+
+    const blob = doc.output("blob");
+
+    const url = URL.createObjectURL(blob);
+
+    // OPEN PDF
+    window.open(url);
+
+    // DOWNLOAD PDF
+    const link = document.createElement("a");
+
+    link.href = url;
+
+    link.download = filename;
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 1000);
+  } catch (error) {
+    console.error("DOWNLOAD ERROR:", error);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // CALCULATE DYNAMIC HEIGHT
 // ─────────────────────────────────────────────────────────────
 function calculateLabelHeight(order) {
@@ -90,60 +125,45 @@ function calculateLabelHeight(order) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// SAFE DOWNLOAD FUNCTION (VERCEL FIX)
-// ─────────────────────────────────────────────────────────────
-function downloadPDF(doc, filename) {
-  const blob = doc.output("blob");
-
-  const url = window.URL.createObjectURL(blob);
-
-  const link = document.createElement("a");
-
-  link.href = url;
-
-  link.download = filename;
-
-  document.body.appendChild(link);
-
-  link.click();
-
-  document.body.removeChild(link);
-
-  window.URL.revokeObjectURL(url);
-}
-
-// ─────────────────────────────────────────────────────────────
 // MAIN FUNCTION
 // ─────────────────────────────────────────────────────────────
 export function generateShippingLabel(orders) {
-  if (!orders?.length) return;
+  try {
+    console.log("GENERATE SHIPPING LABEL CALLED");
 
-  const firstHeight = calculateLabelHeight(orders[0]);
-
-  const doc = new jsPDF({
-    unit: "mm",
-    format: [PW, firstHeight],
-    orientation: "portrait",
-  });
-
-  orders.forEach((order, index) => {
-    const pageHeight = calculateLabelHeight(order);
-
-    if (index > 0) {
-      doc.addPage([PW, pageHeight], "portrait");
+    if (!orders?.length) {
+      console.log("NO ORDERS FOUND");
+      return;
     }
 
-    drawLabel(doc, order, pageHeight);
-  });
+    const firstHeight = calculateLabelHeight(orders[0]);
 
-  // FIXED FOR VERCEL
-  downloadPDF(doc, "shipping_labels.pdf");
+    const doc = new jsPDF({
+      unit: "mm",
+      format: [PW, firstHeight],
+      orientation: "portrait",
+    });
+
+    orders.forEach((order, index) => {
+      const pageHeight = calculateLabelHeight(order);
+
+      if (index > 0) {
+        doc.addPage([PW, pageHeight], "portrait");
+      }
+
+      drawLabel(doc, order);
+    });
+
+    downloadPDF(doc, "shipping_labels.pdf");
+  } catch (error) {
+    console.error("GENERATE SHIPPING LABEL ERROR:", error);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
 // DRAW LABEL
 // ─────────────────────────────────────────────────────────────
-function drawLabel(doc, order, pageHeight) {
+function drawLabel(doc, order) {
   const LW = 0.22;
 
   doc.setLineWidth(LW);
@@ -166,14 +186,11 @@ function drawLabel(doc, order, pageHeight) {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
 
-  // black color
   doc.setTextColor(0, 0, 0);
 
   doc.text("Roadoz Courier", LEFT + 2.5, currentY + 9);
 
-  // Optional subtitle
   doc.setFontSize(5);
-  doc.setTextColor(0, 0, 0);
 
   doc.text("LOGISTICS AND COURIER SERVICES", LEFT + 2.5, currentY + 13);
 
@@ -280,48 +297,44 @@ function drawLabel(doc, order, pageHeight) {
     align: "center",
   });
 
+  // ============================================================
+  // BARCODE
+  // ============================================================
+
   try {
-    let barcodeBase64 = order.barcode || "";
+    console.log("GENERATING BARCODE");
 
-    if (barcodeBase64) {
-      barcodeBase64 = barcodeBase64.replace(/^data:image\/png;base64,/, "");
+    const canvas = document.createElement("canvas");
 
-      const barcodeImage = `data:image/png;base64,${barcodeBase64}`;
+    const barcodeGenerator = JsBarcode.default || JsBarcode;
 
-      doc.addImage(
-        barcodeImage,
-        "PNG",
-        LEFT + 6,
-        currentY + 20,
-        RIGHT - LEFT - 12,
-        16,
-      );
-    } else {
-      const canvas = document.createElement("canvas");
+    barcodeGenerator(canvas, awbNo, {
+      format: "CODE128",
+      displayValue: true,
+      fontSize: 16,
+      height: 70,
+      width: 2,
+      margin: 0,
+    });
 
-      // FIXED FOR VITE + VERCEL
-      JsBarcode.default(canvas, awbNo, {
-        format: "CODE128",
-        displayValue: true,
-        fontSize: 16,
-        height: 70,
-        width: 2,
-        margin: 0,
-      });
+    const generatedBarcode = canvas.toDataURL("image/png");
 
-      const generatedBarcode = canvas.toDataURL("image/png");
-
-      doc.addImage(
-        generatedBarcode,
-        "PNG",
-        LEFT + 6,
-        currentY + 20,
-        RIGHT - LEFT - 12,
-        16,
-      );
-    }
+    doc.addImage(
+      generatedBarcode,
+      "PNG",
+      LEFT + 6,
+      currentY + 20,
+      RIGHT - LEFT - 12,
+      16,
+    );
   } catch (err) {
-    console.error("Barcode render failed", err);
+    console.error("BARCODE ERROR:", err);
+
+    doc.setFontSize(10);
+
+    doc.text("BARCODE FAILED", PW / 2, currentY + 28, {
+      align: "center",
+    });
   }
 
   currentY += barcodeHeight;
@@ -352,237 +365,4 @@ function drawLabel(doc, order, pageHeight) {
     MID + 2,
     currentY + 5,
   );
-
-  currentY += paymentHeight;
-
-  // ============================================================
-  // SELLER HEADER
-  // ============================================================
-
-  const sellerHeaderHeight = 5;
-
-  doc.rect(LEFT, currentY, RIGHT - LEFT, sellerHeaderHeight);
-
-  doc.line(COL_QTY, currentY, COL_QTY, currentY + sellerHeaderHeight);
-
-  doc.line(COL_TOTAL, currentY, COL_TOTAL, currentY + sellerHeaderHeight);
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(6);
-
-  doc.text("Seller", TX.left, currentY + 3.5);
-
-  doc.text("Invoice No", COL_QTY + 1, currentY + 3.5);
-
-  doc.text("Date", COL_TOTAL + 1, currentY + 3.5);
-
-  currentY += sellerHeaderHeight;
-
-  // ============================================================
-  // SELLER DATA
-  // ============================================================
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6);
-
-  const sellerLines = doc.splitTextToSize(
-    pickup.contact_name || "Seller",
-    COL_QTY - LEFT - 3,
-  );
-
-  const sellerHeight = sellerLines.length * 3 + 3;
-
-  doc.rect(LEFT, currentY, RIGHT - LEFT, sellerHeight);
-
-  doc.line(COL_QTY, currentY, COL_QTY, currentY + sellerHeight);
-
-  doc.line(COL_TOTAL, currentY, COL_TOTAL, currentY + sellerHeight);
-
-  sellerLines.forEach((line, i) => {
-    doc.text(line, TX.left, currentY + 4 + i * 3);
-  });
-
-  const invoiceDate = formatDate(order.created_at);
-
-  doc.text(invoiceDate, COL_TOTAL + 1, currentY + 4);
-
-  currentY += sellerHeight;
-
-  // ============================================================
-  // INVOICE ROW
-  // ============================================================
-
-  const invoiceHeight = 8;
-
-  doc.rect(LEFT, currentY, RIGHT - LEFT, invoiceHeight);
-
-  doc.setFontSize(5.7);
-
-  doc.text(
-    `Invoice No: | Invoice Date : ${invoiceDate}`,
-    TX.left,
-    currentY + 3,
-  );
-
-  doc.text(
-    `GSTIN No: ${pickup.gst_number || order.gst_number || ""}`,
-    TX.left,
-    currentY + 6,
-  );
-
-  currentY += invoiceHeight;
-
-  // ============================================================
-  // PRODUCT HEADER
-  // ============================================================
-
-  const productHeaderHeight = 5;
-
-  doc.rect(LEFT, currentY, RIGHT - LEFT, productHeaderHeight);
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(6);
-
-  doc.text("Product Name", TX.left, currentY + 3.5);
-
-  doc.text("Rate", TX.rateX, currentY + 3.5);
-
-  doc.text("Qty", TX.qtyX, currentY + 3.5);
-
-  doc.text("Total", TX.totalX, currentY + 3.5);
-
-  currentY += productHeaderHeight;
-
-  // ============================================================
-  // PRODUCT ROW
-  // ============================================================
-
-  const items =
-    order.items?.length > 0
-      ? order.items
-      : [
-          {
-            product_name: "Item",
-            unit_price: order.order_value || 0,
-            qty: 1,
-            total: order.order_value || 0,
-          },
-        ];
-
-  const item = items[0];
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(5.8);
-
-  const productLines = doc.splitTextToSize(
-    String(item.product_name || ""),
-    COL_RATE - LEFT - 2,
-  );
-
-  const productHeight = productLines.length * 3 + 4;
-
-  doc.rect(LEFT, currentY, RIGHT - LEFT, productHeight);
-
-  doc.line(
-    COL_RATE,
-    currentY - productHeaderHeight,
-    COL_RATE,
-    currentY + productHeight,
-  );
-
-  doc.line(
-    COL_QTY,
-    currentY - productHeaderHeight,
-    COL_QTY,
-    currentY + productHeight,
-  );
-
-  doc.line(
-    COL_TOTAL,
-    currentY - productHeaderHeight,
-    COL_TOTAL,
-    currentY + productHeight,
-  );
-
-  productLines.forEach((line, i) => {
-    doc.text(line, TX.left, currentY + 4 + i * 3);
-  });
-
-  doc.text(String(item.unit_price || ""), TX.rateX, currentY + 4);
-
-  doc.text(String(item.qty || ""), TX.qtyX, currentY + 4);
-
-  doc.text(String(item.total || ""), TX.totalX, currentY + 4);
-
-  currentY += productHeight;
-
-  // ============================================================
-  // FOOTER
-  // ============================================================
-
-  const returnAddr = [
-    pickup.nickname || pickup.contact_name,
-    pickup.address_line_1,
-    pickup.address_line_2,
-    pickup.city,
-    pickup.state,
-    pickup.pincode,
-    "India",
-  ]
-    .filter(Boolean)
-    .join(", ");
-
-  const contacts = [pickup.phone, pickup.alternate_phone]
-    .filter(Boolean)
-    .join(", ");
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(5.2);
-
-  const noteLines = doc.splitTextToSize(
-    `${returnAddr} Mobile: ${pickup.phone || ""}`,
-    RIGHT - LEFT - 4,
-  );
-
-  const complaintLines = doc.splitTextToSize(
-    `For complaints & queries please contact ${contacts}`,
-    RIGHT - LEFT - 4,
-  );
-
-  const footerHeight =
-    5 + noteLines.length * 2.8 + complaintLines.length * 2.8 + 4;
-
-  doc.rect(LEFT, currentY, RIGHT - LEFT, footerHeight);
-
-  doc.text("NOTE: If undelivered return to:", TX.left, currentY + 3);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(4.8);
-
-  let footerY = currentY + 6;
-
-  noteLines.forEach((line) => {
-    doc.text(line, TX.left, footerY);
-    footerY += 2.8;
-  });
-
-  doc.setFont("helvetica", "bold");
-
-  complaintLines.forEach((line) => {
-    doc.text(line, TX.left, footerY);
-    footerY += 2.8;
-  });
-}
-
-// ─────────────────────────────────────────────────────────────
-// DATE FORMATTER
-// ─────────────────────────────────────────────────────────────
-function formatDate(dateStr) {
-  const d = dateStr ? new Date(dateStr) : new Date();
-
-  return [
-    String(d.getDate()).padStart(2, "0"),
-    String(d.getMonth() + 1).padStart(2, "0"),
-    d.getFullYear(),
-  ].join("/");
 }

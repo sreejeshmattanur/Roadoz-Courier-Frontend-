@@ -561,6 +561,8 @@ export function ProcessingOrders() {
                         selectedOrders.includes(o.id),
                       );
 
+                      console.log(selectedOrdersData);
+
                       generateShippingLabel(selectedOrdersData);
                     }}
                   >
