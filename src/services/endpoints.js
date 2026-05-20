@@ -15,6 +15,7 @@ export const ENDPOINTS = {
   INVOICES: "/invoices",
   CONSIGNEES: "/orders/consignees",
   ORDERS: "/orders",
+  DELETE_SCANNED_ORDER: (id, orderId) => `/orders/delete-scanned-order_with_mistak/${id}/${orderId}`,
   SCAN_ORDER: "/orders/scan",
   GET_ORDER_PINCODE: "/orders/get-pincode",
   TODAY_STATUS: "/orders/orders/today-status",
@@ -26,5 +27,52 @@ export const ENDPOINTS = {
   NOTIFICATIONS_WS: "/websocket/ws/notifications",
   READ_NOTIFICATION: (id) => `/notifications/${id}/read`,
   RATE_CALCULATOR: "/rate-calculator/calculate",
-
+  REPORTS: {
+    BOOKINGS: {
+      DAILY: "/reports/bookings/daily",
+      CUSTOMER_WISE: "/reports/bookings/customer-wise",
+      SERVICE_TYPE: "/reports/bookings/service-type",
+    },
+    DELIVERY: {
+      STATUS: "/reports/delivery/status",
+      PENDING: "/reports/delivery/pending",
+      RETURNED: "/reports/delivery/returned",
+    },
+    OPERATIONS: {
+      DAY_CLOSE: "/reports/operations/day-close",
+      BRANCH_ACTIVITY: "/reports/operations/branch-activity",
+      USER_ACTIVITY: "/reports/operations/user-activity",
+    },
+    COLLECTIONS: {
+      SUMMARY: "/reports/collections/summary",
+      OUTSTANDING: "/reports/collections/outstanding",
+      DAILY: "/reports/collections/daily",
+      COD_PENDING: "/reports/cod/pending",
+      COD_SETTLEMENT: "/reports/cod/settlement",
+      COD_COMMISSION: "/reports/cod/commission",
+    },
+    FINANCE: {
+      CASH_BOOK: "/reports/finance/cash-book",
+      EXPENSE: "/reports/finance/expense",
+      PROFIT_LOSS: "/reports/finance/profit-loss",
+    },
+    GST: {
+      SALES: "/reports/gst/sales",
+      HSN_SUMMARY: "/reports/gst/hsn-summary",
+      COLLECTION_SUMMARY: "/reports/gst/collection-summary",
+    },
+    FRANCHISE: {
+      SETTLEMENT: "/reports/franchise/settlement",
+      OUTSTANDING: "/reports/franchise/outstanding",
+      COLLECTION: "/reports/franchise/collection",
+      PROFITABILITY: "/reports/franchise/profitability",
+    },
+    MIS: {
+      MONTHLY_REVENUE: "/reports/mis/monthly-revenue",
+      TOP_CUSTOMERS: "/reports/mis/top-customers",
+      DELIVERY_EFFICIENCY: "/reports/mis/delivery-efficiency",
+      AREA_WISE: "/reports/mis/area-wise-business",
+      PERFORMANCE: "/reports/mis/performance-dashboard",
+    }
+  }
 };
