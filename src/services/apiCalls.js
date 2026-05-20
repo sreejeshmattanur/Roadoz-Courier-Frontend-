@@ -439,3 +439,8 @@ export const getNotificationsWSUrl = () => {
   const token = Cookies.get("access_token");
   return `${wsBase}/websocket/ws/notifications${token ? `?token=${token}` : ""}`;
 };
+
+export const calculateRateApi = async (payload) => {
+  const res = await API.post(ENDPOINTS.RATE_CALCULATOR, payload);
+  return res.data;
+};
