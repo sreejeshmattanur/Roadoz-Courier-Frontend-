@@ -25,4 +25,6 @@ export const ENDPOINTS = {
   BULK_ORDER_UPLOAD: "/orders/bulk",
   NOTIFICATIONS_WS: "/websocket/ws/notifications",
   READ_NOTIFICATION: (id) => `/notifications/${id}/read`,
+  RATE_CALCULATOR: "/rate-calculator/calculate",
+
 };
