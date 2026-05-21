@@ -1,4 +1,3 @@
-import React, { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Calendar,
@@ -25,7 +24,7 @@ import Pagination from "../components/ui/Pagination";
 import { Link, useNavigate } from "react-router-dom";
 import { downloadInvoiceExcel } from "../lib/invoiceExcel";
 
-import { useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   fetchOrders,
@@ -49,6 +48,9 @@ export function ProcessingOrders() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
   const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState(null);
+
+  const menuRef = useRef(null);
 
   const [selectedPickupAddress, setSelectedPickupAddress] = useState("");
 
@@ -243,6 +245,20 @@ export function ProcessingOrders() {
   useEffect(() => {
     dispatch(fetchPickupAddresses());
   }, [dispatch]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setOpenMenuId(null);
+      }
+    };
+
+    document.addEventListener("click", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("click", handleClickOutside);
+    };
+  }, []);
 
   const handleSearch = () => {
     const currentStatus = searchParams.get("status");
@@ -480,6 +496,59 @@ export function ProcessingOrders() {
     }
   };
 
+  const handleExportOrders = () => {
+    const selected = orders.filter((order) =>
+      selectedOrders.includes(order.id),
+    );
+
+    if (selected.length === 0) {
+      toast.error("Please select at least one order");
+      return;
+    }
+
+    const mappedOrders = selected.map((order) => ({
+      transactionId: order.id,
+
+      id: order.order_number,
+
+      customer: {
+        name: order.consignee?.name || "N/A",
+        phone: order.consignee?.mobile || "N/A",
+      },
+
+      shipment: {
+        id: order.order_shipment || "",
+        courier: order.courier_name || "",
+      },
+
+      route: {
+        from: order.pickup_address?.city || "",
+        fromPin: order.pickup_address?.pincode || "",
+        to: order.consignee?.city || "",
+        toPin: order.consignee?.pincode || "",
+      },
+
+      payment: {
+        method: order.payment_method || "",
+        total: order.order_value || 0,
+      },
+
+      weight: `${order.weight_summary?.total_weight_kg || 0} kg`,
+
+      dims: `${order.packages?.[0]?.length_cm || 0}×${
+        order.packages?.[0]?.breadth_cm || 0
+      }×${order.packages?.[0]?.height_cm || 0}`,
+
+      created: order.created_at,
+
+      order: {
+        id: order.order_number,
+      },
+    }));
+
+    downloadInvoiceExcel(mappedOrders);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -538,7 +607,10 @@ export function ProcessingOrders() {
                   >
                     <MapPin size={16} /> Change Pickup Address
                   </Button>
-                  <Button className="bg-primary text-black hover:bg-primary/90 text-xs font-bold gap-2 h-9">
+                  <Button
+                    className="bg-primary text-black hover:bg-primary/90 text-xs font-bold gap-2 h-9"
+                    onClick={handleExportOrders}
+                  >
                     <Download size={16} /> Export
                   </Button>
                   <Button
@@ -578,49 +650,7 @@ export function ProcessingOrders() {
                   )}
                   <Button
                     className="bg-primary text-black hover:bg-primary/90 text-xs font-bold gap-2 h-9"
-                    onClick={() => {
-                      const getOrderId = (order) => order.id;
-
-                      const selected = orders.filter((o) =>
-                        selectedOrders.includes(getOrderId(o)),
-                      );
-
-                      if (selected.length === 0) {
-                        alert("Please select at least one order");
-                        return;
-                      }
-
-                      const mappedOrders = selected.map((order) => ({
-                        transactionId: order.id,
-                        id: order.order_number,
-                        customer: {
-                          name: order.consignee?.name || "N/A",
-                          phone: order.consignee?.mobile || "N/A",
-                        },
-                        shipment: {
-                          id: order.order_shipment || "",
-                          courier: order.courier_name || "",
-                        },
-                        route: {
-                          from: order.pickup_address?.city || "",
-                          fromPin: order.pickup_address?.pincode || "",
-                          to: order.consignee?.city || "",
-                          toPin: order.consignee?.pincode || "",
-                        },
-                        payment: {
-                          method: order.payment_method || "",
-                          total: order.order_value || 0,
-                        },
-                        weight: `${order.weight_summary?.total_weight_kg || 0} kg`,
-                        dims: `${order.packages?.[0]?.length_cm || 0}×${order.packages?.[0]?.breadth_cm || 0}×${order.packages?.[0]?.height_cm || 0}`,
-                        created: order.created_at,
-                        order: {
-                          id: order.order_number,
-                        },
-                      }));
-
-                      downloadInvoiceExcel(mappedOrders);
-                    }}
+                    onClick={handleExportOrders}
                   >
                     <Download size={16} /> Export
                   </Button>
@@ -1135,6 +1165,16 @@ export function ProcessingOrders() {
                                       },
                                     );
                                   }
+
+                                  // PRINT INVOICE
+                                  if (Icon === Printer) {
+                                    const invoiceData = mapOrderToInvoice(
+                                      order,
+                                      formatDate,
+                                    );
+
+                                    generateInvoicePDF(invoiceData);
+                                  }
                                 }}
                                 className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
                               >
@@ -1160,9 +1200,87 @@ export function ProcessingOrders() {
                               >
                                 <Eye size={14} />
                               </button>
-                              <button className="p-1.5 text-text-muted hover:text-text-main">
-                                <MoreVertical size={16} />
-                              </button>
+                              <div className="relative" ref={menuRef}>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+
+                                    if (openMenuId === order.id) {
+                                      setOpenMenuId(null);
+                                    } else {
+                                      setOpenMenuId(order.id);
+                                    }
+                                  }}
+                                  className="p-1.5 text-text-muted hover:text-text-main rounded-md hover:bg-dashboard-bg/60 transition"
+                                >
+                                  <MoreVertical size={16} />
+                                </button>
+
+                                {openMenuId === order.id && (
+                                  <div className="absolute right-0 top-9 w-[190px] bg-card-bg border border-border-subtle rounded-lg shadow-[0_4px_14px_rgba(0,0,0,0.08)] z-50 overflow-hidden">
+                                    {/* DUPLICATE */}
+                                    <button
+                                      onClick={() => {
+                                        handleDuplicateOrder(order.id);
+                                        setOpenMenuId(null);
+                                      }}
+                                      className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
+                                    >
+                                      <Copy
+                                        size={15}
+                                        strokeWidth={1.9}
+                                        className="text-text-muted"
+                                      />
+
+                                      <span>Duplicate Order</span>
+                                    </button>
+
+                                    <div className="h-px bg-border-subtle" />
+
+                                    {/* DOWNLOAD INVOICE */}
+                                    <button
+                                      onClick={() => {
+                                        const invoiceData = mapOrderToInvoice(
+                                          order,
+                                          formatDate,
+                                        );
+
+                                        generateInvoicePDF(invoiceData);
+
+                                        setOpenMenuId(null);
+                                      }}
+                                      className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
+                                    >
+                                      <Printer
+                                        size={15}
+                                        strokeWidth={1.9}
+                                        className="text-text-muted"
+                                      />
+
+                                      <span>Download Invoice</span>
+                                    </button>
+
+                                    <div className="h-px bg-border-subtle" />
+
+                                    {/* VIEW CHARGES */}
+                                    <button
+                                      onClick={() => {
+                                        console.log("View Charges");
+                                        setOpenMenuId(null);
+                                      }}
+                                      className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
+                                    >
+                                      <FileText
+                                        size={15}
+                                        strokeWidth={1.9}
+                                        className="text-text-muted"
+                                      />
+
+                                      <span>View Charges</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </>
                           )}
                         </div>
