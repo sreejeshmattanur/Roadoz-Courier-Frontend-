@@ -1,4 +1,4 @@
-import { useSearchParams } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import {
   Calendar,
   RotateCcw,
@@ -70,33 +70,29 @@ export function ProcessingOrders() {
     limit: 25,
   });
 
-  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
 
-  const activeStatus = searchParams.get("status") || "processing";
-
-  const tabStatusMap = {
-    Processing: "processing",
-    "All Orders": "",
-    Manifested: "manifested",
-    "In Transit": "in_transit",
-    NDR: "ndr",
-    OFD: "ofd",
-    Delivered: "delivered",
-    "RTO In Transit": "rto_in_transit",
-    "RTO Delivered": "rto_delivered",
-    Returned: "returned",
-    Cancelled: "cancelled",
-    Lost: "lost",
+  // Map route pathname → status filter value
+  const pathToStatus = {
+    "/dashboard/processing-order": "processing",
+    "/dashboard/all-orders": "",
+    "/dashboard/manifested": "manifested",
+    "/dashboard/in-transit": "in_transit",
+    "/dashboard/pending": "ndr",
+    "/dashboard/out-for-delivery": "ofd",
+    "/dashboard/delivered": "delivered",
+    "/dashboard/rto-in-transit": "rto_in_transit",
+    "/dashboard/rto-delivered": "rto_delivered",
+    "/dashboard/returned": "returned",
+    "/dashboard/cancelled": "cancelled",
+    "/dashboard/lost": "lost",
   };
 
-  const handleTabClick = (tabName) => {
-    const status = tabStatusMap[tabName];
+  const activeStatus =
+    pathToStatus[location.pathname] ?? pathToStatus["/dashboard/processing-order"];
 
-    if (!status) {
-      setSearchParams({ status: "all" });
-    } else {
-      setSearchParams({ status });
-    }
+  const handleTabClick = (tab) => {
+    navigate(`/dashboard${tab.path}`);
   };
 
   const statusList = [
@@ -129,22 +125,23 @@ export function ProcessingOrders() {
     });
   };
 
-  const statusToTabMap = {
-    all: "All Orders",
-    processing: "Processing",
-    manifested: "Manifested",
-    in_transit: "In Transit",
-    ndr: "NDR",
-    ofd: "OFD",
-    delivered: "Delivered",
-    rto_in_transit: "RTO In Transit",
-    rto_delivered: "RTO Delivered",
-    returned: "Returned",
-    cancelled: "Cancelled",
-    lost: "Lost",
+  // Map route pathname → tab name
+  const pathToTab = {
+    "/dashboard/processing-order": "Processing",
+    "/dashboard/all-orders": "All Orders",
+    "/dashboard/manifested": "Manifested",
+    "/dashboard/in-transit": "In Transit",
+    "/dashboard/pending": "NDR",
+    "/dashboard/out-for-delivery": "OFD",
+    "/dashboard/delivered": "Delivered",
+    "/dashboard/rto-in-transit": "RTO In Transit",
+    "/dashboard/rto-delivered": "RTO Delivered",
+    "/dashboard/returned": "Returned",
+    "/dashboard/cancelled": "Cancelled",
+    "/dashboard/lost": "Lost",
   };
 
-  const activeTab = statusToTabMap[activeStatus] || "Processing";
+  const activeTab = pathToTab[location.pathname] || "Processing";
 
   const isProcessing = activeStatus === "processing";
 
@@ -219,24 +216,14 @@ export function ProcessingOrders() {
   ];
 
   useEffect(() => {
-    let statusFromUrl = searchParams.get("status");
-
-    if (!statusFromUrl) {
-      statusFromUrl = "processing";
-    }
-
-    if (statusFromUrl === "all") {
-      statusFromUrl = "";
-    }
-
     dispatch(
       fetchOrders({
         page: 1,
         limit: filters.limit,
-        status_filter: statusFromUrl,
+        status_filter: activeStatus,
       }),
     );
-  }, [searchParams, filters.limit]);
+  }, [location.pathname, filters.limit]);
 
   useEffect(() => {
     dispatch(fetchOrderCounts());
@@ -863,7 +850,7 @@ export function ProcessingOrders() {
                       limit: 25,
                     });
 
-                    setSearchParams({});
+                    navigate("/dashboard/processing-order");
 
                     dispatch(
                       fetchOrders({
@@ -886,7 +873,7 @@ export function ProcessingOrders() {
               {tabs.map((tab) => (
                 <button
                   key={tab.name}
-                  onClick={() => handleTabClick(tab.name)}
+                  onClick={() => handleTabClick(tab)}
                   className={cn(
                     "px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap",
                     activeTab === tab.name
