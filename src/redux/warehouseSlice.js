@@ -5,6 +5,7 @@ import {
   createWarehouseApi,
   fetchWarehouseByPincodeApi,
   updateWarehouseApi,
+  deleteWarehouseApi, // ADD THIS
 } from "../services/apiCalls";
 
 export const fetchWarehouses = createAsyncThunk(
@@ -63,11 +64,30 @@ export const updateWarehouse = createAsyncThunk(
   },
 );
 
+/* DELETE */
+export const deleteWarehouse = createAsyncThunk(
+  "warehouse/deleteWarehouse",
+
+  async (addressId, { rejectWithValue }) => {
+    try {
+      await deleteWarehouseApi(addressId);
+
+      return addressId;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.detail || "Failed to delete warehouse",
+      );
+    }
+  },
+);
+
 const warehouseSlice = createSlice({
   name: "warehouse",
 
   initialState: {
     items: [],
+    pagination: null,
+    filters: null,
     loading: false,
     error: null,
   },
@@ -84,7 +104,13 @@ const warehouseSlice = createSlice({
 
       .addCase(fetchWarehouses.fulfilled, (state, action) => {
         state.loading = false;
-        state.items = action.payload || [];
+
+        state.items = action.payload?.data || [];
+
+        state.pagination = action.payload?.pagination || null;
+
+        state.filters = action.payload?.filters || null;
+
         state.error = null;
       })
 
@@ -100,7 +126,13 @@ const warehouseSlice = createSlice({
 
       .addCase(fetchWarehouseByPincode.fulfilled, (state, action) => {
         state.loading = false;
-        state.items = action.payload || [];
+
+        state.items = action.payload?.data || [];
+
+        state.pagination = action.payload?.pagination || null;
+
+        state.filters = action.payload?.filters || null;
+
         state.error = null;
       })
 
@@ -143,6 +175,24 @@ const warehouseSlice = createSlice({
       })
 
       .addCase(updateWarehouse.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      /* DELETE */
+      .addCase(deleteWarehouse.pending, (state) => {
+        state.loading = true;
+      })
+
+      .addCase(deleteWarehouse.fulfilled, (state, action) => {
+        state.loading = false;
+
+        state.items = state.items.filter((item) => item.id !== action.payload);
+
+        state.error = null;
+      })
+
+      .addCase(deleteWarehouse.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       });

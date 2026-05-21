@@ -7,7 +7,8 @@ const BASE_URL =
   import.meta.env.VITE_APP_BASE_URL || "http://api.roadozcourier.com/api/v1";
 
 export const API = axios.create({
-  baseURL: import.meta.env.VITE_APP_BASE_URL || "http://api.roadozcourier.com/api/v1",
+  baseURL:
+    import.meta.env.VITE_APP_BASE_URL || "http://api.roadozcourier.com/api/v1",
   headers: {
     "Content-Type": "application/json",
   },
@@ -398,6 +399,14 @@ export const updateWarehouseApi = async (addressId, data) => {
   return res.data;
 };
 
+export const deleteWarehouseApi = async (addressId) => {
+  const res = await API.delete(
+    `${ENDPOINTS.WAREHOUSE}/delete-warehouse-address/${addressId}`,
+  );
+
+  return res.data;
+};
+
 export const uploadBulkOrderApi = async (formData) => {
   const res = await API.post(ENDPOINTS.BULK_ORDER_UPLOAD, formData, {
     headers: {
@@ -427,7 +436,6 @@ export const fetchServiceReviewsApi = async (params) => {
   return res.data;
 };
 
-
 export const fetchNotificationsApi = async (params) => {
   const res = await API.get("/notifications", { params });
   return res.data;
@@ -439,7 +447,8 @@ export const markNotificationReadApi = async (id) => {
 };
 
 export const getNotificationsWSUrl = () => {
-  const base = import.meta.env.VITE_APP_BASE_URL || "http://api.roadozcourier.com/api/v1";
+  const base =
+    import.meta.env.VITE_APP_BASE_URL || "http://api.roadozcourier.com/api/v1";
   const wsBase = base.replace(/^http/, "ws");
   const token = Cookies.get("access_token");
   return `${wsBase}/websocket/ws/notifications${token ? `?token=${token}` : ""}`;
@@ -450,3 +459,12 @@ export const calculateRateApi = async (payload) => {
   return res.data;
 };
 
+export const fetchAnalyticsDashboardApi = async (params = {}) => {
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(([_, v]) => v != null && v !== ""),
+  );
+  const res = await API.get(ENDPOINTS.ANALYTICS_DASHBOARD, {
+    params: cleanParams,
+  });
+  return res.data;
+};

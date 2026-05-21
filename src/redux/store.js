@@ -17,6 +17,7 @@ import bulkOrderReducer from "./bulkOrderSlice";
 import notificationReducer from "./notificationSlice";
 import rateReducer from "./rateSlice";
 import reportsReducer from "./reportsSlice";
+import analyticsReducer from "./analyticsSlice";
 export const store = configureStore({
   reducer: {
     auth: authReducer,
@@ -37,5 +38,6 @@ export const store = configureStore({
     notifications: notificationReducer,
     rate: rateReducer,
     reports: reportsReducer,
+    analytics: analyticsReducer,
   },
 });

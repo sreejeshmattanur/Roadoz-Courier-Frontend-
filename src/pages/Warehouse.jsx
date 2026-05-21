@@ -16,6 +16,7 @@ import {
   X,
   Edit,
   Settings,
+  Trash2,
 } from "lucide-react";
 
 import { motion, AnimatePresence } from "motion/react";
@@ -34,6 +35,7 @@ import {
   createWarehouse,
   fetchWarehouseByPincode,
   updateWarehouse,
+  deleteWarehouse,
 } from "../redux/warehouseSlice";
 
 export function Warehouse() {
@@ -125,6 +127,21 @@ export function Warehouse() {
     link.click();
 
     document.body.removeChild(link);
+  };
+
+  const handleDelete = async (warehouseId) => {
+    const toastId = toast.loading("Deleting warehouse...");
+
+    try {
+      await dispatch(deleteWarehouse(warehouseId)).unwrap();
+
+      toast.success("Warehouse deleted successfully", { id: toastId });
+    } catch (err) {
+      toast.error(
+        typeof err === "string" ? err : "Failed to delete warehouse",
+        { id: toastId },
+      );
+    }
   };
 
   const handleEdit = (warehouse) => {
@@ -297,7 +314,7 @@ export function Warehouse() {
           </div>
         </CardContent>
       </Card>
-      +{/* Loading */}
+      {/* Loading */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 space-y-4">
           <Loader2 className="animate-spin text-primary" size={40} />
@@ -392,13 +409,23 @@ export function Warehouse() {
                         </td>
 
                         <td className="px-6 py-4">
-                          <Button
-                            onClick={() => handleEdit(w)}
-                            variant="ghost"
-                            className="h-9 w-9 rounded-lg border border-yellow-500/30 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 p-0 transition-all"
-                          >
-                            <Edit size={16} />
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              onClick={() => handleEdit(w)}
+                              variant="ghost"
+                              className="h-9 w-9 rounded-lg border border-yellow-500/30 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 p-0 transition-all"
+                            >
+                              <Edit size={16} />
+                            </Button>
+
+                            <Button
+                              onClick={() => handleDelete(w.id)}
+                              variant="ghost"
+                              className="h-9 w-9 rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 p-0 transition-all"
+                            >
+                              <Trash2 size={16} />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -464,14 +491,23 @@ export function Warehouse() {
                       {w.address_line_2 ? `, ${w.address_line_2}` : ""}
                     </div>
 
-                    <div className="pt-3 border-t border-border-subtle">
+                    <div className="pt-3 border-t border-border-subtle flex gap-2">
                       <Button
                         onClick={() => handleEdit(w)}
                         variant="ghost"
-                        className="w-full h-10 rounded-xl border border-yellow-500/30 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 text-xs font-bold transition-all"
+                        className="flex-1 h-10 rounded-xl border border-yellow-500/30 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 text-xs font-bold transition-all"
                       >
                         <Edit size={15} className="mr-2" />
-                        Edit Warehouse
+                        Edit
+                      </Button>
+
+                      <Button
+                        onClick={() => handleDelete(w.id)}
+                        variant="ghost"
+                        className="flex-1 h-10 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold transition-all"
+                      >
+                        <Trash2 size={15} className="mr-2" />
+                        Delete
                       </Button>
                     </div>
                   </div>

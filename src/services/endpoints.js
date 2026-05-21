@@ -27,6 +27,7 @@ export const ENDPOINTS = {
   NOTIFICATIONS_WS: "/websocket/ws/notifications",
   READ_NOTIFICATION: (id) => `/notifications/${id}/read`,
   RATE_CALCULATOR: "/rate-calculator/calculate",
+  ANALYTICS_DASHBOARD: "/analytics/dashboard",
   REPORTS: {
     BOOKINGS: {
       DAILY: "/reports/bookings/daily",
