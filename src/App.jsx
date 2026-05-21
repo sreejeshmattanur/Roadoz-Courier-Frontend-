@@ -211,6 +211,46 @@ export default function App() {
                 </PermissionRoute>
               }
             />
+            <Route
+              path="rto-in-transit"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <ProcessingOrders />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="rto-delivered"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <ProcessingOrders />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="returned"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <ProcessingOrders />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="cancelled"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <ProcessingOrders />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="lost"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <ProcessingOrders />
+                </PermissionRoute>
+              }
+            />
 
             <Route
               path="serviceable-pincode"

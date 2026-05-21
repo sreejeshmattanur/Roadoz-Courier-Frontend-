@@ -343,23 +343,26 @@ export function Sidebar({ isOpen, setIsOpen }) {
             to={`${base}/processing-order`}
             icon={<Package size={20} />}
             hideText={!isOpen}
+            onClick={() =>
+              setOpenMenus((prev) => ({ ...prev, orders: true }))
+            }
           >
-            Processing Orders
+            Processing Order
           </NavLink>
         )}
-
-        <NavDropdown
-          id="admin"
-          label="Administrative"
-          icon={ShieldCheck}
-          items={sections.admin}
-        />
 
         <NavDropdown
           id="orders"
           label="Orders"
           icon={ClipboardList}
           items={sections.orders}
+        />
+
+        <NavDropdown
+          id="admin"
+          label="Administrative"
+          icon={ShieldCheck}
+          items={sections.admin}
         />
 
         <NavDropdown
@@ -385,7 +388,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
             Consignees
           </NavLink>
         )}
-        
+
         {hasPerm("orders:view") && (
           <NavLink
             to={`${base}/warehouse`}
