@@ -15,6 +15,8 @@ import warehouseReducer from "./warehouseSlice";
 import reviewReducer from "./reviewSlice";
 import bulkOrderReducer from "./bulkOrderSlice";
 import notificationReducer from "./notificationSlice";
+import rateReducer from "./rateSlice";
+import reportsReducer from "./reportsSlice";
 export const store = configureStore({
   reducer: {
     auth: authReducer,
@@ -33,5 +35,7 @@ export const store = configureStore({
     warehouse: warehouseReducer,
     review: reviewReducer,
     notifications: notificationReducer,
+    rate: rateReducer,
+    reports: reportsReducer,
   },
 });

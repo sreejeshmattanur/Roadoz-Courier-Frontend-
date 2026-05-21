@@ -6,8 +6,8 @@ import { ENDPOINTS } from "./endpoints";
 const BASE_URL =
   import.meta.env.VITE_APP_BASE_URL || "http://api.roadozcourier.com/api/v1";
 
-const API = axios.create({
-  baseURL: BASE_URL,
+export const API = axios.create({
+  baseURL: import.meta.env.VITE_APP_BASE_URL || "http://api.roadozcourier.com/api/v1",
   headers: {
     "Content-Type": "application/json",
   },
@@ -333,6 +333,11 @@ export const scanOrderApi = async (orderNumber) => {
   return res.data;
 };
 
+export const deleteScannedOrderApi = async (id, orderId) => {
+  const res = await API.delete(ENDPOINTS.DELETE_SCANNED_ORDER(id, orderId));
+  return res.data;
+};
+
 export const fetchTodayScannedOrdersApi = async (filters) => {
   const { date, status, page, limit } = filters;
 
@@ -439,3 +444,9 @@ export const getNotificationsWSUrl = () => {
   const token = Cookies.get("access_token");
   return `${wsBase}/websocket/ws/notifications${token ? `?token=${token}` : ""}`;
 };
+
+export const calculateRateApi = async (payload) => {
+  const res = await API.post(ENDPOINTS.RATE_CALCULATOR, payload);
+  return res.data;
+};
+
