@@ -11,9 +11,9 @@ import {
 export const fetchWarehouses = createAsyncThunk(
   "warehouse/fetchWarehouses",
 
-  async (_, { rejectWithValue }) => {
+  async (params = {}, { rejectWithValue }) => {
     try {
-      return await fetchWarehousesApi();
+      return await fetchWarehousesApi(params);
     } catch (error) {
       return rejectWithValue(
         error.response?.data?.detail || "Failed to fetch warehouses",

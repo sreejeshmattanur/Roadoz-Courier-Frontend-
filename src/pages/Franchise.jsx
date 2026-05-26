@@ -329,7 +329,7 @@ export function Franchise() {
                             {f.proposed_location}
                           </div>
                           <div className="text-[10px] text-text-muted ml-4 font-mono">
-                            PIN Covered: {f.pin_codes_covered?.split(",")[0]}...
+                            PIN Covered: {f.pincode?.split(",")[0]}...
                           </div>
                         </td>
                         <td className="px-6 py-4">

@@ -370,8 +370,13 @@ export const fetchActivityLogsApi = async (params) => {
   return res.data;
 };
 
-export const fetchWarehousesApi = async () => {
-  const res = await API.get(`${ENDPOINTS.WAREHOUSE}/getall/`);
+export const fetchWarehousesApi = async (params = {}) => {
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(([_, v]) => v != null && v !== ""),
+  );
+  const res = await API.get(`${ENDPOINTS.WAREHOUSE}/getall/`, {
+    params: cleanParams,
+  });
 
   return res.data;
 };
