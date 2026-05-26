@@ -33,7 +33,6 @@ import { cn } from "../lib/utils";
 import {
   fetchWarehouses,
   createWarehouse,
-  fetchWarehouseByPincode,
   updateWarehouse,
   deleteWarehouse,
 } from "../redux/warehouseSlice";
@@ -43,7 +42,11 @@ export function Warehouse() {
 
   const { items, loading } = useSelector((state) => state.warehouse);
 
-  const [searchTerm, setSearchTerm] = useState("");
+  const [filters, setFilters] = useState({
+    search: "",
+    start_date: "",
+    end_date: "",
+  });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -76,19 +79,14 @@ export function Warehouse() {
     );
   }, [items]);
 
-  const handleSearch = async () => {
-    if (!searchTerm.trim()) {
-      dispatch(fetchWarehouses());
-      return;
-    }
-
-    dispatch(fetchWarehouseByPincode(searchTerm));
+  const handleSearch = () => {
+    dispatch(fetchWarehouses(filters));
   };
 
   const clearFilters = () => {
-    setSearchTerm("");
-
-    dispatch(fetchWarehouses());
+    const empty = { search: "", start_date: "", end_date: "" };
+    setFilters(empty);
+    dispatch(fetchWarehouses({}));
   };
 
   const exportToCSV = () => {
@@ -270,31 +268,68 @@ export function Warehouse() {
       {/* Filters */}
       <Card className="bg-card-bg border-border-subtle shadow-sm rounded-2xl">
         <CardContent className="p-6">
-          <div className="flex flex-col lg:flex-row lg:items-end gap-4">
-            {/* Search */}
-            <div className="w-full max-w-[280px] space-y-1.5">
-              <label className="text-[10px] font-bold uppercase text-text-muted ml-1">
-                Search By Pincode
-              </label>
+          <div className="flex flex-col lg:flex-row lg:items-end gap-4 flex-wrap">
 
+            {/* Search */}
+            <div className="flex-1 min-w-[220px] space-y-1.5">
+              <label className="text-[10px] font-bold uppercase text-text-muted ml-1">
+                Search
+              </label>
               <div className="relative">
                 <Search
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
-                  size={16}
+                  size={14}
                 />
-
                 <input
                   type="text"
-                  placeholder="Search by pincode..."
-                  className="w-full h-10 bg-transparent border border-border-subtle rounded-xl pl-10 pr-4 text-xs text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary transition-all"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Name, contact, phone or pincode..."
+                  className="w-full h-10 bg-transparent border border-border-subtle rounded-xl pl-9 pr-4 text-xs text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary transition-all"
+                  value={filters.search}
+                  onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {/* Start Date */}
+            <div className="flex-1 min-w-[180px] space-y-1.5">
+              <label className="text-[10px] font-bold uppercase text-text-muted ml-1">
+                Start Date
+              </label>
+              <div className="relative">
+                <Calendar
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+                  size={14}
+                />
+                <input
+                  type="date"
+                  className="w-full h-10 bg-transparent border border-border-subtle rounded-xl pl-9 pr-4 text-xs text-text-main focus:outline-none focus:border-primary transition-all"
+                  value={filters.start_date}
+                  onChange={(e) => setFilters((f) => ({ ...f, start_date: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {/* End Date */}
+            <div className="flex-1 min-w-[180px] space-y-1.5">
+              <label className="text-[10px] font-bold uppercase text-text-muted ml-1">
+                End Date
+              </label>
+              <div className="relative">
+                <Calendar
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+                  size={14}
+                />
+                <input
+                  type="date"
+                  className="w-full h-10 bg-transparent border border-border-subtle rounded-xl pl-9 pr-4 text-xs text-text-main focus:outline-none focus:border-primary transition-all"
+                  value={filters.end_date}
+                  onChange={(e) => setFilters((f) => ({ ...f, end_date: e.target.value }))}
                 />
               </div>
             </div>
 
             {/* Buttons */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 pt-5">
               <Button
                 onClick={handleSearch}
                 className="bg-primary hover:bg-primary/90 text-black h-10 px-8 rounded-xl text-xs font-bold"
@@ -311,6 +346,7 @@ export function Warehouse() {
                 <RotateCcw size={16} />
               </Button>
             </div>
+
           </div>
         </CardContent>
       </Card>

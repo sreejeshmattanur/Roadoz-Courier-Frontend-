@@ -36,9 +36,6 @@ export function Consignees() {
     name: "",
     mobile: "",
     email: "",
-    pincode: "",
-    status: "All",
-    limit: 25,
     page: 1,
   });
 
@@ -52,11 +49,10 @@ export function Consignees() {
     dispatch(
       fetchConsignees({
         page: filters.page,
-        limit: filters.limit,
-        search: filters.search,
+        limit: 25,
       }),
     );
-  }, [dispatch, filters]);
+  }, [dispatch, filters.page]);
 
   const handleChange = (e) => {
     setFormData({
@@ -70,21 +66,19 @@ export function Consignees() {
 
     setFilters({
       ...filters,
-      [name]: name === "limit" ? Number(value) : value,
+      [name]: value,
     });
   };
 
   const handleSearch = () => {
     const search =
-      filters.name || filters.mobile || filters.email || filters.pincode || "";
+      filters.name || filters.mobile || filters.email || "";
 
     dispatch(
       fetchConsignees({
         page: filters.page,
-        limit: filters.limit,
-        search,
-        status:
-          filters.status !== "All" ? filters.status.toLowerCase() : undefined,
+        limit: 25,
+        ...(search && { search }),
       }),
     );
   };
@@ -94,19 +88,10 @@ export function Consignees() {
       name: "",
       mobile: "",
       email: "",
-      pincode: "",
-      status: "All",
-      limit: 25,
       page: 1,
     });
 
-    dispatch(
-      fetchConsignees({
-        page: 1,
-        limit: 25,
-        search: "",
-      }),
-    );
+    dispatch(fetchConsignees({ page: 1, limit: 25 }));
   };
 
   const handleSaveConsignee = async () => {
@@ -159,7 +144,7 @@ export function Consignees() {
       dispatch(
         fetchConsignees({
           page: filters.page,
-          limit: filters.limit,
+          limit: 25,
         }),
       );
     } catch (error) {
@@ -220,165 +205,107 @@ export function Consignees() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-text-main">Consignee</h1>
-        <p className="text-sm text-primary mt-1 font-medium">
-          <Link to="/" className="hover:underline cursor-pointer">
-            Dashboard
-          </Link>
-          <span className="text-text-muted mx-1">&gt;&gt;</span> Consignee
-        </p>
+    <div className="space-y-6 pb-20 p-4 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-text-main uppercase tracking-tight">
+            Consignee Registry
+          </h1>
+          <p className="text-xs md:text-sm text-primary mt-1 font-medium">
+            <Link to="/" className="hover:underline">
+              Dashboard
+            </Link>
+            <span className="text-text-muted mx-2">&gt;&gt;</span>
+            Consignee
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            className="flex-1 sm:flex-none border-border-subtle h-10 text-text-main text-xs"
+          >
+            <Download size={16} className="mr-2" /> Export CSV
+          </Button>
+
+          <Button
+            onClick={() => setIsModalOpen(true)}
+            className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-black font-bold h-10 px-4 rounded-xl shadow-lg text-xs"
+          >
+            <Plus size={18} className="mr-2" /> Add Consignee
+          </Button>
+        </div>
       </div>
 
-      <Card className="bg-card-bg border-border-subtle shadow-sm overflow-hidden">
+      <Card className="bg-card-bg border-border-subtle shadow-sm rounded-2xl">
+        <CardContent className="p-6">
+          <div className="flex flex-col lg:flex-row lg:items-end gap-4 flex-wrap">
+            <div className="flex-1 min-w-[180px] space-y-1.5">
+              <label className="text-xs font-medium text-text-muted">
+                Name
+              </label>
+
+              <input
+                type="text"
+                name="name"
+                value={filters.name}
+                onChange={handleFilterChange}
+                placeholder="Name"
+                className="w-full bg-card-bg border border-border-subtle rounded-md px-3 py-2 text-xs text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary"
+              />
+            </div>
+
+            <div className="flex-1 min-w-[180px] space-y-1.5">
+              <label className="text-xs font-medium text-text-muted">
+                Mobile No
+              </label>
+
+              <input
+                type="text"
+                name="mobile"
+                value={filters.mobile}
+                onChange={handleFilterChange}
+                placeholder="Mobile No"
+                className="w-full bg-card-bg border border-border-subtle rounded-md px-3 py-2 text-xs text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary"
+              />
+            </div>
+
+            <div className="flex-1 min-w-[180px] space-y-1.5">
+              <label className="text-xs font-medium text-text-muted">
+                Email
+              </label>
+              <input
+                type="text"
+                name="email"
+                value={filters.email}
+                onChange={handleFilterChange}
+                placeholder="Email"
+                className="w-full bg-card-bg border border-border-subtle rounded-md px-3 py-2 text-xs text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                onClick={handleSearch}
+                className="bg-primary hover:bg-primary/90 text-black h-9 px-8 text-xs font-bold rounded-md"
+              >
+                Search
+              </Button>
+
+              <button
+                onClick={clearFilters}
+                className="text-xs font-bold text-primary flex items-center gap-1 hover:underline whitespace-nowrap"
+              >
+                <RotateCcw size={14} /> Clear Filters
+              </button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card-bg border-border-subtle shadow-sm overflow-hidden rounded-2xl">
         <CardContent className="p-0">
-          <div className="p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border-subtle">
-            <h2 className="text-lg font-semibold text-text-main">
-              Consignee List
-            </h2>
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={() => setIsModalOpen(true)}
-                className="bg-primary hover:bg-primary/90 text-black h-9 px-4 text-xs font-bold rounded-md flex items-center gap-2"
-              >
-                <Plus size={14} /> Add New
-              </Button>
-              <Button
-                onClick={handleExport}
-                className="bg-primary hover:bg-primary/90 text-black h-9 px-4 text-xs font-bold rounded-md flex items-center gap-2"
-              >
-                <Download size={14} /> Export
-              </Button>
-            </div>
-          </div>
-
-          <div className="p-6 bg-dashboard-bg/30 border-b border-border-subtle">
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-muted">
-                  Date Range
-                </label>
-
-                <input
-                  type="text"
-                  placeholder="Date Range"
-                  className="w-full bg-card-bg border border-border-subtle rounded-md px-3 py-2 text-xs text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-muted">
-                  Name
-                </label>
-
-                <input
-                  type="text"
-                  name="name"
-                  value={filters.name}
-                  onChange={handleFilterChange}
-                  placeholder="Name"
-                  className="w-full bg-card-bg border border-border-subtle rounded-md px-3 py-2 text-xs text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-muted">
-                  Mobile No
-                </label>
-
-                <input
-                  type="text"
-                  name="mobile"
-                  value={filters.mobile}
-                  onChange={handleFilterChange}
-                  placeholder="Mobile No"
-                  className="w-full bg-card-bg border border-border-subtle rounded-md px-3 py-2 text-xs text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-muted">
-                  Email
-                </label>
-                <input
-                  type="text"
-                  name="email"
-                  value={filters.email}
-                  onChange={handleFilterChange}
-                  placeholder="Email"
-                  className="w-full bg-card-bg border border-border-subtle rounded-md px-3 py-2 text-xs text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-muted">
-                  Pincode
-                </label>
-
-                <input
-                  type="text"
-                  name="pincode"
-                  value={filters.pincode}
-                  onChange={handleFilterChange}
-                  placeholder="Pincode"
-                  className="w-full bg-card-bg border border-border-subtle rounded-md px-3 py-2 text-xs text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-muted">
-                  Status:
-                </label>
-
-                <select
-                  name="status"
-                  value={filters.status}
-                  onChange={handleFilterChange}
-                  className="w-full bg-card-bg border border-border-subtle rounded-md px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary appearance-none"
-                >
-                  <option>All</option>
-                  <option>Active</option>
-                  <option>Inactive</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-end gap-4">
-              <div className="w-24 space-y-1.5">
-                <label className="text-xs font-medium text-text-muted">
-                  Limit:
-                </label>
-
-                <input
-                  type="number"
-                  name="limit"
-                  min="1"
-                  max="100"
-                  value={filters.limit}
-                  onChange={handleFilterChange}
-                  placeholder="Limit"
-                  className="w-full bg-card-bg border border-border-subtle rounded-md px-3 py-2 text-xs text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary"
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleSearch}
-                  className="bg-primary hover:bg-primary/90 text-black h-9 px-8 text-xs font-bold rounded-md"
-                >
-                  Search
-                </Button>
-
-                <button
-                  onClick={clearFilters}
-                  className="text-xs font-bold text-primary flex items-center gap-1 hover:underline"
-                >
-                  <RotateCcw size={14} /> Clear Filters
-                </button>
-              </div>
-            </div>
-          </div>
           <div className="overflow-x-hidden overflow-y-visible border border-border-subtle">
             <table className="w-full border-collapse">
               <thead className="bg-dashboard-bg/60 border-b border-border-subtle">

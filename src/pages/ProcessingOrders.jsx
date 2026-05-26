@@ -147,8 +147,11 @@ export function ProcessingOrders() {
 
   const dispatch = useDispatch();
 
-  const { orders, totalOrders, loading, orderCounts, pickupAddresses } =
+  const { orders, totalOrders, totalPages, page, limit, loading, orderCounts, pickupAddresses } =
     useSelector((state) => state.orders);
+
+  // Tracks the last-applied fetch params so page changes keep all active filters
+  const currentFiltersRef = useRef({});
 
   const statusCounts = orderCounts?.status_counts || {};
 
@@ -216,13 +219,13 @@ export function ProcessingOrders() {
   ];
 
   useEffect(() => {
-    dispatch(
-      fetchOrders({
-        page: 1,
-        limit: filters.limit,
-        status_filter: activeStatus,
-      }),
-    );
+    const params = {
+      page: 1,
+      limit: filters.limit,
+      status_filter: activeStatus,
+    };
+    currentFiltersRef.current = params;
+    dispatch(fetchOrders(params));
   }, [location.pathname, filters.limit]);
 
   useEffect(() => {
@@ -248,31 +251,25 @@ export function ProcessingOrders() {
   }, []);
 
   const handleSearch = () => {
-    const currentStatus = searchParams.get("status");
-
     const payload = {
       page: 1,
       limit: filters.limit,
-
-      status_filter:
-        filters.status ||
-        (currentStatus === "all" ? "" : currentStatus || "processing"),
-
-      order_id: filters.orderId,
-      awb_no: filters.awb,
-      buyer_name: filters.buyerName,
-      payment_method: filters.paymentMethod,
+      status_filter: filters.status || activeStatus,
+      order_id: filters.orderId || undefined,
+      awb_no: filters.awb || undefined,
+      buyer_name: filters.buyerName || undefined,
+      payment_method: filters.paymentMethod || undefined,
+      start_date: filters.startDate || undefined,
+      end_date: filters.endDate || undefined,
     };
-
-    if (filters.startDate) {
-      payload.start_date = filters.startDate;
-    }
-
-    if (filters.endDate) {
-      payload.end_date = filters.endDate;
-    }
-
+    currentFiltersRef.current = payload;
     dispatch(fetchOrders(payload));
+  };
+
+  const handlePageChange = (newPage) => {
+    const params = { ...currentFiltersRef.current, page: newPage };
+    currentFiltersRef.current = params;
+    dispatch(fetchOrders(params));
   };
 
   const handleDuplicateOrder = async (orderId) => {
@@ -1278,7 +1275,13 @@ export function ProcessingOrders() {
               </tbody>
             </table>
           </div>
-          <Pagination />
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalEntries={totalOrders}
+            limit={limit}
+            onPageChange={handlePageChange}
+          />
         </CardContent>
       </Card>
       <OrderDetailsModal

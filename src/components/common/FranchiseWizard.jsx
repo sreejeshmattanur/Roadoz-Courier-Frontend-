@@ -73,7 +73,7 @@ export default function FranchiseWizard() {
     existing_loan_details: "",
     preferred_service_area: "",
     nearby_landmark: "",
-    pin_codes_covered: "",
+    pincode: "",
     doc_id_proof: false,
     doc_address_proof: false,
     doc_photographs: false,
@@ -146,7 +146,7 @@ export default function FranchiseWizard() {
           formData.account_number
         );
       case 5:
-        return formData.preferred_service_area && formData.pin_codes_covered;
+        return formData.preferred_service_area && formData.pincode;
       case 6:
         return (
           formData.doc_id_proof &&
@@ -721,11 +721,11 @@ export default function FranchiseWizard() {
                     className={inputClass}
                     rows="2"
                     placeholder="e.g. 682030, 682021, 682024"
-                    value={formData.pin_codes_covered}
+                    value={formData.pincode}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        pin_codes_covered: e.target.value,
+                        pincode: e.target.value,
                       })
                     }
                   />
