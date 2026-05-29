@@ -156,6 +156,14 @@ export default function App() {
               }
             />
             <Route
+              path="bulk-orders"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <ProcessingOrders />
+                </PermissionRoute>
+              }
+            />
+            <Route
               path="all-orders"
               element={
                 <PermissionRoute permission="orders:view">

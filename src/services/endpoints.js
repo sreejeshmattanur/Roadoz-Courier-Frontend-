@@ -13,6 +13,8 @@ export const ENDPOINTS = {
   WALLET: "/wallet/transactions",
   REMITTANCE: "/remittance",
   INVOICES: "/invoices",
+  GENERATE_INVOICE: (orderId) => `/invoices/generate/order/${orderId}`,
+  GENERATE_BULK_INVOICE: (bulkOrderId) => `/invoices/generate/bulk/${bulkOrderId}`,
   CONSIGNEES: "/orders/consignees",
   ORDERS: "/orders",
   DELETE_SCANNED_ORDER: (id, orderId) => `/orders/delete-scanned-order_with_mistak/${id}/${orderId}`,

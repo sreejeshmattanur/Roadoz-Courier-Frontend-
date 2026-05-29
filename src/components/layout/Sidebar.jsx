@@ -133,14 +133,23 @@ export function Sidebar({ isOpen, setIsOpen }) {
       },
     ],
 
+    // finance: [
+    //   { name: "Wallet", to: `${base}/wallet`, perm: "finance:view" },
+    //   {
+    //     name: "COD Remittance",
+    //     to: `${base}/cod-remittance`,
+    //     perm: "finance:view",
+    //   },
+    //   { name: "Invoices", to: `${base}/invoices`, perm: "finance:view" },
+    // ],
+
     finance: [
-      { name: "Wallet", to: `${base}/wallet`, perm: "finance:view" },
+      { name: "Wallet", to: `${base}/wallet` },
       {
         name: "COD Remittance",
         to: `${base}/cod-remittance`,
-        perm: "finance:view",
       },
-      { name: "Invoices", to: `${base}/invoices`, perm: "finance:view" },
+      { name: "Invoices", to: `${base}/invoices` },
     ],
 
     settings: [
@@ -343,9 +352,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
             to={`${base}/processing-order`}
             icon={<Package size={20} />}
             hideText={!isOpen}
-            onClick={() =>
-              setOpenMenus((prev) => ({ ...prev, orders: true }))
-            }
+            onClick={() => setOpenMenus((prev) => ({ ...prev, orders: true }))}
           >
             Processing Order
           </NavLink>

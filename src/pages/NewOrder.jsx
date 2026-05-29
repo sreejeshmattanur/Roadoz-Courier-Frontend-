@@ -24,16 +24,17 @@ import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { cn } from "../lib/utils";
 import PickupAddressModal from "../components/modals/PickupAddressModal";
+import ConsigneeModal from "../components/modals/ConsigneeModal";
 
 import {
   createPickupAddress,
   fetchPickupAddresses,
   setSelectedAddress,
   fetchConsignees,
+  createConsignee,
   createOrder,
   updateOrder,
 } from "../redux/orderSlice";
-import { createConsigneeApi } from "../services/apiCalls";
 
 export default function NewOrder() {
   const dispatch = useDispatch();
@@ -61,8 +62,8 @@ export default function NewOrder() {
   const [toPayAmount, setToPayAmount] = useState("");
   const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
   const [isAddressDropdownOpen, setIsAddressDropdownOpen] = useState(false);
-  const [isConsigneeDetailsVisible, setIsConsigneeDetailsVisible] =
-    useState(true);
+  const [isConsigneeDropdownOpen, setIsConsigneeDropdownOpen] = useState(false);
+  const [isConsigneeModalOpen, setIsConsigneeModalOpen] = useState(false);
   const [isOtherDetailsOpen, setIsOtherDetailsOpen] = useState(true);
 
   const [pickupForm, setPickupForm] = useState({
@@ -82,6 +83,18 @@ export default function NewOrder() {
   const [showConsigneeResults, setShowConsigneeResults] = useState(false);
   const [consigneeData, setConsigneeData] = useState({
     id: null,
+    name: "",
+    mobile: "",
+    alternate_mobile: "",
+    email: "",
+    address_line_1: "",
+    address_line_2: "",
+    pincode: "",
+    city: "",
+    state: "",
+  });
+
+  const [consigneeForm, setConsigneeForm] = useState({
     name: "",
     mobile: "",
     alternate_mobile: "",
@@ -175,6 +188,7 @@ export default function NewOrder() {
 
   useEffect(() => {
     dispatch(fetchPickupAddresses());
+    dispatch(fetchConsignees({ limit: 100 }));
   }, [dispatch]);
 
   // --- Calculations ---
@@ -205,6 +219,11 @@ export default function NewOrder() {
   const handlePickupChange = (e) => {
     const { name, value } = e.target;
     setPickupForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleConsigneeChange = (e) => {
+    const { name, value } = e.target;
+    setConsigneeForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleProductChange = (id, field, value) => {
@@ -243,7 +262,7 @@ export default function NewOrder() {
 
   const selectConsignee = (c) => {
     setConsigneeData(c);
-    setConsigneeSearch(c.name);
+    setConsigneeSearch(c.name || "");
     setShowConsigneeResults(false);
   };
 
@@ -338,6 +357,25 @@ export default function NewOrder() {
           dispatch(createPickupAddress(pickupForm))
             .unwrap()
             .then(() => setIsPickupModalOpen(false))
+        }
+        loading={pickupLoading}
+        error={reduxError}
+        inputClass={inputClass}
+      />
+
+      <ConsigneeModal
+        isOpen={isConsigneeModalOpen}
+        onClose={() => setIsConsigneeModalOpen(false)}
+        consigneeForm={consigneeForm}
+        handleConsigneeChange={handleConsigneeChange}
+        handleSaveConsignee={() =>
+          dispatch(createConsignee(consigneeForm))
+            .unwrap()
+            .then((newC) => {
+              setConsigneeData(newC);
+              setConsigneeSearch(newC.name || "");
+              setIsConsigneeModalOpen(false);
+            })
         }
         loading={pickupLoading}
         error={reduxError}
@@ -480,66 +518,111 @@ export default function NewOrder() {
       </Card>
 
       <Card className="bg-card-bg border-border-subtle overflow-visible">
-        <CardContent className="p-6 space-y-6">
+        <CardContent className="p-6 space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <User size={20} className="text-primary" /> Deliver To
             </h2>
-            <button
-              onClick={() =>
-                setIsConsigneeDetailsVisible(!isConsigneeDetailsVisible)
-              }
-              className="text-xs text-primary font-medium hover:underline"
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setConsigneeForm({
+                  name: "",
+                  mobile: "",
+                  alternate_mobile: "",
+                  email: "",
+                  address_line_1: "",
+                  address_line_2: "",
+                  pincode: "",
+                  city: "",
+                  state: "",
+                });
+                setIsConsigneeModalOpen(true);
+              }}
+              className="text-primary hover:bg-primary/10"
             >
-              {isConsigneeDetailsVisible ? "Hide Form" : "Show Form"}
-            </button>
+              <Plus size={16} className="mr-1" /> Add New
+            </Button>
           </div>
           <div className="relative">
-            <Search
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted"
-              size={18}
-            />
-            <input
-              type="text"
-              placeholder="Search consignee by Name / Email / Mobile"
-              value={consigneeSearch}
-              onChange={(e) => {
-                setConsigneeSearch(e.target.value);
-                if (e.target.value.length > 2)
-                  dispatch(fetchConsignees({ search: e.target.value }));
-                setShowConsigneeResults(true);
-              }}
-              className="w-full bg-transparent border border-primary/40 rounded-xl pl-12 pr-12 py-3.5 text-sm focus:border-primary outline-none transition-all shadow-sm"
-            />
-            {consigneeSearch && (
-              <button
-                onClick={clearConsignee}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-primary"
+            {consigneeData.id ? (
+              <div className="flex items-center justify-between p-4 border border-primary/20 bg-primary/5 rounded-xl animate-in fade-in zoom-in-95">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">
+                    <User size={20} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm">
+                      {consigneeData.name}
+                    </p>
+                    <p className="text-xs text-text-muted">
+                      {consigneeData.address_line_1}, {consigneeData.city} -{" "}
+                      {consigneeData.pincode}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)
+                  }
+                  className="text-primary hover:bg-primary/10"
+                >
+                  Change Consignee
+                </Button>
+              </div>
+            ) : (
+              <div
+                onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)}
+                className="w-full border-2 border-dashed border-border-subtle hover:border-primary/50 rounded-xl py-8 flex flex-col items-center justify-center cursor-pointer transition-all text-text-muted hover:text-primary group"
               >
-                <X size={18} />
-              </button>
+                <User
+                  size={32}
+                  className="mb-2 opacity-50 group-hover:scale-110 transition-transform"
+                />
+                <p className="text-sm font-medium">Select a consignee</p>
+              </div>
             )}
             <AnimatePresence>
-              {showConsigneeResults && consignees.length > 0 && (
+              {isConsigneeDropdownOpen && (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.98 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.98 }}
-                  className="absolute z-50 mt-2 w-full bg-card-bg border border-border-subtle rounded-xl shadow-2xl max-h-64 overflow-y-auto p-2"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="absolute z-50 mt-2 w-full bg-card-bg border border-border-subtle rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto"
                 >
-                  {consignees.map((c) => (
+                  <div className="p-3 border-b border-border-subtle/20 bg-card-bg sticky top-0 z-10">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={14} />
+                      <input
+                        type="text"
+                        placeholder="Search consignee by Name / Email / Mobile"
+                        value={consigneeSearch}
+                        onChange={(e) => {
+                          setConsigneeSearch(e.target.value);
+                          dispatch(fetchConsignees({ search: e.target.value }));
+                        }}
+                        className="w-full bg-transparent border border-border-subtle rounded-lg pl-9 pr-4 py-1.5 text-xs text-text-main focus:outline-none focus:border-primary"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                  </div>
+                  {consignees?.map((c) => (
                     <div
                       key={c.id}
-                      onClick={() => selectConsignee(c)}
-                      className="flex items-center gap-3 p-3 hover:bg-primary/10 cursor-pointer rounded-lg border-b last:border-0 border-border-subtle/20"
+                      onClick={() => {
+                        selectConsignee(c);
+                        setIsConsigneeDropdownOpen(false);
+                      }}
+                      className="flex items-center gap-3 p-3 hover:bg-primary/10 cursor-pointer rounded-lg border-b border-border-subtle/20 last:border-0"
                     >
-                      <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold group-hover:bg-primary group-hover:text-black transition-all">
-                        {c.name ? c.name[0].toUpperCase() : "U"}
-                      </div>
+                      <User size={16} className="text-primary" />
                       <div>
                         <p className="text-sm font-bold">{c.name}</p>
                         <p className="text-[11px] text-text-muted">
-                          {c.mobile} | {c.email}
+                          {c.city} ({c.mobile})
                         </p>
                       </div>
                     </div>
@@ -548,163 +631,6 @@ export default function NewOrder() {
               )}
             </AnimatePresence>
           </div>
-          {isConsigneeDetailsVisible && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-text-muted ml-1">
-                  Name*
-                </label>
-                <input
-                  type="text"
-                  value={consigneeData.name}
-                  onChange={(e) =>
-                    setConsigneeData({
-                      ...consigneeData,
-                      name: e.target.value,
-                      id: null,
-                    })
-                  }
-                  className={inputClass}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-text-muted ml-1">
-                  Mobile*
-                </label>
-                <input
-                  type="text"
-                  value={consigneeData.mobile}
-                  onChange={(e) =>
-                    setConsigneeData({
-                      ...consigneeData,
-                      mobile: e.target.value,
-                      id: null,
-                    })
-                  }
-                  className={inputClass}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-text-muted ml-1">
-                  Alt Mobile
-                </label>
-                <input
-                  type="text"
-                  value={consigneeData.alternate_mobile}
-                  onChange={(e) =>
-                    setConsigneeData({
-                      ...consigneeData,
-                      alternate_mobile: e.target.value,
-                      id: null,
-                    })
-                  }
-                  className={inputClass}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-text-muted ml-1">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={consigneeData.email}
-                  onChange={(e) =>
-                    setConsigneeData({
-                      ...consigneeData,
-                      email: e.target.value,
-                      id: null,
-                    })
-                  }
-                  className={inputClass}
-                />
-              </div>
-              <div className="md:col-span-2 space-y-1">
-                <label className="text-[10px] uppercase font-bold text-text-muted ml-1">
-                  Address Line 1*
-                </label>
-                <input
-                  type="text"
-                  value={consigneeData.address_line_1}
-                  onChange={(e) =>
-                    setConsigneeData({
-                      ...consigneeData,
-                      address_line_1: e.target.value,
-                      id: null,
-                    })
-                  }
-                  className={inputClass}
-                />
-              </div>
-              <div className="md:col-span-2 space-y-1">
-                <label className="text-[10px] uppercase font-bold text-text-muted ml-1">
-                  Address Line 2
-                </label>
-                <input
-                  type="text"
-                  value={consigneeData.address_line_2}
-                  onChange={(e) =>
-                    setConsigneeData({
-                      ...consigneeData,
-                      address_line_2: e.target.value,
-                      id: null,
-                    })
-                  }
-                  className={inputClass}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-text-muted ml-1">
-                  PinCode*
-                </label>
-                <input
-                  type="text"
-                  value={consigneeData.pincode}
-                  onChange={(e) =>
-                    setConsigneeData({
-                      ...consigneeData,
-                      pincode: e.target.value,
-                      id: null,
-                    })
-                  }
-                  className={inputClass}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-text-muted ml-1">
-                  City*
-                </label>
-                <input
-                  type="text"
-                  value={consigneeData.city}
-                  onChange={(e) =>
-                    setConsigneeData({
-                      ...consigneeData,
-                      city: e.target.value,
-                      id: null,
-                    })
-                  }
-                  className={inputClass}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-text-muted ml-1">
-                  State*
-                </label>
-                <input
-                  type="text"
-                  value={consigneeData.state}
-                  onChange={(e) =>
-                    setConsigneeData({
-                      ...consigneeData,
-                      state: e.target.value,
-                      id: null,
-                    })
-                  }
-                  className={inputClass}
-                />
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
 
