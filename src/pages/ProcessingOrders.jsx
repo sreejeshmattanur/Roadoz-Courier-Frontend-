@@ -16,6 +16,7 @@ import {
   MoreVertical,
   Search,
   X,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -41,6 +42,7 @@ import toast from "react-hot-toast";
 import { generateInvoicePDF } from "../lib/generateInvoicePDF";
 import { mapOrderToInvoice } from "../lib/invoiceMapper";
 import { generateShippingLabel } from "../lib/generateShippingLabel";
+import { generateInvoiceApi, fetchBulkOrdersApi, generateBulkInvoiceApi } from "../services/apiCalls";
 
 export function ProcessingOrders() {
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -59,6 +61,12 @@ export function ProcessingOrders() {
   const [selectedWeightOrder, setSelectedWeightOrder] = useState(null);
   const navigate = useNavigate();
 
+  const [bulkOrders, setBulkOrders] = useState([]);
+  const [bulkTotal, setBulkTotal] = useState(0);
+  const [bulkPages, setBulkPages] = useState(1);
+  const [bulkPage, setBulkPage] = useState(1);
+  const [bulkLoading, setBulkLoading] = useState(false);
+
   const [filters, setFilters] = useState({
     startDate: "",
     endDate: "",
@@ -75,6 +83,7 @@ export function ProcessingOrders() {
   // Map route pathname → status filter value
   const pathToStatus = {
     "/dashboard/processing-order": "processing",
+    "/dashboard/bulk-orders": "bulk",
     "/dashboard/all-orders": "",
     "/dashboard/manifested": "manifested",
     "/dashboard/in-transit": "in_transit",
@@ -86,6 +95,20 @@ export function ProcessingOrders() {
     "/dashboard/returned": "returned",
     "/dashboard/cancelled": "cancelled",
     "/dashboard/lost": "lost",
+  };
+
+  const statusToPath = {
+    "": "/dashboard/all-orders",
+    "manifested": "/dashboard/manifested",
+    "in_transit": "/dashboard/in-transit",
+    "ndr": "/dashboard/pending",
+    "ofd": "/dashboard/out-for-delivery",
+    "delivered": "/dashboard/delivered",
+    "rto_in_transit": "/dashboard/rto-in-transit",
+    "rto_delivered": "/dashboard/rto-delivered",
+    "returned": "/dashboard/returned",
+    "cancelled": "/dashboard/cancelled",
+    "lost": "/dashboard/lost",
   };
 
   const activeStatus =
@@ -128,6 +151,7 @@ export function ProcessingOrders() {
   // Map route pathname → tab name
   const pathToTab = {
     "/dashboard/processing-order": "Processing",
+    "/dashboard/bulk-orders": "Bulk Order",
     "/dashboard/all-orders": "All Orders",
     "/dashboard/manifested": "Manifested",
     "/dashboard/in-transit": "In Transit",
@@ -150,6 +174,8 @@ export function ProcessingOrders() {
   const { orders, totalOrders, totalPages, page, limit, loading, orderCounts, pickupAddresses } =
     useSelector((state) => state.orders);
 
+  const isPageLoading = activeStatus === "bulk" ? bulkLoading : loading;
+
   // Tracks the last-applied fetch params so page changes keep all active filters
   const currentFiltersRef = useRef({});
 
@@ -160,6 +186,11 @@ export function ProcessingOrders() {
       name: "Processing",
       count: statusCounts.Processing || 0,
       path: "/processing-order",
+    },
+    {
+      name: "Bulk Order",
+      count: bulkTotal || 0,
+      path: "/bulk-orders",
     },
     {
       name: "All Orders",
@@ -218,18 +249,54 @@ export function ProcessingOrders() {
     },
   ];
 
+  const fetchBulkOrdersData = async (pageNum = 1) => {
+    setBulkLoading(true);
+    try {
+      const res = await fetchBulkOrdersApi({
+        page: pageNum,
+        limit: filters.limit,
+      });
+      setBulkOrders(res.items || []);
+      setBulkTotal(res.total || 0);
+      setBulkPages(res.pages || 1);
+      setBulkPage(res.page || pageNum);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to fetch bulk orders");
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const params = {
-      page: 1,
-      limit: filters.limit,
-      status_filter: activeStatus,
-    };
-    currentFiltersRef.current = params;
-    dispatch(fetchOrders(params));
+    if (activeStatus === "bulk") {
+      fetchBulkOrdersData(1);
+    } else {
+      setFilters((prev) => ({
+        ...prev,
+        status: activeStatus === "processing" ? "" : activeStatus,
+      }));
+      const params = {
+        page: 1,
+        limit: filters.limit,
+        status_filter: activeStatus,
+      };
+      currentFiltersRef.current = params;
+      dispatch(fetchOrders(params));
+    }
   }, [location.pathname, filters.limit]);
 
   useEffect(() => {
     dispatch(fetchOrderCounts());
+    const fetchBulkCount = async () => {
+      try {
+        const res = await fetchBulkOrdersApi({ limit: 1 });
+        setBulkTotal(res.total || 0);
+      } catch (err) {
+        console.error("Failed to fetch bulk orders count", err);
+      }
+    };
+    fetchBulkCount();
   }, [dispatch]);
 
   useEffect(() => {
@@ -270,6 +337,69 @@ export function ProcessingOrders() {
     const params = { ...currentFiltersRef.current, page: newPage };
     currentFiltersRef.current = params;
     dispatch(fetchOrders(params));
+  };
+
+  const handleGenerateBulkInvoice = async (bulkOrder) => {
+    const toastId = toast.loading("Generating bulk invoice...");
+    try {
+      await generateBulkInvoiceApi(bulkOrder.id);
+      toast.success("Bulk invoice generated successfully!", { id: toastId });
+    } catch (error) {
+      console.error("Error generating bulk invoice:", error);
+      let errorMessage = "Failed to generate bulk invoice";
+      if (error.response?.data?.detail) {
+        if (typeof error.response.data.detail === "string") {
+          errorMessage = error.response.data.detail;
+        } else if (Array.isArray(error.response.data.detail)) {
+          errorMessage = error.response.data.detail.map((d) => d.msg).join(", ");
+        }
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      toast.error(errorMessage, { id: toastId });
+    }
+  };
+
+  const handleGenerateInvoicePDF = async (order) => {
+    const toastId = toast.loading("Generating invoice...");
+    try {
+      await generateInvoiceApi(order.id);
+      toast.success("Invoice generated successfully!", { id: toastId });
+    } catch (error) {
+      console.error("Error generating invoice:", error);
+      let errorMessage = "Failed to generate invoice";
+      if (error.response?.data?.detail) {
+        if (typeof error.response.data.detail === "string") {
+          errorMessage = error.response.data.detail;
+        } else if (Array.isArray(error.response.data.detail)) {
+          errorMessage = error.response.data.detail.map((d) => d.msg).join(", ");
+        }
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      toast.error(errorMessage, { id: toastId });
+    }
+  };
+
+  const handleGenerateInvoiceExcel = async (order, mappedOrder) => {
+    const toastId = toast.loading("Generating invoice...");
+    try {
+      await generateInvoiceApi(order.id);
+      toast.success("Invoice generated successfully!", { id: toastId });
+    } catch (error) {
+      console.error("Error generating invoice:", error);
+      let errorMessage = "Failed to generate invoice";
+      if (error.response?.data?.detail) {
+        if (typeof error.response.data.detail === "string") {
+          errorMessage = error.response.data.detail;
+        } else if (Array.isArray(error.response.data.detail)) {
+          errorMessage = error.response.data.detail.map((d) => d.msg).join(", ");
+        }
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      toast.error(errorMessage, { id: toastId });
+    }
   };
 
   const handleDuplicateOrder = async (orderId) => {
@@ -554,10 +684,10 @@ export function ProcessingOrders() {
         <CardContent className="p-0">
           <div className="p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border-subtle">
             <h2 className="text-lg font-semibold text-text-main">
-              {activeTab} Orders (Showing {orders.length} entries)
+              {activeTab} {activeStatus === "bulk" ? "" : "Orders"} (Showing {activeStatus === "bulk" ? bulkOrders.length : orders.length} entries)
             </h2>
             <div className="flex flex-wrap items-center gap-2">
-              {isProcessing ? (
+              {activeStatus === "bulk" ? null : isProcessing ? (
                 <>
                   <Button className="bg-primary text-black hover:bg-primary/90 text-xs font-bold gap-2 h-9">
                     <Ship size={16} /> Ship
@@ -653,12 +783,7 @@ export function ProcessingOrders() {
                         return toast.error("Order not found");
                       }
 
-                      const invoiceData = mapOrderToInvoice(
-                        selectedOrderData,
-                        formatDate,
-                      );
-
-                      generateInvoicePDF(invoiceData);
+                      handleGenerateInvoicePDF(selectedOrderData);
                     }}
                   >
                     <FileText size={16} /> Invoices
@@ -668,7 +793,8 @@ export function ProcessingOrders() {
             </div>
           </div>
 
-          <div className="p-6 bg-dashboard-bg/30 border-b border-border-subtle">
+          {activeStatus !== "bulk" && (
+            <div className="p-6 bg-dashboard-bg/30 border-b border-border-subtle">
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-text-muted">
@@ -773,10 +899,8 @@ export function ProcessingOrders() {
                   <option value="Prepaid">Prepaid</option>
                 </select>
               </div>
-            </div>
 
-            <div className="mt-4 flex flex-wrap items-start gap-6">
-              <div className="w-24 space-y-1.5">
+              <div className="space-y-1.5">
                 <label className="text-xs font-medium text-text-muted">
                   Limit:
                 </label>
@@ -791,7 +915,7 @@ export function ProcessingOrders() {
               </div>
 
               {!isProcessing && (
-                <div className="w-48 space-y-1.5">
+                <div className="space-y-1.5">
                   <label className="text-xs font-medium text-text-muted">
                     Status:
                   </label>
@@ -799,15 +923,20 @@ export function ProcessingOrders() {
                     {statusList.map((s) => (
                       <div
                         key={s}
-                        onClick={() =>
+                        onClick={() => {
+                          const newStatus =
+                            s === "All"
+                              ? ""
+                              : s.toLowerCase().replace(/\s+/g, "_");
                           setFilters({
                             ...filters,
-                            status:
-                              s === "All"
-                                ? ""
-                                : s.toLowerCase().replace(/\s+/g, "_"),
-                          })
-                        }
+                            status: newStatus,
+                          });
+                          const mappedPath = statusToPath[newStatus];
+                          if (mappedPath) {
+                            navigate(mappedPath);
+                          }
+                        }}
                         className={cn(
                           "px-2 py-1 rounded cursor-pointer transition-colors",
                           filters.status ===
@@ -826,10 +955,10 @@ export function ProcessingOrders() {
                 </div>
               )}
 
-              <div className="self-end">
+              <div className="self-end space-y-2">
                 <Button
                   onClick={handleSearch}
-                  className="bg-primary text-black hover:bg-primary/90 h-[34px] px-8 text-xs font-bold shadow-sm"
+                  className="w-full bg-primary text-black hover:bg-primary/90 h-[34px] text-xs font-bold shadow-sm"
                 >
                   Search
                 </Button>
@@ -843,27 +972,26 @@ export function ProcessingOrders() {
                       awb: "",
                       buyerName: "",
                       paymentMethod: "",
-                      status: "",
+                      status: activeStatus === "processing" ? "" : activeStatus,
                       limit: 25,
                     });
 
-                    navigate("/dashboard/processing-order");
-
-                    dispatch(
-                      fetchOrders({
-                        page: 1,
-                        limit: 25,
-                        status_filter: "processing",
-                      }),
-                    );
+                    const params = {
+                      page: 1,
+                      limit: 25,
+                      status_filter: activeStatus,
+                    };
+                    currentFiltersRef.current = params;
+                    dispatch(fetchOrders(params));
                   }}
-                  className="text-xs font-bold text-primary flex items-center gap-1 mt-2"
+                  className="text-xs font-bold text-primary flex items-center justify-center gap-1 w-full"
                 >
                   <RotateCcw size={14} /> Clear Filters
                 </button>
               </div>
             </div>
           </div>
+        )}
 
           <div className="px-6 py-4 overflow-x-auto border-b border-border-subtle bg-card-bg">
             <div className="flex items-center gap-2 min-w-max">
@@ -884,404 +1012,435 @@ export function ProcessingOrders() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          {isPageLoading ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <Loader2 className="animate-spin text-primary" size={40} />
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-dashboard-bg/50 text-text-muted text-[11px] font-bold uppercase border-b border-border-subtle">
-                  <th className="px-6 py-4 w-10 text-center">
-                    <input
-                      type="checkbox"
-                      checked={
-                        orders.length > 0 &&
-                        selectedOrders.length === orders.length
-                      }
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedOrders(orders.map((o) => o.id));
-                        } else {
-                          setSelectedOrders([]);
+                {activeStatus === "bulk" ? (
+                  <tr className="bg-dashboard-bg/50 text-text-muted text-[11px] font-bold uppercase border-b border-border-subtle">
+                    <th className="px-6 py-4">File Name</th>
+                    <th className="px-6 py-4">Order Type</th>
+                    <th className="px-6 py-4">Pickup Address ID</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4">Successful Orders</th>
+                    <th className="px-6 py-4">Failed Orders</th>
+                    <th className="px-6 py-4">Created At</th>
+                    <th className="px-6 py-4 text-center">Actions</th>
+                  </tr>
+                ) : (
+                  <tr className="bg-dashboard-bg/50 text-text-muted text-[11px] font-bold uppercase border-b border-border-subtle">
+                    <th className="px-6 py-4 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={
+                          orders.length > 0 &&
+                          selectedOrders.length === orders.length
                         }
-                      }}
-                      className="w-4 h-4"
-                    />
-                  </th>
-                  <th className="px-6 py-4">Customer</th>
-                  {!isProcessing && <th className="px-6 py-4">Shipment</th>}
-                  <th className="px-6 py-4">Route</th>
-                  <th className="px-6 py-4">Payment</th>
-                  {isProcessing ? (
-                    <th className="px-6 py-4">Order Details</th>
-                  ) : (
-                    <th className="px-6 py-4">Weight</th>
-                  )}
-                  {!isProcessing && <th className="px-6 py-4">Created</th>}
-                  {isProcessing && <th className="px-6 py-4">Weight/Dims</th>}
-                  <th className="px-6 py-4 text-center">Actions</th>
-                </tr>
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedOrders(orders.map((o) => o.id));
+                          } else {
+                            setSelectedOrders([]);
+                          }
+                        }}
+                        className="w-4 h-4"
+                      />
+                    </th>
+                    <th className="px-6 py-4">Customer</th>
+                    {!isProcessing && <th className="px-6 py-4">Shipment</th>}
+                    <th className="px-6 py-4">Route</th>
+                    <th className="px-6 py-4">Payment</th>
+                    {isProcessing ? (
+                      <th className="px-6 py-4">Order Details</th>
+                    ) : (
+                      <th className="px-6 py-4">Weight</th>
+                    )}
+                    {!isProcessing && <th className="px-6 py-4">Created</th>}
+                    {isProcessing && <th className="px-6 py-4">Weight/Dims</th>}
+                    <th className="px-6 py-4 text-center">Actions</th>
+                  </tr>
+                )}
               </thead>
               <tbody className="divide-y divide-border-subtle">
-                {orders.map((order, idx) => {
-                  const mappedOrder = {
-                    transactionId: order.id,
-                    id: order.order_number,
-                    status: order.status,
-                    customer: {
-                      name: order.consignee?.name || "N/A",
-                      phone: order.consignee?.mobile || "N/A",
-                      date: formatDate(order.created_at),
-                    },
-                    shipment: {
-                      id: order.order_shipment
-                        ? order.order_shipment
-                        : "No shipment ID",
-                      courier: order.courier_name || "Courier not selected",
-                    },
-                    route: {
-                      from: order.pickup_address?.city || "N/A",
-                      fromPin: order.pickup_address?.pincode || "",
-                      to: order.consignee?.city || "N/A",
-                      toPin: order.consignee?.pincode || "",
-                    },
-                    payment: {
-                      method: order.payment_method || "N/A",
-
-                      total: `₹${order.order_value || 0}`,
-
-                      payable:
-                        order.payment_method === "COD"
-                          ? `₹${order.cod_amount || 0}`
-                          : "Paid",
-
-                      channel: order.order_type || "N/A",
-                    },
-                    order: {
-                      id: order.order_number || "N/A",
-                      channel: order.order_type || "N/A",
-                    },
-                    items: order.items || [],
-                    weight: `${order.weight_summary?.total_weight_kg || 0} kg`,
-                    dims: `${
-                      order.packages?.[0]?.length_cm || 0
-                    }×${order.packages?.[0]?.breadth_cm || 0}×${
-                      order.packages?.[0]?.height_cm || 0
-                    } cm`,
-                    created: order.created_at
-                      ? formatDate(order.created_at)
-                      : "N/A",
-                  };
-
-                  return (
+                {activeStatus === "bulk" ? (
+                  bulkOrders.map((bulkOrder, idx) => (
                     <tr
                       key={idx}
                       className="hover:bg-dashboard-bg/30 transition-colors"
                     >
-                      <td className="px-6 py-6 text-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedOrders.includes(order.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedOrders([...selectedOrders, order.id]);
-                            } else {
-                              setSelectedOrders(
-                                selectedOrders.filter((id) => id !== order.id),
-                              );
-                            }
-                          }}
-                          className="w-4 h-4"
-                        />
+                      <td className="px-6 py-6 text-sm font-bold text-text-main">
+                        {bulkOrder.file_name}
                       </td>
-
-                      <td className="px-6 py-6">
-                        <div className="space-y-1">
-                          <p className="text-sm font-bold text-text-main">
-                            {mappedOrder.customer.name}
-                          </p>
-                          <p className="text-xs text-text-muted">
-                            {mappedOrder.customer.phone}
-                          </p>
-                          <span className="bg-orange-100 text-orange-600 text-[10px] font-bold px-2 py-0.5 rounded uppercase inline-block mt-1">
-                            {mappedOrder.status}
-                          </span>
-                          {isProcessing && (
-                            <p className="text-[10px] text-text-muted mt-1">
-                              {mappedOrder.customer.date}
-                            </p>
-                          )}
-                        </div>
+                      <td className="px-6 py-6 text-xs text-text-muted uppercase">
+                        {bulkOrder.order_type}
                       </td>
-
-                      {!isProcessing && (
-                        <td className="px-6 py-6 text-xs font-bold text-text-main">
-                          {mappedOrder.shipment.id}
-                          <br />
-                          <span className="font-normal text-text-muted">
-                            {mappedOrder.shipment.courier}
-                          </span>
-                        </td>
-                      )}
-
-                      <td className="px-6 py-6">
-                        <div className="text-xs font-bold text-text-main">
-                          {mappedOrder.route.from}{" "}
-                          <span className="text-[10px] font-normal text-text-muted">
-                            ({mappedOrder.route.fromPin})
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1 my-1">
-                          <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                          <div className="w-4 h-px bg-gray-300" />
-                          <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                        </div>
-                        <div className="text-xs font-bold text-text-main">
-                          {mappedOrder.route.to}{" "}
-                          <span className="text-[10px] font-normal text-text-muted">
-                            ({mappedOrder.route.toPin})
-                          </span>
-                        </div>
+                      <td className="px-6 py-6 text-xs text-text-muted">
+                        {bulkOrder.pickup_address_id}
                       </td>
-
                       <td className="px-6 py-6 text-xs">
-                        <p className="font-bold text-red-500 uppercase tracking-tighter">
-                          {mappedOrder.payment.method}
-                        </p>
-
-                        <p className="text-text-muted">
-                          Total: {mappedOrder.payment.total}
-                        </p>
+                        <span className={cn(
+                          "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
+                          bulkOrder.status === "completed" || bulkOrder.status === "processed"
+                            ? "bg-green-100 text-green-600"
+                            : bulkOrder.status === "failed"
+                            ? "bg-red-100 text-red-600"
+                            : "bg-orange-100 text-orange-600"
+                        )}>
+                          {bulkOrder.status}
+                        </span>
                       </td>
-
-                      {isProcessing ? (
-                        <td className="px-6 py-6 text-xs">
-                          <p className="font-bold text-text-main">
-                            #{mappedOrder.order.id}
-                          </p>
-
-                          <p className="text-text-main">
-                            {mappedOrder.items?.[0]?.product_name ||
-                              "No Product"}
-                          </p>
-
-                          <p className="text-text-muted">
-                            Qty: {mappedOrder.items?.[0]?.qty || 0} SKU:{" "}
-                            {mappedOrder.items?.[0]?.sku || "N/A"}
-                          </p>
-                        </td>
-                      ) : (
-                        <td className="px-6 py-6 text-[11px]">
-                          <p className="font-medium text-text-main">Box: 1</p>
-                          <p className="text-text-muted">
-                            Wt: {mappedOrder.weight}
-                          </p>
-                        </td>
-                      )}
-
-                      {isProcessing ? (
-                        <td className="px-6 py-6">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="text-[11px] leading-relaxed">
-                              <p className="font-bold text-text-main">
-                                {order.packages?.[0]?.count || 1} Box •{" "}
-                                {order.packages?.[0]?.physical_weight_kg || 0}{" "}
-                                Kg
-                              </p>
-
-                              <p className="text-text-muted">
-                                ({order.packages?.[0]?.length_cm || 0}×
-                                {order.packages?.[0]?.breadth_cm || 0}×
-                                {order.packages?.[0]?.height_cm || 0} cm)
-                              </p>
-
-                              <p className="text-text-muted">
-                                Vol: {order.packages?.[0]?.vol_weight_kg || 0}{" "}
-                                kg • Wt:{" "}
-                                {order.packages?.[0]?.physical_weight_kg || 0}{" "}
-                                kg
-                              </p>
-                            </div>
-
-                            <button
-                              onClick={() => {
-                                setSelectedWeightOrder(order);
-
-                                setIsWeightModalOpen(true);
-                              }}
-                              className="p-2 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors"
-                            >
-                              <Edit size={14} />
-                            </button>
-                          </div>
-                        </td>
-                      ) : (
-                        <td className="px-6 py-6 text-xs font-bold text-text-main">
-                          {mappedOrder.id}
-                          <br />
-                          <span className="font-normal text-text-muted">
-                            {mappedOrder.created}
-                          </span>
-                        </td>
-                      )}
-
+                      <td className="px-6 py-6 text-xs font-bold text-text-main">
+                        {bulkOrder.successful_orders} / {bulkOrder.total_orders}
+                      </td>
+                      <td className="px-6 py-6 text-xs font-bold text-red-500">
+                        {bulkOrder.failed_orders}
+                      </td>
+                      <td className="px-6 py-6 text-xs text-text-muted">
+                        {formatDate(bulkOrder.created_at)}
+                      </td>
                       <td className="px-6 py-6 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          {isProcessing ? (
-                            [Truck, Eye, Copy, Edit, Printer].map((Icon, i) => (
-                              <button
-                                key={i}
-                                onClick={() => {
-                                  // VIEW
-                                  if (Icon === Eye) {
-                                    setSelectedOrder(mappedOrder);
-                                    setIsModalOpen(true);
-                                  }
-
-                                  // DUPLICATE
-                                  if (Icon === Copy) {
-                                    handleDuplicateOrder(order.id);
-                                  }
-
-                                  // EDIT
-                                  if (Icon === Edit) {
-                                    navigate(
-                                      `/dashboard/edit-order/${order.id}`,
-                                      {
-                                        state: { order },
-                                      },
-                                    );
-                                  }
-
-                                  // PRINT INVOICE
-                                  if (Icon === Printer) {
-                                    const invoiceData = mapOrderToInvoice(
-                                      order,
-                                      formatDate,
-                                    );
-
-                                    generateInvoicePDF(invoiceData);
-                                  }
-                                }}
-                                className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
-                              >
-                                <Icon size={14} />
-                              </button>
-                            ))
-                          ) : (
-                            <>
-                              <button
-                                onClick={() =>
-                                  downloadInvoiceExcel(mappedOrder)
-                                }
-                                className="p-1.5 bg-primary text-black rounded-md shadow-sm transition-transform active:scale-95 hover:bg-primary/90"
-                              >
-                                <Download size={14} />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setSelectedOrder(mappedOrder);
-                                  setIsModalOpen(true);
-                                }}
-                                className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
-                              >
-                                <Eye size={14} />
-                              </button>
-                              <div className="relative" ref={menuRef}>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-
-                                    if (openMenuId === order.id) {
-                                      setOpenMenuId(null);
-                                    } else {
-                                      setOpenMenuId(order.id);
-                                    }
-                                  }}
-                                  className="p-1.5 text-text-muted hover:text-text-main rounded-md hover:bg-dashboard-bg/60 transition"
-                                >
-                                  <MoreVertical size={16} />
-                                </button>
-
-                                {openMenuId === order.id && (
-                                  <div className="absolute right-0 top-9 w-[190px] bg-card-bg border border-border-subtle rounded-lg shadow-[0_4px_14px_rgba(0,0,0,0.08)] z-50 overflow-hidden">
-                                    {/* DUPLICATE */}
-                                    <button
-                                      onClick={() => {
-                                        handleDuplicateOrder(order.id);
-                                        setOpenMenuId(null);
-                                      }}
-                                      className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
-                                    >
-                                      <Copy
-                                        size={15}
-                                        strokeWidth={1.9}
-                                        className="text-text-muted"
-                                      />
-
-                                      <span>Duplicate Order</span>
-                                    </button>
-
-                                    <div className="h-px bg-border-subtle" />
-
-                                    {/* DOWNLOAD INVOICE */}
-                                    <button
-                                      onClick={() => {
-                                        const invoiceData = mapOrderToInvoice(
-                                          order,
-                                          formatDate,
-                                        );
-
-                                        generateInvoicePDF(invoiceData);
-
-                                        setOpenMenuId(null);
-                                      }}
-                                      className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
-                                    >
-                                      <Printer
-                                        size={15}
-                                        strokeWidth={1.9}
-                                        className="text-text-muted"
-                                      />
-
-                                      <span>Download Invoice</span>
-                                    </button>
-
-                                    <div className="h-px bg-border-subtle" />
-
-                                    {/* VIEW CHARGES */}
-                                    <button
-                                      onClick={() => {
-                                        console.log("View Charges");
-                                        setOpenMenuId(null);
-                                      }}
-                                      className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
-                                    >
-                                      <FileText
-                                        size={15}
-                                        strokeWidth={1.9}
-                                        className="text-text-muted"
-                                      />
-
-                                      <span>View Charges</span>
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </>
-                          )}
-                        </div>
+                        <button
+                          onClick={() => handleGenerateBulkInvoice(bulkOrder)}
+                          className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
+                        >
+                          <Printer size={14} />
+                        </button>
                       </td>
                     </tr>
-                  );
-                })}
+                  ))
+                ) : (
+                  orders.map((order, idx) => {
+                    const mappedOrder = {
+                      transactionId: order.id,
+                      id: order.order_number,
+                      status: order.status,
+                      customer: {
+                        name: order.consignee?.name || "N/A",
+                        phone: order.consignee?.mobile || "N/A",
+                        date: formatDate(order.created_at),
+                      },
+                      shipment: {
+                        id: order.order_shipment
+                          ? order.order_shipment
+                          : "No shipment ID",
+                        courier: order.courier_name || "Courier not selected",
+                      },
+                      route: {
+                        from: order.pickup_address?.city || "N/A",
+                        fromPin: order.pickup_address?.pincode || "",
+                        to: order.consignee?.city || "N/A",
+                        toPin: order.consignee?.pincode || "",
+                      },
+                      payment: {
+                        method: order.payment_method || "N/A",
+
+                        total: `₹${order.order_value || 0}`,
+
+                        payable:
+                          order.payment_method === "COD"
+                            ? `₹${order.cod_amount || 0}`
+                            : "Paid",
+
+                        channel: order.order_type || "N/A",
+                      },
+                      order: {
+                        id: order.order_number || "N/A",
+                        channel: order.order_type || "N/A",
+                      },
+                      items: order.items || [],
+                      weight: `${order.weight_summary?.total_weight_kg || 0} kg`,
+                      dims: `${
+                        order.packages?.[0]?.length_cm || 0
+                      }×${order.packages?.[0]?.breadth_cm || 0}×${
+                        order.packages?.[0]?.height_cm || 0
+                      } cm`,
+                      created: order.created_at
+                        ? formatDate(order.created_at)
+                        : "N/A",
+                    };
+
+                    return (
+                      <tr
+                        key={idx}
+                        className="hover:bg-dashboard-bg/30 transition-colors"
+                      >
+                        <td className="px-6 py-6 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedOrders.includes(order.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedOrders([...selectedOrders, order.id]);
+                              } else {
+                                setSelectedOrders(
+                                  selectedOrders.filter((id) => id !== order.id),
+                                );
+                              }
+                            }}
+                            className="w-4 h-4"
+                          />
+                        </td>
+
+                        <td className="px-6 py-6">
+                          <div className="space-y-1">
+                            <p className="text-sm font-bold text-text-main">
+                              {mappedOrder.customer.name}
+                            </p>
+                            <p className="text-xs text-text-muted">
+                              {mappedOrder.customer.phone}
+                            </p>
+                            <span className="bg-orange-100 text-orange-600 text-[10px] font-bold px-2 py-0.5 rounded uppercase inline-block mt-1">
+                              {mappedOrder.status}
+                            </span>
+                            {isProcessing && (
+                              <p className="text-[10px] text-text-muted mt-1">
+                                {mappedOrder.customer.date}
+                              </p>
+                            )}
+                          </div>
+                        </td>
+
+                        {!isProcessing && (
+                          <td className="px-6 py-6 text-xs font-bold text-text-main">
+                            {mappedOrder.shipment.id}
+                            <br />
+                            <span className="font-normal text-text-muted">
+                              {mappedOrder.shipment.courier}
+                            </span>
+                          </td>
+                        )}
+
+                        <td className="px-6 py-6">
+                          <div className="text-xs font-bold text-text-main">
+                            {mappedOrder.route.from}{" "}
+                            <span className="text-[10px] font-normal text-text-muted">
+                              ({mappedOrder.route.fromPin})
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 my-1">
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                            <div className="w-4 h-px bg-gray-300" />
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                          </div>
+                          <div className="text-xs font-bold text-text-main">
+                            {mappedOrder.route.to}{" "}
+                            <span className="text-[10px] font-normal text-text-muted">
+                              ({mappedOrder.route.toPin})
+                            </span>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-6 text-xs">
+                          <p className="font-bold text-red-500 uppercase tracking-tighter">
+                            {mappedOrder.payment.method}
+                          </p>
+
+                          <p className="text-text-muted">
+                            Total: {mappedOrder.payment.total}
+                          </p>
+                        </td>
+
+                        {isProcessing ? (
+                          <td className="px-6 py-6 text-xs">
+                            <p className="font-bold text-text-main">
+                              #{mappedOrder.order.id}
+                            </p>
+                            <span className="bg-primary/20 text-primary text-[10px] font-bold px-2 py-0.5 rounded uppercase inline-block mt-1">
+                              {mappedOrder.order.channel}
+                            </span>
+                          </td>
+                        ) : (
+                          <td className="px-6 py-6 text-xs font-bold text-text-main">
+                            {mappedOrder.weight}
+                          </td>
+                        )}
+
+                        {!isProcessing && (
+                          <td className="px-6 py-6 text-xs text-text-muted">
+                            {mappedOrder.created}
+                          </td>
+                        )}
+
+                        {isProcessing && (
+                          <td className="px-6 py-6 text-xs">
+                            <div className="space-y-1">
+                              <p className="font-bold text-text-main">
+                                {mappedOrder.weight}
+                              </p>
+                              <p className="text-text-muted">
+                                {mappedOrder.dims}
+                              </p>
+                            </div>
+                          </td>
+                        )}
+
+                        <td className="px-6 py-6 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            {isProcessing ? (
+                              [Truck, Eye, Copy, Edit, Printer].map((Icon, i) => (
+                                <button
+                                  key={i}
+                                  onClick={() => {
+                                    // VIEW
+                                    if (Icon === Eye) {
+                                      setSelectedOrder(mappedOrder);
+                                      setIsModalOpen(true);
+                                    }
+
+                                    // DUPLICATE
+                                    if (Icon === Copy) {
+                                      handleDuplicateOrder(order.id);
+                                    }
+
+                                    // EDIT
+                                    if (Icon === Edit) {
+                                      navigate(
+                                        `/dashboard/edit-order/${order.id}`,
+                                        {
+                                          state: { order },
+                                        },
+                                      );
+                                    }
+
+                                    // PRINT INVOICE
+                                    if (Icon === Printer) {
+                                      handleGenerateInvoicePDF(order);
+                                    }
+                                  }}
+                                  className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
+                                >
+                                  <Icon size={14} />
+                                </button>
+                              ))
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() =>
+                                    handleGenerateInvoiceExcel(order, mappedOrder)
+                                  }
+                                  className="p-1.5 bg-primary text-black rounded-md shadow-sm transition-transform active:scale-95 hover:bg-primary/90"
+                                >
+                                  <Download size={14} />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setSelectedOrder(mappedOrder);
+                                    setIsModalOpen(true);
+                                  }}
+                                  className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
+                                >
+                                  <Eye size={14} />
+                                </button>
+                                <div className="relative" ref={menuRef}>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+
+                                      if (openMenuId === order.id) {
+                                        setOpenMenuId(null);
+                                      } else {
+                                        setOpenMenuId(order.id);
+                                      }
+                                    }}
+                                    className="p-1.5 text-text-muted hover:text-text-main rounded-md hover:bg-dashboard-bg/60 transition"
+                                  >
+                                    <MoreVertical size={16} />
+                                  </button>
+
+                                  {openMenuId === order.id && (
+                                    <div className="absolute right-0 top-9 w-[190px] bg-card-bg border border-border-subtle rounded-lg shadow-[0_4px_14px_rgba(0,0,0,0.08)] z-50 overflow-hidden">
+                                      {/* DUPLICATE */}
+                                      <button
+                                        onClick={() => {
+                                          handleDuplicateOrder(order.id);
+                                          setOpenMenuId(null);
+                                        }}
+                                        className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
+                                      >
+                                        <Copy
+                                          size={15}
+                                          strokeWidth={1.9}
+                                          className="text-text-muted"
+                                        />
+
+                                        <span>Duplicate Order</span>
+                                      </button>
+
+                                      <div className="h-px bg-border-subtle" />
+
+                                      {/* DOWNLOAD INVOICE */}
+                                      <button
+                                        onClick={() => {
+                                          handleGenerateInvoicePDF(order);
+                                          setOpenMenuId(null);
+                                        }}
+                                        className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
+                                      >
+                                        <Printer
+                                          size={15}
+                                          strokeWidth={1.9}
+                                          className="text-text-muted"
+                                        />
+
+                                        <span>Generate Invoice</span>
+                                      </button>
+
+                                      <div className="h-px bg-border-subtle" />
+
+                                      {/* VIEW CHARGES */}
+                                      <button
+                                        onClick={() => {
+                                          console.log("View Charges");
+                                          setOpenMenuId(null);
+                                        }}
+                                        className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
+                                      >
+                                        <FileText
+                                          size={15}
+                                          strokeWidth={1.9}
+                                          className="text-text-muted"
+                                        />
+
+                                        <span>View Charges</span>
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
-          <Pagination
-            currentPage={page}
-            totalPages={totalPages}
-            totalEntries={totalOrders}
-            limit={limit}
-            onPageChange={handlePageChange}
-          />
+              {activeStatus === "bulk" ? (
+                <Pagination
+                  currentPage={bulkPage}
+                  totalPages={bulkPages}
+                  totalEntries={bulkTotal}
+                  limit={filters.limit}
+                  onPageChange={(p) => fetchBulkOrdersData(p)}
+                />
+              ) : (
+                <Pagination
+                  currentPage={page}
+                  totalPages={totalPages}
+                  totalEntries={totalOrders}
+                  limit={limit}
+                  onPageChange={handlePageChange}
+                />
+              )}
+            </>
+          )}
         </CardContent>
       </Card>
       <OrderDetailsModal

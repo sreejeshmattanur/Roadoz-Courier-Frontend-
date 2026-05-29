@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { Download, FileText, Printer, Loader2 } from "lucide-react";
+import { Download, Eye, Loader2 } from "lucide-react";
 import Pagination from "../components/ui/Pagination";
 import { Link } from "react-router-dom";
 import { fetchInvoices, fetchInvoiceDetail, clearSelectedInvoice } from "../redux/invoiceSlice";
@@ -96,14 +96,7 @@ export function Invoices() {
                            title="View Details"
                            className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md transition-colors"
                         >
-                          <FileText size={15} />
-                        </button>
-                        <button 
-                           onClick={() => handleViewDetails(inv.id)}
-                           title="Print"
-                           className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md transition-colors"
-                        >
-                          <Printer size={15} />
+                          <Eye size={15} />
                         </button>
                       </div>
                     </td>

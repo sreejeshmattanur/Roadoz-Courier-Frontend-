@@ -305,6 +305,16 @@ export const fetchInvoiceByIdApi = async (id) => {
   return res.data;
 };
 
+export const generateInvoiceApi = async (orderId) => {
+  const res = await API.post(ENDPOINTS.GENERATE_INVOICE(orderId));
+  return res.data;
+};
+
+export const generateBulkInvoiceApi = async (bulkOrderId) => {
+  const res = await API.post(ENDPOINTS.GENERATE_BULK_INVOICE(bulkOrderId));
+  return res.data;
+};
+
 export const getOrderPincodeApi = async (orderNumber, lat, lng) => {
   console.log("[API CALL] getOrderPincodeApi");
 
@@ -418,6 +428,11 @@ export const uploadBulkOrderApi = async (formData) => {
       "Content-Type": "multipart/form-data",
     },
   });
+  return res.data;
+};
+
+export const fetchBulkOrdersApi = async (params) => {
+  const res = await API.get(ENDPOINTS.BULK_ORDER_UPLOAD, { params });
   return res.data;
 };
 
