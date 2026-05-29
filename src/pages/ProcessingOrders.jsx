@@ -97,6 +97,20 @@ export function ProcessingOrders() {
     "/dashboard/lost": "lost",
   };
 
+  const statusToPath = {
+    "": "/dashboard/all-orders",
+    "manifested": "/dashboard/manifested",
+    "in_transit": "/dashboard/in-transit",
+    "ndr": "/dashboard/pending",
+    "ofd": "/dashboard/out-for-delivery",
+    "delivered": "/dashboard/delivered",
+    "rto_in_transit": "/dashboard/rto-in-transit",
+    "rto_delivered": "/dashboard/rto-delivered",
+    "returned": "/dashboard/returned",
+    "cancelled": "/dashboard/cancelled",
+    "lost": "/dashboard/lost",
+  };
+
   const activeStatus =
     pathToStatus[location.pathname] ?? pathToStatus["/dashboard/processing-order"];
 
@@ -258,6 +272,10 @@ export function ProcessingOrders() {
     if (activeStatus === "bulk") {
       fetchBulkOrdersData(1);
     } else {
+      setFilters((prev) => ({
+        ...prev,
+        status: activeStatus === "processing" ? "" : activeStatus,
+      }));
       const params = {
         page: 1,
         limit: filters.limit,
@@ -881,10 +899,8 @@ export function ProcessingOrders() {
                   <option value="Prepaid">Prepaid</option>
                 </select>
               </div>
-            </div>
 
-            <div className="mt-4 flex flex-wrap items-start gap-6">
-              <div className="w-24 space-y-1.5">
+              <div className="space-y-1.5">
                 <label className="text-xs font-medium text-text-muted">
                   Limit:
                 </label>
@@ -899,7 +915,7 @@ export function ProcessingOrders() {
               </div>
 
               {!isProcessing && (
-                <div className="w-48 space-y-1.5">
+                <div className="space-y-1.5">
                   <label className="text-xs font-medium text-text-muted">
                     Status:
                   </label>
@@ -907,15 +923,20 @@ export function ProcessingOrders() {
                     {statusList.map((s) => (
                       <div
                         key={s}
-                        onClick={() =>
+                        onClick={() => {
+                          const newStatus =
+                            s === "All"
+                              ? ""
+                              : s.toLowerCase().replace(/\s+/g, "_");
                           setFilters({
                             ...filters,
-                            status:
-                              s === "All"
-                                ? ""
-                                : s.toLowerCase().replace(/\s+/g, "_"),
-                          })
-                        }
+                            status: newStatus,
+                          });
+                          const mappedPath = statusToPath[newStatus];
+                          if (mappedPath) {
+                            navigate(mappedPath);
+                          }
+                        }}
                         className={cn(
                           "px-2 py-1 rounded cursor-pointer transition-colors",
                           filters.status ===
@@ -934,10 +955,10 @@ export function ProcessingOrders() {
                 </div>
               )}
 
-              <div className="self-end">
+              <div className="self-end space-y-2">
                 <Button
                   onClick={handleSearch}
-                  className="bg-primary text-black hover:bg-primary/90 h-[34px] px-8 text-xs font-bold shadow-sm"
+                  className="w-full bg-primary text-black hover:bg-primary/90 h-[34px] text-xs font-bold shadow-sm"
                 >
                   Search
                 </Button>
@@ -951,7 +972,7 @@ export function ProcessingOrders() {
                       awb: "",
                       buyerName: "",
                       paymentMethod: "",
-                      status: "",
+                      status: activeStatus === "processing" ? "" : activeStatus,
                       limit: 25,
                     });
 
@@ -963,7 +984,7 @@ export function ProcessingOrders() {
                     currentFiltersRef.current = params;
                     dispatch(fetchOrders(params));
                   }}
-                  className="text-xs font-bold text-primary flex items-center gap-1 mt-2"
+                  className="text-xs font-bold text-primary flex items-center justify-center gap-1 w-full"
                 >
                   <RotateCcw size={14} /> Clear Filters
                 </button>
