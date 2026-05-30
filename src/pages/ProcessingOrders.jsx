@@ -17,6 +17,7 @@ import {
   Search,
   X,
   Loader2,
+  Filter,
 } from "lucide-react";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -849,6 +850,7 @@ export function ProcessingOrders() {
                   onChange={(e) =>
                     setFilters({ ...filters, orderId: e.target.value })
                   }
+                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                   placeholder="Order Ids"
                   className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
                 />
@@ -864,6 +866,7 @@ export function ProcessingOrders() {
                     onChange={(e) =>
                       setFilters({ ...filters, awb: e.target.value })
                     }
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                     placeholder="AWB No"
                     className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
                   />
@@ -879,6 +882,7 @@ export function ProcessingOrders() {
                   onChange={(e) =>
                     setFilters({ ...filters, buyerName: e.target.value })
                   }
+                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                   placeholder="Buyer Name"
                   className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
                 />
@@ -910,6 +914,7 @@ export function ProcessingOrders() {
                   onChange={(e) =>
                     setFilters({ ...filters, limit: Number(e.target.value) })
                   }
+                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                   className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
                 />
               </div>
@@ -955,14 +960,15 @@ export function ProcessingOrders() {
                 </div>
               )}
 
-              <div className="self-end space-y-2">
+              <div className="self-end flex items-center gap-2">
                 <Button
                   onClick={handleSearch}
-                  className="w-full bg-primary text-black hover:bg-primary/90 h-[34px] text-xs font-bold shadow-sm"
+                  className="flex-1 bg-primary hover:bg-primary/90 text-black h-9 text-xs font-bold shadow-sm"
                 >
-                  Search
+                  <Filter size={14} className="mr-2" /> Filter
                 </Button>
-                <button
+                <Button
+                  variant="ghost"
                   onClick={() => {
                     // 1. Reset local filters
                     setFilters({
@@ -984,10 +990,10 @@ export function ProcessingOrders() {
                     currentFiltersRef.current = params;
                     dispatch(fetchOrders(params));
                   }}
-                  className="text-xs font-bold text-primary flex items-center justify-center gap-1 w-full"
+                  className="h-9 px-3 text-text-muted border border-border-subtle hover:bg-dashboard-bg/50"
                 >
-                  <RotateCcw size={14} /> Clear Filters
-                </button>
+                  <RotateCcw size={16} />
+                </Button>
               </div>
             </div>
           </div>
