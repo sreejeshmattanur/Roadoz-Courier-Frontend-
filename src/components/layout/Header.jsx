@@ -11,7 +11,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { cn } from "../../lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { fetchProfile } from "../../redux/profileSlice";
-import { bulkUploadOrders, resetOrderState } from "../../redux/bulkOrderSlice";
+import { bulkUploadOrders, resetOrderState, refreshBulkOrders } from "../../redux/bulkOrderSlice";
+import { fetchOrders, fetchOrderCounts } from "../../redux/orderSlice";
 import { fetchPickupAddressesApi, getNotificationsWSUrl } from "../../services/apiCalls";
 import { toast } from "react-hot-toast";
 import Cookies from "js-cookie";
@@ -118,6 +119,9 @@ export function Header({ toggleSidebar }) {
             setIsImportModalOpen(false);
             setSelectedFile(null);
             dispatch(resetOrderState());
+            dispatch(fetchOrders({ page: 1, limit: 25 }));
+            dispatch(fetchOrderCounts());
+            dispatch(refreshBulkOrders());
         }
         if (uploadError) {
             toast.error(uploadError);
