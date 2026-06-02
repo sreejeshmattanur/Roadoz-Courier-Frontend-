@@ -17,7 +17,6 @@ import {
   Search,
   X,
   Loader2,
-  Filter,
 } from "lucide-react";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -43,7 +42,11 @@ import toast from "react-hot-toast";
 import { generateInvoicePDF } from "../lib/generateInvoicePDF";
 import { mapOrderToInvoice } from "../lib/invoiceMapper";
 import { generateShippingLabel } from "../lib/generateShippingLabel";
-import { generateInvoiceApi, fetchBulkOrdersApi, generateBulkInvoiceApi } from "../services/apiCalls";
+import {
+  generateInvoiceApi,
+  fetchBulkOrdersApi,
+  generateBulkInvoiceApi,
+} from "../services/apiCalls";
 
 export function ProcessingOrders() {
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -100,20 +103,21 @@ export function ProcessingOrders() {
 
   const statusToPath = {
     "": "/dashboard/all-orders",
-    "manifested": "/dashboard/manifested",
-    "in_transit": "/dashboard/in-transit",
-    "ndr": "/dashboard/pending",
-    "ofd": "/dashboard/out-for-delivery",
-    "delivered": "/dashboard/delivered",
-    "rto_in_transit": "/dashboard/rto-in-transit",
-    "rto_delivered": "/dashboard/rto-delivered",
-    "returned": "/dashboard/returned",
-    "cancelled": "/dashboard/cancelled",
-    "lost": "/dashboard/lost",
+    manifested: "/dashboard/manifested",
+    in_transit: "/dashboard/in-transit",
+    ndr: "/dashboard/pending",
+    ofd: "/dashboard/out-for-delivery",
+    delivered: "/dashboard/delivered",
+    rto_in_transit: "/dashboard/rto-in-transit",
+    rto_delivered: "/dashboard/rto-delivered",
+    returned: "/dashboard/returned",
+    cancelled: "/dashboard/cancelled",
+    lost: "/dashboard/lost",
   };
 
   const activeStatus =
-    pathToStatus[location.pathname] ?? pathToStatus["/dashboard/processing-order"];
+    pathToStatus[location.pathname] ??
+    pathToStatus["/dashboard/processing-order"];
 
   const handleTabClick = (tab) => {
     navigate(`/dashboard${tab.path}`);
@@ -172,10 +176,21 @@ export function ProcessingOrders() {
 
   const dispatch = useDispatch();
 
-  const { orders, totalOrders, totalPages, page, limit, loading, orderCounts, pickupAddresses } =
-    useSelector((state) => state.orders);
+  const {
+    orders,
+    totalOrders,
+    totalPages,
+    page,
+    limit,
+    loading,
+    orderCounts,
+    pickupAddresses,
+  } = useSelector((state) => state.orders);
 
   const isPageLoading = activeStatus === "bulk" ? bulkLoading : loading;
+  const refreshTrigger = useSelector(
+    (state) => state.bulkOrders?.refreshTrigger || 0,
+  );
 
   // Tracks the last-applied fetch params so page changes keep all active filters
   const currentFiltersRef = useRef({});
@@ -285,7 +300,7 @@ export function ProcessingOrders() {
       currentFiltersRef.current = params;
       dispatch(fetchOrders(params));
     }
-  }, [location.pathname, filters.limit]);
+  }, [location.pathname, filters.limit, refreshTrigger]);
 
   useEffect(() => {
     dispatch(fetchOrderCounts());
@@ -298,7 +313,7 @@ export function ProcessingOrders() {
       }
     };
     fetchBulkCount();
-  }, [dispatch]);
+  }, [dispatch, refreshTrigger]);
 
   useEffect(() => {
     dispatch(fetchPickupAddresses());
@@ -352,7 +367,9 @@ export function ProcessingOrders() {
         if (typeof error.response.data.detail === "string") {
           errorMessage = error.response.data.detail;
         } else if (Array.isArray(error.response.data.detail)) {
-          errorMessage = error.response.data.detail.map((d) => d.msg).join(", ");
+          errorMessage = error.response.data.detail
+            .map((d) => d.msg)
+            .join(", ");
         }
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
@@ -373,7 +390,9 @@ export function ProcessingOrders() {
         if (typeof error.response.data.detail === "string") {
           errorMessage = error.response.data.detail;
         } else if (Array.isArray(error.response.data.detail)) {
-          errorMessage = error.response.data.detail.map((d) => d.msg).join(", ");
+          errorMessage = error.response.data.detail
+            .map((d) => d.msg)
+            .join(", ");
         }
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
@@ -394,7 +413,9 @@ export function ProcessingOrders() {
         if (typeof error.response.data.detail === "string") {
           errorMessage = error.response.data.detail;
         } else if (Array.isArray(error.response.data.detail)) {
-          errorMessage = error.response.data.detail.map((d) => d.msg).join(", ");
+          errorMessage = error.response.data.detail
+            .map((d) => d.msg)
+            .join(", ");
         }
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
@@ -685,7 +706,9 @@ export function ProcessingOrders() {
         <CardContent className="p-0">
           <div className="p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border-subtle">
             <h2 className="text-lg font-semibold text-text-main">
-              {activeTab} {activeStatus === "bulk" ? "" : "Orders"} (Showing {activeStatus === "bulk" ? bulkOrders.length : orders.length} entries)
+              {activeTab} {activeStatus === "bulk" ? "" : "Orders"} (Showing{" "}
+              {activeStatus === "bulk" ? bulkOrders.length : orders.length}{" "}
+              entries)
             </h2>
             <div className="flex flex-wrap items-center gap-2">
               {activeStatus === "bulk" ? null : isProcessing ? (
@@ -796,208 +819,204 @@ export function ProcessingOrders() {
 
           {activeStatus !== "bulk" && (
             <div className="p-6 bg-dashboard-bg/30 border-b border-border-subtle">
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-muted">
-                  Starting Date
-                </label>
-
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={filters.startDate}
-                    onChange={(e) =>
-                      setFilters({ ...filters, startDate: e.target.value })
-                    }
-                    className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
-                  />
-
-                  <Calendar
-                    size={14}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-muted">
-                  Ending Date
-                </label>
-
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={filters.endDate}
-                    onChange={(e) =>
-                      setFilters({ ...filters, endDate: e.target.value })
-                    }
-                    className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
-                  />
-
-                  <Calendar
-                    size={14}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-muted">
-                  Order ID
-                </label>
-                <input
-                  type="text"
-                  value={filters.orderId}
-                  onChange={(e) =>
-                    setFilters({ ...filters, orderId: e.target.value })
-                  }
-                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                  placeholder="Order Ids"
-                  className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
-                />
-              </div>
-              {!isProcessing && (
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-text-muted">
-                    AWB NO
+                    Starting Date
+                  </label>
+
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={filters.startDate}
+                      onChange={(e) =>
+                        setFilters({ ...filters, startDate: e.target.value })
+                      }
+                      className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
+                    />
+
+                    <Calendar
+                      size={14}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-text-muted">
+                    Ending Date
+                  </label>
+
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={filters.endDate}
+                      onChange={(e) =>
+                        setFilters({ ...filters, endDate: e.target.value })
+                      }
+                      className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
+                    />
+
+                    <Calendar
+                      size={14}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-text-muted">
+                    Order ID
                   </label>
                   <input
                     type="text"
-                    value={filters.awb}
+                    value={filters.orderId}
                     onChange={(e) =>
-                      setFilters({ ...filters, awb: e.target.value })
+                      setFilters({ ...filters, orderId: e.target.value })
                     }
-                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                    placeholder="AWB No"
+                    placeholder="Order Ids"
                     className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
                   />
                 </div>
-              )}
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-muted">
-                  Buyer Name
-                </label>
-                <input
-                  type="text"
-                  value={filters.buyerName}
-                  onChange={(e) =>
-                    setFilters({ ...filters, buyerName: e.target.value })
-                  }
-                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                  placeholder="Buyer Name"
-                  className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-muted">
-                  Payment Method:
-                </label>
-                <select
-                  value={filters.paymentMethod}
-                  onChange={(e) =>
-                    setFilters({ ...filters, paymentMethod: e.target.value })
-                  }
-                  className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main appearance-none focus:outline-none focus:border-primary"
-                >
-                  <option value="">All</option>
-                  <option value="COD">COD</option>
-                  <option value="Prepaid">Prepaid</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-muted">
-                  Limit:
-                </label>
-                <input
-                  type="number"
-                  value={filters.limit}
-                  onChange={(e) =>
-                    setFilters({ ...filters, limit: Number(e.target.value) })
-                  }
-                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                  className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
-                />
-              </div>
-
-              {!isProcessing && (
+                {!isProcessing && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-text-muted">
+                      AWB NO
+                    </label>
+                    <input
+                      type="text"
+                      value={filters.awb}
+                      onChange={(e) =>
+                        setFilters({ ...filters, awb: e.target.value })
+                      }
+                      placeholder="AWB No"
+                      className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
+                    />
+                  </div>
+                )}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-text-muted">
-                    Status:
+                    Buyer Name
                   </label>
-                  <div className="h-28 overflow-y-auto border border-border-subtle rounded-lg bg-card-bg p-1 text-[11px] custom-scrollbar">
-                    {statusList.map((s) => (
-                      <div
-                        key={s}
-                        onClick={() => {
-                          const newStatus =
-                            s === "All"
-                              ? ""
-                              : s.toLowerCase().replace(/\s+/g, "_");
-                          setFilters({
-                            ...filters,
-                            status: newStatus,
-                          });
-                          const mappedPath = statusToPath[newStatus];
-                          if (mappedPath) {
-                            navigate(mappedPath);
-                          }
-                        }}
-                        className={cn(
-                          "px-2 py-1 rounded cursor-pointer transition-colors",
-                          filters.status ===
-                            (s === "All"
-                              ? ""
-                              : s.toLowerCase().replace(/\s+/g, "_")) ||
-                            (s === "All" && !filters.status)
-                            ? "bg-gray-200 font-bold text-black"
-                            : "text-text-muted hover:bg-gray-50",
-                        )}
-                      >
-                        {s}
-                      </div>
-                    ))}
-                  </div>
+                  <input
+                    type="text"
+                    value={filters.buyerName}
+                    onChange={(e) =>
+                      setFilters({ ...filters, buyerName: e.target.value })
+                    }
+                    placeholder="Buyer Name"
+                    className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
+                  />
                 </div>
-              )}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-text-muted">
+                    Payment Method:
+                  </label>
+                  <select
+                    value={filters.paymentMethod}
+                    onChange={(e) =>
+                      setFilters({ ...filters, paymentMethod: e.target.value })
+                    }
+                    className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main appearance-none focus:outline-none focus:border-primary"
+                  >
+                    <option value="">All</option>
+                    <option value="COD">COD</option>
+                    <option value="Prepaid">Prepaid</option>
+                  </select>
+                </div>
 
-              <div className="self-end flex items-center gap-2">
-                <Button
-                  onClick={handleSearch}
-                  className="flex-1 bg-primary hover:bg-primary/90 text-black h-9 text-xs font-bold shadow-sm"
-                >
-                  <Filter size={14} className="mr-2" /> Filter
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    // 1. Reset local filters
-                    setFilters({
-                      startDate: "",
-                      endDate: "",
-                      orderId: "",
-                      awb: "",
-                      buyerName: "",
-                      paymentMethod: "",
-                      status: activeStatus === "processing" ? "" : activeStatus,
-                      limit: 25,
-                    });
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-text-muted">
+                    Limit:
+                  </label>
+                  <input
+                    type="number"
+                    value={filters.limit}
+                    onChange={(e) =>
+                      setFilters({ ...filters, limit: Number(e.target.value) })
+                    }
+                    className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
+                  />
+                </div>
 
-                    const params = {
-                      page: 1,
-                      limit: 25,
-                      status_filter: activeStatus,
-                    };
-                    currentFiltersRef.current = params;
-                    dispatch(fetchOrders(params));
-                  }}
-                  className="h-9 px-3 text-text-muted border border-border-subtle hover:bg-dashboard-bg/50"
-                >
-                  <RotateCcw size={16} />
-                </Button>
+                {!isProcessing && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-text-muted">
+                      Status:
+                    </label>
+                    <div className="h-28 overflow-y-auto border border-border-subtle rounded-lg bg-card-bg p-1 text-[11px] custom-scrollbar">
+                      {statusList.map((s) => (
+                        <div
+                          key={s}
+                          onClick={() => {
+                            const newStatus =
+                              s === "All"
+                                ? ""
+                                : s.toLowerCase().replace(/\s+/g, "_");
+                            setFilters({
+                              ...filters,
+                              status: newStatus,
+                            });
+                            const mappedPath = statusToPath[newStatus];
+                            if (mappedPath) {
+                              navigate(mappedPath);
+                            }
+                          }}
+                          className={cn(
+                            "px-2 py-1 rounded cursor-pointer transition-colors",
+                            filters.status ===
+                              (s === "All"
+                                ? ""
+                                : s.toLowerCase().replace(/\s+/g, "_")) ||
+                              (s === "All" && !filters.status)
+                              ? "bg-gray-200 font-bold text-black"
+                              : "text-text-muted hover:bg-gray-50",
+                          )}
+                        >
+                          {s}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="self-end space-y-2">
+                  <Button
+                    onClick={handleSearch}
+                    className="w-full bg-primary text-black hover:bg-primary/90 h-[34px] text-xs font-bold shadow-sm"
+                  >
+                    Search
+                  </Button>
+                  <button
+                    onClick={() => {
+                      // 1. Reset local filters
+                      setFilters({
+                        startDate: "",
+                        endDate: "",
+                        orderId: "",
+                        awb: "",
+                        buyerName: "",
+                        paymentMethod: "",
+                        status:
+                          activeStatus === "processing" ? "" : activeStatus,
+                        limit: 25,
+                      });
+
+                      const params = {
+                        page: 1,
+                        limit: 25,
+                        status_filter: activeStatus,
+                      };
+                      currentFiltersRef.current = params;
+                      dispatch(fetchOrders(params));
+                    }}
+                    className="text-xs font-bold text-primary flex items-center justify-center gap-1 w-full"
+                  >
+                    <RotateCcw size={14} /> Clear Filters
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
           <div className="px-6 py-4 overflow-x-auto border-b border-border-subtle bg-card-bg">
             <div className="flex items-center gap-2 min-w-max">
@@ -1025,424 +1044,461 @@ export function ProcessingOrders() {
           ) : (
             <>
               <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                {activeStatus === "bulk" ? (
-                  <tr className="bg-dashboard-bg/50 text-text-muted text-[11px] font-bold uppercase border-b border-border-subtle">
-                    <th className="px-6 py-4">File Name</th>
-                    <th className="px-6 py-4">Order Type</th>
-                    <th className="px-6 py-4">Pickup Address ID</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4">Successful Orders</th>
-                    <th className="px-6 py-4">Failed Orders</th>
-                    <th className="px-6 py-4">Created At</th>
-                    <th className="px-6 py-4 text-center">Actions</th>
-                  </tr>
-                ) : (
-                  <tr className="bg-dashboard-bg/50 text-text-muted text-[11px] font-bold uppercase border-b border-border-subtle">
-                    <th className="px-6 py-4 w-10 text-center">
-                      <input
-                        type="checkbox"
-                        checked={
-                          orders.length > 0 &&
-                          selectedOrders.length === orders.length
-                        }
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedOrders(orders.map((o) => o.id));
-                          } else {
-                            setSelectedOrders([]);
-                          }
-                        }}
-                        className="w-4 h-4"
-                      />
-                    </th>
-                    <th className="px-6 py-4">Customer</th>
-                    {!isProcessing && <th className="px-6 py-4">Shipment</th>}
-                    <th className="px-6 py-4">Route</th>
-                    <th className="px-6 py-4">Payment</th>
-                    {isProcessing ? (
-                      <th className="px-6 py-4">Order Details</th>
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    {activeStatus === "bulk" ? (
+                      <tr className="bg-dashboard-bg/50 text-text-muted text-[11px] font-bold uppercase border-b border-border-subtle">
+                        <th className="px-6 py-4">File Name</th>
+                        <th className="px-6 py-4">Order Type</th>
+                        <th className="px-6 py-4">Pickup Address ID</th>
+                        <th className="px-6 py-4">Status</th>
+                        <th className="px-6 py-4">Successful Orders</th>
+                        <th className="px-6 py-4">Failed Orders</th>
+                        <th className="px-6 py-4">Created At</th>
+                        <th className="px-6 py-4 text-center">Actions</th>
+                      </tr>
                     ) : (
-                      <th className="px-6 py-4">Weight</th>
-                    )}
-                    {!isProcessing && <th className="px-6 py-4">Created</th>}
-                    {isProcessing && <th className="px-6 py-4">Weight/Dims</th>}
-                    <th className="px-6 py-4 text-center">Actions</th>
-                  </tr>
-                )}
-              </thead>
-              <tbody className="divide-y divide-border-subtle">
-                {activeStatus === "bulk" ? (
-                  bulkOrders.map((bulkOrder, idx) => (
-                    <tr
-                      key={idx}
-                      className="hover:bg-dashboard-bg/30 transition-colors"
-                    >
-                      <td className="px-6 py-6 text-sm font-bold text-text-main">
-                        {bulkOrder.file_name}
-                      </td>
-                      <td className="px-6 py-6 text-xs text-text-muted uppercase">
-                        {bulkOrder.order_type}
-                      </td>
-                      <td className="px-6 py-6 text-xs text-text-muted">
-                        {bulkOrder.pickup_address_id}
-                      </td>
-                      <td className="px-6 py-6 text-xs">
-                        <span className={cn(
-                          "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
-                          bulkOrder.status === "completed" || bulkOrder.status === "processed"
-                            ? "bg-green-100 text-green-600"
-                            : bulkOrder.status === "failed"
-                            ? "bg-red-100 text-red-600"
-                            : "bg-orange-100 text-orange-600"
-                        )}>
-                          {bulkOrder.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-6 text-xs font-bold text-text-main">
-                        {bulkOrder.successful_orders} / {bulkOrder.total_orders}
-                      </td>
-                      <td className="px-6 py-6 text-xs font-bold text-red-500">
-                        {bulkOrder.failed_orders}
-                      </td>
-                      <td className="px-6 py-6 text-xs text-text-muted">
-                        {formatDate(bulkOrder.created_at)}
-                      </td>
-                      <td className="px-6 py-6 text-center">
-                        <button
-                          onClick={() => handleGenerateBulkInvoice(bulkOrder)}
-                          className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
-                        >
-                          <Printer size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  orders.map((order, idx) => {
-                    const mappedOrder = {
-                      transactionId: order.id,
-                      id: order.order_number,
-                      status: order.status,
-                      customer: {
-                        name: order.consignee?.name || "N/A",
-                        phone: order.consignee?.mobile || "N/A",
-                        date: formatDate(order.created_at),
-                      },
-                      shipment: {
-                        id: order.order_shipment
-                          ? order.order_shipment
-                          : "No shipment ID",
-                        courier: order.courier_name || "Courier not selected",
-                      },
-                      route: {
-                        from: order.pickup_address?.city || "N/A",
-                        fromPin: order.pickup_address?.pincode || "",
-                        to: order.consignee?.city || "N/A",
-                        toPin: order.consignee?.pincode || "",
-                      },
-                      payment: {
-                        method: order.payment_method || "N/A",
-
-                        total: `₹${order.order_value || 0}`,
-
-                        payable:
-                          order.payment_method === "COD"
-                            ? `₹${order.cod_amount || 0}`
-                            : "Paid",
-
-                        channel: order.order_type || "N/A",
-                      },
-                      order: {
-                        id: order.order_number || "N/A",
-                        channel: order.order_type || "N/A",
-                      },
-                      items: order.items || [],
-                      weight: `${order.weight_summary?.total_weight_kg || 0} kg`,
-                      dims: `${
-                        order.packages?.[0]?.length_cm || 0
-                      }×${order.packages?.[0]?.breadth_cm || 0}×${
-                        order.packages?.[0]?.height_cm || 0
-                      } cm`,
-                      created: order.created_at
-                        ? formatDate(order.created_at)
-                        : "N/A",
-                    };
-
-                    return (
-                      <tr
-                        key={idx}
-                        className="hover:bg-dashboard-bg/30 transition-colors"
-                      >
-                        <td className="px-6 py-6 text-center">
+                      <tr className="bg-dashboard-bg/50 text-text-muted text-[11px] font-bold uppercase border-b border-border-subtle">
+                        <th className="px-6 py-4 w-10 text-center">
                           <input
                             type="checkbox"
-                            checked={selectedOrders.includes(order.id)}
+                            checked={
+                              orders.length > 0 &&
+                              selectedOrders.length === orders.length
+                            }
                             onChange={(e) => {
                               if (e.target.checked) {
-                                setSelectedOrders([...selectedOrders, order.id]);
+                                setSelectedOrders(orders.map((o) => o.id));
                               } else {
-                                setSelectedOrders(
-                                  selectedOrders.filter((id) => id !== order.id),
-                                );
+                                setSelectedOrders([]);
                               }
                             }}
                             className="w-4 h-4"
                           />
-                        </td>
-
-                        <td className="px-6 py-6">
-                          <div className="space-y-1">
-                            <p className="text-sm font-bold text-text-main">
-                              {mappedOrder.customer.name}
-                            </p>
-                            <p className="text-xs text-text-muted">
-                              {mappedOrder.customer.phone}
-                            </p>
-                            <span className="bg-orange-100 text-orange-600 text-[10px] font-bold px-2 py-0.5 rounded uppercase inline-block mt-1">
-                              {mappedOrder.status}
-                            </span>
-                            {isProcessing && (
-                              <p className="text-[10px] text-text-muted mt-1">
-                                {mappedOrder.customer.date}
-                              </p>
-                            )}
-                          </div>
-                        </td>
-
+                        </th>
+                        <th className="px-6 py-4">Customer</th>
                         {!isProcessing && (
-                          <td className="px-6 py-6 text-xs font-bold text-text-main">
-                            {mappedOrder.shipment.id}
-                            <br />
-                            <span className="font-normal text-text-muted">
-                              {mappedOrder.shipment.courier}
-                            </span>
-                          </td>
+                          <th className="px-6 py-4">Shipment</th>
                         )}
-
-                        <td className="px-6 py-6">
-                          <div className="text-xs font-bold text-text-main">
-                            {mappedOrder.route.from}{" "}
-                            <span className="text-[10px] font-normal text-text-muted">
-                              ({mappedOrder.route.fromPin})
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 my-1">
-                            <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                            <div className="w-4 h-px bg-gray-300" />
-                            <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                          </div>
-                          <div className="text-xs font-bold text-text-main">
-                            {mappedOrder.route.to}{" "}
-                            <span className="text-[10px] font-normal text-text-muted">
-                              ({mappedOrder.route.toPin})
-                            </span>
-                          </div>
-                        </td>
-
-                        <td className="px-6 py-6 text-xs">
-                          <p className="font-bold text-red-500 uppercase tracking-tighter">
-                            {mappedOrder.payment.method}
-                          </p>
-
-                          <p className="text-text-muted">
-                            Total: {mappedOrder.payment.total}
-                          </p>
-                        </td>
-
+                        <th className="px-6 py-4">Route</th>
+                        <th className="px-6 py-4">Payment</th>
                         {isProcessing ? (
-                          <td className="px-6 py-6 text-xs">
-                            <p className="font-bold text-text-main">
-                              #{mappedOrder.order.id}
-                            </p>
-                            <span className="bg-primary/20 text-primary text-[10px] font-bold px-2 py-0.5 rounded uppercase inline-block mt-1">
-                              {mappedOrder.order.channel}
-                            </span>
-                          </td>
+                          <th className="px-6 py-4">Order Details</th>
                         ) : (
-                          <td className="px-6 py-6 text-xs font-bold text-text-main">
-                            {mappedOrder.weight}
-                          </td>
+                          <th className="px-6 py-4">Weight</th>
                         )}
-
                         {!isProcessing && (
-                          <td className="px-6 py-6 text-xs text-text-muted">
-                            {mappedOrder.created}
-                          </td>
+                          <th className="px-6 py-4">Created</th>
                         )}
-
                         {isProcessing && (
-                          <td className="px-6 py-6 text-xs">
-                            <div className="space-y-1">
-                              <p className="font-bold text-text-main">
-                                {mappedOrder.weight}
-                              </p>
-                              <p className="text-text-muted">
-                                {mappedOrder.dims}
-                              </p>
-                            </div>
-                          </td>
+                          <th className="px-6 py-4">Weight/Dims</th>
                         )}
+                        <th className="px-6 py-4 text-center">Actions</th>
+                      </tr>
+                    )}
+                  </thead>
+                  <tbody className="divide-y divide-border-subtle">
+                    {activeStatus === "bulk"
+                      ? bulkOrders.map((bulkOrder, idx) => (
+                          <tr
+                            key={idx}
+                            className="hover:bg-dashboard-bg/30 transition-colors"
+                          >
+                            <td className="px-6 py-6 text-sm font-bold text-text-main">
+                              {bulkOrder.file_name}
+                            </td>
+                            <td className="px-6 py-6 text-xs text-text-muted uppercase">
+                              {bulkOrder.order_type}
+                            </td>
+                            <td className="px-6 py-6 text-xs text-text-muted">
+                              {bulkOrder.pickup_address_id}
+                            </td>
+                            <td className="px-6 py-6 text-xs">
+                              <span
+                                className={cn(
+                                  "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
+                                  bulkOrder.status === "completed" ||
+                                    bulkOrder.status === "processed"
+                                    ? "bg-green-100 text-green-600"
+                                    : bulkOrder.status === "failed"
+                                      ? "bg-red-100 text-red-600"
+                                      : "bg-orange-100 text-orange-600",
+                                )}
+                              >
+                                {bulkOrder.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-6 text-xs font-bold text-text-main">
+                              {bulkOrder.successful_orders} /{" "}
+                              {bulkOrder.total_orders}
+                            </td>
+                            <td className="px-6 py-6 text-xs font-bold text-red-500">
+                              {bulkOrder.failed_orders}
+                            </td>
+                            <td className="px-6 py-6 text-xs text-text-muted">
+                              {formatDate(bulkOrder.created_at)}
+                            </td>
+                            <td className="px-6 py-6 text-center">
+                              <button
+                                onClick={() =>
+                                  handleGenerateBulkInvoice(bulkOrder)
+                                }
+                                className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
+                              >
+                                <Printer size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      : orders.map((order, idx) => {
+                          const mappedOrder = {
+                            transactionId: order.id,
+                            id: order.order_number,
+                            status: order.status,
+                            customer: {
+                              name: order.consignee?.name || "N/A",
+                              phone: order.consignee?.mobile || "N/A",
+                              date: formatDate(order.created_at),
+                            },
+                            shipment: {
+                              id: order.order_shipment
+                                ? order.order_shipment
+                                : "No shipment ID",
+                              courier:
+                                order.courier_name || "Courier not selected",
+                            },
+                            route: {
+                              from: order.pickup_address?.city || "N/A",
+                              fromPin: order.pickup_address?.pincode || "",
+                              to: order.consignee?.city || "N/A",
+                              toPin: order.consignee?.pincode || "",
+                            },
+                            payment: {
+                              method: order.payment_method || "N/A",
 
-                        <td className="px-6 py-6 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            {isProcessing ? (
-                              [Truck, Eye, Copy, Edit, Printer].map((Icon, i) => (
-                                <button
-                                  key={i}
-                                  onClick={() => {
-                                    // VIEW
-                                    if (Icon === Eye) {
-                                      setSelectedOrder(mappedOrder);
-                                      setIsModalOpen(true);
-                                    }
+                              total: `₹${order.order_value || 0}`,
 
-                                    // DUPLICATE
-                                    if (Icon === Copy) {
-                                      handleDuplicateOrder(order.id);
-                                    }
+                              payable:
+                                order.payment_method === "COD"
+                                  ? `₹${order.cod_amount || 0}`
+                                  : "Paid",
 
-                                    // EDIT
-                                    if (Icon === Edit) {
-                                      navigate(
-                                        `/dashboard/edit-order/${order.id}`,
-                                        {
-                                          state: { order },
-                                        },
+                              channel: order.order_type || "N/A",
+                            },
+                            order: {
+                              id: order.order_number || "N/A",
+                              channel: order.order_type || "N/A",
+                            },
+                            items: order.items || [],
+                            weight: `${order.weight_summary?.total_weight_kg || 0} kg`,
+                            dims: `${
+                              order.packages?.[0]?.length_cm || 0
+                            }×${order.packages?.[0]?.breadth_cm || 0}×${
+                              order.packages?.[0]?.height_cm || 0
+                            } cm`,
+                            created: order.created_at
+                              ? formatDate(order.created_at)
+                              : "N/A",
+                          };
+
+                          return (
+                            <tr
+                              key={idx}
+                              className="hover:bg-dashboard-bg/30 transition-colors"
+                            >
+                              <td className="px-6 py-6 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedOrders.includes(order.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedOrders([
+                                        ...selectedOrders,
+                                        order.id,
+                                      ]);
+                                    } else {
+                                      setSelectedOrders(
+                                        selectedOrders.filter(
+                                          (id) => id !== order.id,
+                                        ),
                                       );
                                     }
-
-                                    // PRINT INVOICE
-                                    if (Icon === Printer) {
-                                      handleGenerateInvoicePDF(order);
-                                    }
                                   }}
-                                  className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
-                                >
-                                  <Icon size={14} />
-                                </button>
-                              ))
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() =>
-                                    handleGenerateInvoiceExcel(order, mappedOrder)
-                                  }
-                                  className="p-1.5 bg-primary text-black rounded-md shadow-sm transition-transform active:scale-95 hover:bg-primary/90"
-                                >
-                                  <Download size={14} />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setSelectedOrder(mappedOrder);
-                                    setIsModalOpen(true);
-                                  }}
-                                  className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
-                                >
-                                  <Eye size={14} />
-                                </button>
-                                <div className="relative" ref={menuRef}>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
+                                  className="w-4 h-4"
+                                />
+                              </td>
 
-                                      if (openMenuId === order.id) {
-                                        setOpenMenuId(null);
-                                      } else {
-                                        setOpenMenuId(order.id);
-                                      }
-                                    }}
-                                    className="p-1.5 text-text-muted hover:text-text-main rounded-md hover:bg-dashboard-bg/60 transition"
-                                  >
-                                    <MoreVertical size={16} />
-                                  </button>
-
-                                  {openMenuId === order.id && (
-                                    <div className="absolute right-0 top-9 w-[190px] bg-card-bg border border-border-subtle rounded-lg shadow-[0_4px_14px_rgba(0,0,0,0.08)] z-50 overflow-hidden">
-                                      {/* DUPLICATE */}
-                                      <button
-                                        onClick={() => {
-                                          handleDuplicateOrder(order.id);
-                                          setOpenMenuId(null);
-                                        }}
-                                        className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
-                                      >
-                                        <Copy
-                                          size={15}
-                                          strokeWidth={1.9}
-                                          className="text-text-muted"
-                                        />
-
-                                        <span>Duplicate Order</span>
-                                      </button>
-
-                                      <div className="h-px bg-border-subtle" />
-
-                                      {/* DOWNLOAD INVOICE */}
-                                      <button
-                                        onClick={() => {
-                                          handleGenerateInvoicePDF(order);
-                                          setOpenMenuId(null);
-                                        }}
-                                        className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
-                                      >
-                                        <Printer
-                                          size={15}
-                                          strokeWidth={1.9}
-                                          className="text-text-muted"
-                                        />
-
-                                        <span>Generate Invoice</span>
-                                      </button>
-
-                                      <div className="h-px bg-border-subtle" />
-
-                                      {/* VIEW CHARGES */}
-                                      <button
-                                        onClick={() => {
-                                          console.log("View Charges");
-                                          setOpenMenuId(null);
-                                        }}
-                                        className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
-                                      >
-                                        <FileText
-                                          size={15}
-                                          strokeWidth={1.9}
-                                          className="text-text-muted"
-                                        />
-
-                                        <span>View Charges</span>
-                                      </button>
-                                    </div>
+                              <td className="px-6 py-6">
+                                <div className="space-y-1">
+                                  <p className="text-sm font-bold text-text-main">
+                                    {mappedOrder.customer.name}
+                                  </p>
+                                  <p className="text-xs text-text-muted">
+                                    {mappedOrder.customer.phone}
+                                  </p>
+                                  <span className="bg-orange-100 text-orange-600 text-[10px] font-bold px-2 py-0.5 rounded uppercase inline-block mt-1">
+                                    {mappedOrder.status}
+                                  </span>
+                                  {isProcessing && (
+                                    <p className="text-[10px] text-text-muted mt-1">
+                                      {mappedOrder.customer.date}
+                                    </p>
                                   )}
                                 </div>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                              </td>
+
+                              {!isProcessing && (
+                                <td className="px-6 py-6 text-xs font-bold text-text-main">
+                                  {mappedOrder.shipment.id}
+                                  <br />
+                                  <span className="font-normal text-text-muted">
+                                    {mappedOrder.shipment.courier}
+                                  </span>
+                                </td>
+                              )}
+
+                              <td className="px-6 py-6">
+                                <div className="text-xs font-bold text-text-main">
+                                  {mappedOrder.route.from}{" "}
+                                  <span className="text-[10px] font-normal text-text-muted">
+                                    ({mappedOrder.route.fromPin})
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1 my-1">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                                  <div className="w-4 h-px bg-gray-300" />
+                                  <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                                </div>
+                                <div className="text-xs font-bold text-text-main">
+                                  {mappedOrder.route.to}{" "}
+                                  <span className="text-[10px] font-normal text-text-muted">
+                                    ({mappedOrder.route.toPin})
+                                  </span>
+                                </div>
+                              </td>
+
+                              <td className="px-6 py-6 text-xs">
+                                <p className="font-bold text-red-500 uppercase tracking-tighter">
+                                  {mappedOrder.payment.method}
+                                </p>
+
+                                <p className="text-text-muted">
+                                  Total: {mappedOrder.payment.total}
+                                </p>
+                              </td>
+
+                              {isProcessing ? (
+                                <td className="px-6 py-6 text-xs">
+                                  <p className="font-bold text-text-main">
+                                    #{mappedOrder.order.id}
+                                  </p>
+                                  <span className="bg-primary/20 text-primary text-[10px] font-bold px-2 py-0.5 rounded uppercase inline-block mt-1">
+                                    {mappedOrder.order.channel}
+                                  </span>
+                                </td>
+                              ) : (
+                                <td className="px-6 py-6 text-xs font-bold text-text-main">
+                                  {mappedOrder.weight}
+                                </td>
+                              )}
+
+                              {!isProcessing && (
+                                <td className="px-6 py-6 text-xs text-text-muted">
+                                  {mappedOrder.created}
+                                </td>
+                              )}
+
+                              {isProcessing && (
+                                <td className="px-6 py-6 text-xs">
+                                  <div className="space-y-1">
+                                    <p className="font-bold text-text-main">
+                                      {mappedOrder.weight}
+                                    </p>
+                                    <p className="text-text-muted">
+                                      {mappedOrder.dims}
+                                    </p>
+                                  </div>
+                                </td>
+                              )}
+
+                              <td className="px-6 py-6 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  {isProcessing ? (
+                                    [Truck, Eye, Copy, Edit, Printer].map(
+                                      (Icon, i) => (
+                                        <button
+                                          key={i}
+                                          onClick={() => {
+                                            // VIEW
+                                            if (Icon === Eye) {
+                                              setSelectedOrder(mappedOrder);
+                                              setIsModalOpen(true);
+                                            }
+
+                                            // DUPLICATE
+                                            if (Icon === Copy) {
+                                              handleDuplicateOrder(order.id);
+                                            }
+
+                                            // EDIT
+                                            if (Icon === Edit) {
+                                              navigate(
+                                                `/dashboard/edit-order/${order.id}`,
+                                                {
+                                                  state: { order },
+                                                },
+                                              );
+                                            }
+
+                                            // PRINT INVOICE
+                                            if (Icon === Printer) {
+                                              handleGenerateInvoicePDF(order);
+                                            }
+                                          }}
+                                          className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
+                                        >
+                                          <Icon size={14} />
+                                        </button>
+                                      ),
+                                    )
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() =>
+                                          handleGenerateInvoiceExcel(
+                                            order,
+                                            mappedOrder,
+                                          )
+                                        }
+                                        className="p-1.5 bg-primary text-black rounded-md shadow-sm transition-transform active:scale-95 hover:bg-primary/90"
+                                      >
+                                        <Download size={14} />
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setSelectedOrder(mappedOrder);
+                                          setIsModalOpen(true);
+                                        }}
+                                        className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
+                                      >
+                                        <Eye size={14} />
+                                      </button>
+                                      <div className="relative" ref={menuRef}>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+
+                                            if (openMenuId === order.id) {
+                                              setOpenMenuId(null);
+                                            } else {
+                                              setOpenMenuId(order.id);
+                                            }
+                                          }}
+                                          className="p-1.5 text-text-muted hover:text-text-main rounded-md hover:bg-dashboard-bg/60 transition"
+                                        >
+                                          <MoreVertical size={16} />
+                                        </button>
+
+                                        {openMenuId === order.id && (
+                                          <div className="absolute right-0 top-9 w-[190px] bg-card-bg border border-border-subtle rounded-lg shadow-[0_4px_14px_rgba(0,0,0,0.08)] z-50 overflow-hidden">
+                                            {/* DUPLICATE */}
+                                            <button
+                                              onClick={() => {
+                                                handleDuplicateOrder(order.id);
+                                                setOpenMenuId(null);
+                                              }}
+                                              className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
+                                            >
+                                              <Copy
+                                                size={15}
+                                                strokeWidth={1.9}
+                                                className="text-text-muted"
+                                              />
+
+                                              <span>Duplicate Order</span>
+                                            </button>
+
+                                            <div className="h-px bg-border-subtle" />
+
+                                            {/* DOWNLOAD INVOICE */}
+                                            <button
+                                              onClick={() => {
+                                                handleGenerateInvoicePDF(order);
+                                                setOpenMenuId(null);
+                                              }}
+                                              className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
+                                            >
+                                              <Printer
+                                                size={15}
+                                                strokeWidth={1.9}
+                                                className="text-text-muted"
+                                              />
+
+                                              <span>Generate Invoice</span>
+                                            </button>
+
+                                            <div className="h-px bg-border-subtle" />
+
+                                            {/* VIEW CHARGES */}
+                                            <button
+                                              onClick={() => {
+                                                console.log("View Charges");
+                                                setOpenMenuId(null);
+                                              }}
+                                              className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
+                                            >
+                                              <FileText
+                                                size={15}
+                                                strokeWidth={1.9}
+                                                className="text-text-muted"
+                                              />
+
+                                              <span>View Charges</span>
+                                            </button>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                  </tbody>
+                </table>
+              </div>
               {activeStatus === "bulk" ? (
                 <Pagination
-                  currentPage={bulkPage}
-                  totalPages={bulkPages}
-                  totalEntries={bulkTotal}
-                  limit={filters.limit}
-                  onPageChange={(p) => fetchBulkOrdersData(p)}
+                  currentPage={activeStatus === "bulk" ? bulkPage : page}
+                  totalPages={activeStatus === "bulk" ? bulkPages : totalPages}
+                  totalEntries={
+                    activeStatus === "bulk" ? bulkTotal : totalOrders
+                  }
+                  limit={limit}
+                  onPageChange={(newPage) => {
+                    if (activeStatus === "bulk") {
+                      fetchBulkOrdersData(newPage);
+                    } else {
+                      handlePageChange(newPage);
+                    }
+                  }}
                 />
               ) : (
                 <Pagination
-                  currentPage={page}
-                  totalPages={totalPages}
-                  totalEntries={totalOrders}
+                  currentPage={activeStatus === "bulk" ? bulkPage : page}
+                  totalPages={activeStatus === "bulk" ? bulkPages : totalPages}
+                  totalEntries={
+                    activeStatus === "bulk" ? bulkTotal : totalOrders
+                  }
                   limit={limit}
-                  onPageChange={handlePageChange}
+                  onPageChange={(newPage) => {
+                    if (activeStatus === "bulk") {
+                      fetchBulkOrdersData(newPage);
+                    } else {
+                      handlePageChange(newPage);
+                    }
+                  }}
                 />
               )}
             </>

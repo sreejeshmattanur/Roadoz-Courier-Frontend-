@@ -144,12 +144,13 @@ export function Sidebar({ isOpen, setIsOpen }) {
     // ],
 
     finance: [
-      { name: "Wallet", to: `${base}/wallet` },
+      { name: "Wallet", to: `${base}/wallet`, perm: "wallet:view" },
       {
         name: "COD Remittance",
         to: `${base}/cod-remittance`,
+        perm: "remittances:view",
       },
-      { name: "Invoices", to: `${base}/invoices` },
+      { name: "Invoices", to: `${base}/invoices`, perm: "invoices:view" },
     ],
 
     settings: [

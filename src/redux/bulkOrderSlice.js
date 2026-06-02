@@ -23,6 +23,7 @@ const initialState = {
   error: null,
   success: false,
   data: null,
+  refreshTrigger: 0,
 };
 
 const bulkOrderSlice = createSlice({
@@ -35,6 +36,9 @@ const bulkOrderSlice = createSlice({
       state.error = null;
       state.success = false;
       state.data = null;
+    },
+    refreshBulkOrders: (state) => {
+      state.refreshTrigger += 1;
     },
   },
 
@@ -61,7 +65,6 @@ const bulkOrderSlice = createSlice({
   },
 });
 
-
-export const { resetOrderState } = bulkOrderSlice.actions;
+export const { resetOrderState, refreshBulkOrders } = bulkOrderSlice.actions;
 
 export default bulkOrderSlice.reducer;

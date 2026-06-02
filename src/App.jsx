@@ -292,7 +292,7 @@ export default function App() {
             <Route
               path="wallet"
               element={
-                <PermissionRoute permission="finance:view">
+                <PermissionRoute permission="wallet:view">
                   <Wallet />
                 </PermissionRoute>
               }
@@ -300,7 +300,7 @@ export default function App() {
             <Route
               path="cod-remittance"
               element={
-                <PermissionRoute permission="finance:view">
+                <PermissionRoute permission="remittances:view">
                   <CODRemittance />
                 </PermissionRoute>
               }
@@ -308,7 +308,7 @@ export default function App() {
             <Route
               path="invoices"
               element={
-                <PermissionRoute permission="finance:view">
+                <PermissionRoute permission="invoices:view">
                   <Invoices />
                 </PermissionRoute>
               }

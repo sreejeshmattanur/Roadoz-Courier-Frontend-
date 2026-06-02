@@ -181,9 +181,9 @@ const orderSlice = createSlice({
     orders: [],
     totalOrders: 0,
     totalPages: 1,
-    orderCounts: {},
     page: 1,
     limit: 25,
+    orderCounts: {},
     selectedAddress: null,
     totalPickupAddresses: 0,
     totalConsignees: 0,
@@ -289,14 +289,16 @@ const orderSlice = createSlice({
       })
       .addCase(fetchOrders.fulfilled, (state, action) => {
         state.loading = false;
-        state.orders = action.payload.items || [];
-        state.totalOrders = action.payload.total || 0;
-        state.page = action.payload.page || 1;
-        state.limit = action.payload.limit || 25;
-        state.totalPages =
-          action.payload.pages ||
-          Math.ceil((action.payload.total || 0) / (action.payload.limit || 25)) ||
-          1;
+
+        const pagination = action.payload?.pagination || {};
+
+        state.orders = action.payload?.items || [];
+
+        state.totalOrders = pagination.total || 0;
+        state.page = pagination.page || 1;
+        state.limit = pagination.limit || 25;
+        state.totalPages = pagination.pages || 1;
+
         state.error = null;
       })
       .addCase(fetchOrders.rejected, (state, action) => {
