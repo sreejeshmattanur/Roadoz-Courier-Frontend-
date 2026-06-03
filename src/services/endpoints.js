@@ -17,7 +17,8 @@ export const ENDPOINTS = {
   GENERATE_BULK_INVOICE: (bulkOrderId) => `/invoices/generate/bulk/${bulkOrderId}`,
   CONSIGNEES: "/orders/consignees",
   ORDERS: "/orders",
-  DELETE_SCANNED_ORDER: (id, orderId) => `/orders/delete-scanned-order_with_mistak/${id}/${orderId}`,
+  DELETE_SCANNED_ORDER: (id) => `/orders/delete-scanned-order_with_mistak/${id}/`,
+  TRACK_ORDER_DETAILS: (orderNumber) => `/orders/track_orderwithbarcodeand_orderall_detailed/${orderNumber}`,
   SCAN_ORDER: "/orders/scan",
   GET_ORDER_PINCODE: "/orders/get-pincode",
   TODAY_STATUS: "/orders/orders/today-status",
@@ -77,5 +78,7 @@ export const ENDPOINTS = {
       AREA_WISE: "/reports/mis/area-wise-business",
       PERFORMANCE: "/reports/mis/performance-dashboard",
     }
-  }
+  },
+  DATE_WISE_ADDRESSES: "/orders/orders/date-wise-status-address",
+
 };
