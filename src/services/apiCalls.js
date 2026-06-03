@@ -344,8 +344,8 @@ export const scanOrderApi = async (orderNumber) => {
   return res.data;
 };
 
-export const deleteScannedOrderApi = async (id, orderId) => {
-  const res = await API.delete(ENDPOINTS.DELETE_SCANNED_ORDER(id, orderId));
+export const deleteScannedOrderApi = async (orderId) => {
+  const res = await API.delete(ENDPOINTS.DELETE_SCANNED_ORDER(orderId));
   return res.data;
 };
 
@@ -488,3 +488,15 @@ export const fetchAnalyticsDashboardApi = async (params = {}) => {
   });
   return res.data;
 };
+
+export const fetchDateWiseAddressesApi = async (data) => {
+    // data is { date: "YYYY-MM-DD", status: "Warehouse" }
+    const res = await API.post(ENDPOINTS.DATE_WISE_ADDRESSES, data);
+    return res.data;
+};
+
+export const fetchOrderDetailsApi = async (orderNumber) => {
+  const res = await API.get(ENDPOINTS.TRACK_ORDER_DETAILS(orderNumber));
+  return res.data;
+};
+  
