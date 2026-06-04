@@ -36,8 +36,8 @@ export function Dashboard() {
   const today = new Date();
   const defaultDate = formatDate(today);
 
-  const [startDate, setStartDate] = useState(defaultDate);
-  const [endDate, setEndDate] = useState(defaultDate);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   useEffect(() => {
     dispatch(fetchAnalyticsDashboard({ date_from: startDate, date_to: endDate }));
@@ -87,14 +87,14 @@ export function Dashboard() {
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
             />
-            {(startDate !== defaultDate || endDate !== defaultDate) && (
+            {(startDate !== "" || endDate !== "") && (
               <button
                 onClick={() => {
-                  setStartDate(defaultDate);
-                  setEndDate(defaultDate);
+                  setStartDate("");
+                  setEndDate("");
                 }}
                 className="ml-2 text-primary hover:text-primary-dark focus:outline-none flex items-center justify-center p-1 rounded-full hover:bg-gray-100 transition-colors"
-                title="Reset to today"
+                title="Clear date filter"
               >
                 <RefreshCw size={16} />
               </button>
