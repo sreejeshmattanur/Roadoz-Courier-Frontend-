@@ -201,10 +201,19 @@ export function Sidebar({ isOpen, setIsOpen }) {
      Toggle Menu
   ========================= */
   const toggleMenu = (menu) => {
-    setOpenMenus((prev) => ({
-      ...prev,
-      [menu]: !prev[menu],
-    }));
+    setOpenMenus((prev) => {
+      if (prev[menu]) {
+        return { ...prev, [menu]: false };
+      }
+      return {
+        orders: false,
+        tools: false,
+        finance: false,
+        settings: false,
+        admin: false,
+        [menu]: true,
+      };
+    });
   };
 
   /* =========================
@@ -243,6 +252,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
     return (
       <div className="px-2 py-1">
         <button
+          type="button"
           onClick={() => toggleMenu(id)}
           className={cn(
             "flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg transition-all",
