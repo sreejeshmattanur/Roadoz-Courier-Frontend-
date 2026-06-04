@@ -9,7 +9,24 @@ export function Pagination({
   limit = 10, 
   onPageChange 
 }) {
-  const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
+  const getPageNumbers = () => {
+    const totalVisiblePages = 5;
+    if (totalPages <= totalVisiblePages + 2) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    
+    if (currentPage <= 3) {
+      return [1, 2, 3, 4, '...', totalPages];
+    }
+    
+    if (currentPage >= totalPages - 2) {
+      return [1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    }
+    
+    return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
+  };
+
+  const pages = getPageNumbers();
 
   const startEntry = totalEntries === 0 ? 0 : (currentPage - 1) * limit + 1;
   const endEntry = Math.min(currentPage * limit, totalEntries);
@@ -34,20 +51,29 @@ export function Pagination({
         </button>
         
         <div className="flex items-center gap-1">
-          {pages.map((page) => (
-            <button
-              key={page}
-              onClick={() => onPageChange(page)}
-              className={cn(
-                "w-8 h-8 flex items-center justify-center text-xs font-bold rounded-lg transition-all",
-                page === currentPage
-                  ? "bg-primary text-black shadow-lg shadow-primary/20"
-                  : "text-text-muted hover:bg-dashboard-bg hover:text-text-main border border-transparent hover:border-border-subtle"
-              )}
-            >
-              {page}
-            </button>
-          ))}
+          {pages.map((page, index) => {
+            if (page === '...') {
+              return (
+                <span key={`ellipsis-${index}`} className="px-2 py-1 text-text-muted">
+                  ...
+                </span>
+              );
+            }
+            return (
+              <button
+                key={page}
+                onClick={() => onPageChange(page)}
+                className={cn(
+                  "w-8 h-8 flex items-center justify-center text-xs font-bold rounded-lg transition-all",
+                  page === currentPage
+                    ? "bg-primary text-black shadow-lg shadow-primary/20"
+                    : "text-text-muted hover:bg-dashboard-bg hover:text-text-main border border-transparent hover:border-border-subtle"
+                )}
+              >
+                {page}
+              </button>
+            );
+          })}
         </div>
 
         <button
