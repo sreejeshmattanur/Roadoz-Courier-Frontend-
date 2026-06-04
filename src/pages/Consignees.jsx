@@ -43,13 +43,20 @@ export function Consignees() {
 
   const dispatch = useDispatch();
 
-  const { consignees, loading } = useSelector((state) => state.consignees);
+  const {
+    consignees,
+    loading,
+    currentPage,
+    totalPages,
+    totalConsignees,
+    limit,
+  } = useSelector((state) => state.consignees);
 
   useEffect(() => {
     dispatch(
       fetchConsignees({
         page: filters.page,
-        limit: 25,
+        limit: 10,
       }),
     );
   }, [dispatch, filters.page]);
@@ -465,7 +472,18 @@ export function Consignees() {
               </tbody>
             </table>
           </div>
-          <Pagination />
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalEntries={totalConsignees}
+            limit={limit}
+            onPageChange={(page) =>
+              setFilters((prev) => ({
+                ...prev,
+                page,
+              }))
+            }
+          />
         </CardContent>
       </Card>
 

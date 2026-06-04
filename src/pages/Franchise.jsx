@@ -162,6 +162,8 @@ export function Franchise() {
   const filterInputClass =
     "bg-transparent border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary transition-all w-full";
 
+  console.log("Franchise Pagination", pagination);
+
   return (
     <div className="space-y-6 pb-20 p-4 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

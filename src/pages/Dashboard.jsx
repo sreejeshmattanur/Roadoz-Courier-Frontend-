@@ -11,6 +11,7 @@ import {
   Wallet,
   TrendingUp,
   Package,
+  RefreshCw,
 } from "lucide-react";
 import { StatCard } from "../components/dashboard/StatCard";
 import { PieChartCard } from "../components/dashboard/PieChartCard";
@@ -39,7 +40,7 @@ export function Dashboard() {
   const [endDate, setEndDate] = useState(defaultDate);
 
   useEffect(() => {
-    dispatch(fetchAnalyticsDashboard({ start_date: startDate, end_date: endDate }));
+    dispatch(fetchAnalyticsDashboard({ date_from: startDate, date_to: endDate }));
   }, [dispatch, startDate, endDate]);
 
   // Chart data derivations
@@ -86,6 +87,18 @@ export function Dashboard() {
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
             />
+            {(startDate !== defaultDate || endDate !== defaultDate) && (
+              <button
+                onClick={() => {
+                  setStartDate(defaultDate);
+                  setEndDate(defaultDate);
+                }}
+                className="ml-2 text-primary hover:text-primary-dark focus:outline-none flex items-center justify-center p-1 rounded-full hover:bg-gray-100 transition-colors"
+                title="Reset to today"
+              >
+                <RefreshCw size={16} />
+              </button>
+            )}
           </div>
           {loading && (
             <span className="ml-2 w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
