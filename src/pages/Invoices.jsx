@@ -51,7 +51,7 @@ export function Invoices() {
   });
 
   useEffect(() => {
-    dispatch(fetchInvoices({ page: 1, limit: 1000 }));
+    dispatch(fetchInvoices({ page: 1 }));
   }, [dispatch]);
 
   const handleApplyFilters = () => {
