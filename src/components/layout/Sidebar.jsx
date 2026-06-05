@@ -65,7 +65,9 @@ export function Sidebar({ isOpen, setIsOpen }) {
         to: `${base}/scanned-orders`,
         perm: "orders:view",
       },
-      { name: "Not Picked", to: `${base}/not-picked`, perm: "orders:view" },
+      { name: "Picked", to: `${base}/picked`, perm: "orders:view" },
+      { name: "Dispatched", to: `${base}/dispatched`, perm: "orders:view" },
+      { name: "Warehouse Orders", to: `${base}/warehouse-orders`, perm: "orders:view" },
       {
         name: "In Transit Orders",
         to: `${base}/in-transit`,
