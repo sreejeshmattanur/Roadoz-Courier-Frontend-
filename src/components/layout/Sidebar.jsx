@@ -45,11 +45,18 @@ export function Sidebar({ isOpen, setIsOpen }) {
   });
 
   /* =========================
-     Permission Helper
+     Permission Helpers
   ========================= */
+  // Checks if user has a specific permission or any from a list
   const hasPerm = (perm) => {
-    if (role === "super_admin") return true;
+    if (role === "super_admin" || role === "Super Admin") return true;
     if (!perm) return true;
+
+    // If perm is an array, check if user has at least one of them
+    if (Array.isArray(perm)) {
+      return perm.some((p) => permissions?.includes(p));
+    }
+
     return permissions?.includes(perm);
   };
 
@@ -60,11 +67,6 @@ export function Sidebar({ isOpen, setIsOpen }) {
     orders: [
       { name: "All Orders", to: `${base}/all-orders`, perm: "orders:view" },
       { name: "Manifested", to: `${base}/manifested`, perm: "orders:view" },
-      {
-        name: "Scanned Orders",
-        to: `${base}/scanned-orders`,
-        perm: "orders:view",
-      },
       { name: "Picked", to: `${base}/picked`, perm: "orders:view" },
       { name: "Dispatched", to: `${base}/dispatched`, perm: "orders:view" },
       { name: "Warehouse Orders", to: `${base}/warehouse-orders`, perm: "orders:view" },
@@ -73,106 +75,42 @@ export function Sidebar({ isOpen, setIsOpen }) {
         to: `${base}/in-transit`,
         perm: "orders:view",
       },
+      { name: "Not Picked", to: `${base}/not-picked`, perm: "orders:view" },
+      { name: "In Transit Orders", to: `${base}/in-transit`, perm: "orders:view" },
       { name: "Pending", to: `${base}/pending`, perm: "orders:view" },
-      {
-        name: "Out For Delivery",
-        to: `${base}/out-for-delivery`,
-        perm: "orders:view",
-      },
+      { name: "Out For Delivery", to: `${base}/out-for-delivery`, perm: "orders:view" },
       { name: "Delivered", to: `${base}/delivered`, perm: "orders:view" },
-      {
-        name: "RTO In Transit",
-        to: `${base}/rto-in-transit`,
-        perm: "orders:view",
-      },
-      {
-        name: "RTO Delivered",
-        to: `${base}/rto-delivered`,
-        perm: "orders:view",
-      },
+      { name: "RTO In Transit", to: `${base}/rto-in-transit`, perm: "orders:view" },
+      { name: "RTO Delivered", to: `${base}/rto-delivered`, perm: "orders:view" },
       { name: "Returned", to: `${base}/returned`, perm: "orders:view" },
       { name: "Cancelled", to: `${base}/cancelled`, perm: "orders:view" },
     ],
 
     admin: [
-      {
-        name: "User Management",
-        to: `${base}/admin/users`,
-        perm: "users:view",
-      },
-      {
-        name: "Role Permissions",
-        to: `${base}/admin/roles`,
-        perm: "roles:view",
-      },
-      {
-        name: "Assign Roles",
-        to: `${base}/admin/assign-roles`,
-        perm: "user_roles:assign",
-      },
-      {
-        name: "Activity Logs",
-        to: `${base}/admin/activity-logs`,
-        perm: "logs:view",
-      },
+      { name: "User Management", to: `${base}/admin/users`, perm: "users:view" },
+      { name: "Role Permissions", to: `${base}/admin/roles`, perm: "roles:view" },
+      { name: "Assign Roles", to: `${base}/admin/assign-roles`, perm: "user_roles:assign" },
+      { name: "Activity Logs", to: `${base}/admin/activity-logs`, perm: "activity_logs:view" },
     ],
 
     tools: [
-      {
-        name: "Serviceable Pincode",
-        to: `${base}/serviceable-pincode`,
-        perm: "tools:view",
-      },
-      {
-        name: "Rate Calculator",
-        to: `${base}/rate-calculator`,
-        perm: "tools:view",
-      },
-      {
-        name: "Channel Integration",
-        to: `${base}/channel-integration`,
-        perm: "tools:view",
-      },
+      { name: "Serviceable Pincode", to: `${base}/serviceable-pincode`, perm: "tools:view" },
+      { name: "Rate Calculator", to: `${base}/rate-calculator`, perm: "tools:view" },
+      { name: "Channel Integration", to: `${base}/channel-integration`, perm: "tools:view" },
     ],
-
-    // finance: [
-    //   { name: "Wallet", to: `${base}/wallet`, perm: "finance:view" },
-    //   {
-    //     name: "COD Remittance",
-    //     to: `${base}/cod-remittance`,
-    //     perm: "finance:view",
-    //   },
-    //   { name: "Invoices", to: `${base}/invoices`, perm: "finance:view" },
-    // ],
 
     finance: [
       { name: "Wallet", to: `${base}/wallet`, perm: "wallet:view" },
-      {
-        name: "COD Remittance",
-        to: `${base}/cod-remittance`,
-        perm: "remittances:view",
-      },
+      { name: "COD Remittance", to: `${base}/cod-remittance`, perm: "remittances:view" },
       { name: "Invoices", to: `${base}/invoices`, perm: "invoices:view" },
     ],
 
     settings: [
-      {
-        name: "General Details",
-        to: `${base}/settings/general`,
-        perm: "profile:view",
-      },
+      { name: "General Details", to: `${base}/settings/general`, perm: "profile:view" },
       { name: "Change Password", to: `${base}/settings/password` },
-      {
-        name: "Pickup Address",
-        to: `${base}/settings/pickup`,
-        perm: "profile:edit",
-      },
+      { name: "Pickup Address", to: `${base}/settings/pickup`, perm: "profile:edit" },
       { name: "RTO Address", to: `${base}/settings/rto`, perm: "profile:edit" },
-      {
-        name: "Label Setting",
-        to: `${base}/settings/label"`,
-        perm: "profile:edit",
-      },
+      { name: "Label Setting", to: `${base}/settings/label`, perm: "profile:edit" },
       { name: "KYC", to: `${base}/settings/kyc`, perm: "profile:edit" },
     ],
   };
@@ -182,9 +120,8 @@ export function Sidebar({ isOpen, setIsOpen }) {
   ========================= */
   useEffect(() => {
     const currentPath = location.pathname;
-
     const activeSection = Object.keys(sections).find((key) =>
-      sections[key].some((item) => currentPath.startsWith(item.to)),
+      sections[key].some((item) => currentPath.startsWith(item.to))
     );
 
     if (activeSection) {
@@ -199,56 +136,27 @@ export function Sidebar({ isOpen, setIsOpen }) {
     }
   }, [location.pathname]);
 
-  /* =========================
-     Toggle Menu
-  ========================= */
   const toggleMenu = (menu) => {
-    setOpenMenus((prev) => {
-      if (prev[menu]) {
-        return { ...prev, [menu]: false };
-      }
-      return {
-        orders: false,
-        tools: false,
-        finance: false,
-        settings: false,
-        admin: false,
-        [menu]: true,
-      };
-    });
+    setOpenMenus((prev) => ({
+      orders: false, tools: false, finance: false, settings: false, admin: false,
+      [menu]: !prev[menu],
+    }));
   };
 
-  /* =========================
-     Logout
-  ========================= */
   const handleLogout = async () => {
     const loadingToast = toast.loading("Logging out...");
-
     try {
-      const response = await dispatch(logoutUser()).unwrap();
-
-      toast.success(response?.message || "Logged out successfully", {
-        id: loadingToast,
-        icon: "✅",
-      });
-
+      await dispatch(logoutUser()).unwrap();
+      toast.success("Logged out successfully", { id: loadingToast });
       navigate("/login");
     } catch (error) {
-      toast.error("Logout completed with server issue", {
-        id: loadingToast,
-        icon: "⚠️",
-      });
-
+      toast.error("Logout completed with server issue", { id: loadingToast });
       navigate("/login");
     }
   };
 
-  /* =========================
-     Dropdown Component
-  ========================= */
   const NavDropdown = ({ id, label, icon: Icon, items }) => {
     const allowedItems = items.filter((item) => hasPerm(item.perm));
-
     if (allowedItems.length === 0) return null;
 
     return (
@@ -259,22 +167,14 @@ export function Sidebar({ isOpen, setIsOpen }) {
           className={cn(
             "flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg transition-all",
             isOpen ? "justify-between" : "justify-center",
-            openMenus[id]
-              ? "bg-primary/10 text-text-main"
-              : "text-text-muted hover:bg-text-muted/5",
+            openMenus[id] ? "bg-primary/10 text-text-main" : "text-text-muted hover:bg-text-muted/5"
           )}
         >
           <div className="flex items-center gap-3">
             <Icon size={20} className={openMenus[id] ? "text-primary" : ""} />
             {isOpen && <span>{label}</span>}
           </div>
-
-          {isOpen &&
-            (openMenus[id] ? (
-              <ChevronUp size={16} />
-            ) : (
-              <ChevronDown size={16} />
-            ))}
+          {isOpen && (openMenus[id] ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}
         </button>
 
         {isOpen && openMenus[id] && (
@@ -286,9 +186,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
                 className={({ isActive }) =>
                   cn(
                     "py-2 pl-8 pr-4 text-xs rounded-md flex items-center gap-2",
-                    isActive
-                      ? "text-primary bg-primary/10 font-bold"
-                      : "text-text-muted hover:bg-text-muted/5",
+                    isActive ? "text-primary bg-primary/10 font-bold" : "text-text-muted hover:bg-text-muted/5"
                   )
                 }
               >
@@ -305,166 +203,57 @@ export function Sidebar({ isOpen, setIsOpen }) {
     <aside
       className={cn(
         "fixed lg:static inset-y-0 left-0 z-50 flex flex-col h-screen bg-dashboard-bg border-r border-border-subtle transition-all duration-300",
-        isOpen
-          ? "w-64 translate-x-0"
-          : "w-0 lg:w-20 -translate-x-full lg:translate-x-0",
+        isOpen ? "w-64 translate-x-0" : "w-0 lg:w-20 -translate-x-full lg:translate-x-0"
       )}
     >
-      {/* Logo */}
       <div className="p-4 flex items-center justify-between lg:justify-center">
-        <img
-          src={logo}
-          alt="Logo"
-          className={cn(
-            "object-contain transition-all",
-            isOpen ? "w-40 h-12" : "w-10 h-10",
-          )}
-        />
-
-        <button
-          onClick={() => setIsOpen(false)}
-          className="lg:hidden p-2 text-primary"
-        >
-          <X size={24} />
-        </button>
+        <img src={logo} alt="Logo" className={cn("object-contain transition-all", isOpen ? "w-40 h-12" : "w-10 h-10")} />
+        <button onClick={() => setIsOpen(false)} className="lg:hidden p-2 text-primary"><X size={24} /></button>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 space-y-1 custom-scrollbar">
-        <NavLink
-          to={base}
-          end
-          icon={<LayoutDashboard size={20} />}
-          hideText={!isOpen}
-        >
-          Dashboard
-        </NavLink>
+        <NavLink to={base} end icon={<LayoutDashboard size={20} />} hideText={!isOpen}>Dashboard</NavLink>
 
         {hasPerm("orders:create") && (
-          <NavLink
-            to={`${base}/new-orders`}
-            icon={<ShoppingCart size={20} />}
-            hideText={!isOpen}
-          >
-            New Orders
-          </NavLink>
+          <NavLink to={`${base}/new-orders`} icon={<ShoppingCart size={20} />} hideText={!isOpen}>New Orders</NavLink>
         )}
 
-        {hasPerm("franchise:view") && (
-          <NavLink
-            to={`${base}/franchise`}
-            icon={<Store size={20} />}
-            hideText={!isOpen}
-          >
-            Franchise
-          </NavLink>
+        {/* FRANCHISE TAB: Visible if user has ANY franchise permission */}
+        {hasPerm(["franchises:view", "franchises:create", "franchises:edit", "franchises:delete"]) && (
+          <NavLink to={`${base}/franchise`} icon={<Store size={20} />} hideText={!isOpen}>Franchise</NavLink>
         )}
 
         {hasPerm("orders:view") && (
-          <NavLink
-            to={`${base}/processing-order`}
-            icon={<Package size={20} />}
-            hideText={!isOpen}
-            onClick={() => setOpenMenus((prev) => ({ ...prev, orders: true }))}
-          >
-            Processing Order
-          </NavLink>
+          <NavLink to={`${base}/processing-order`} icon={<Package size={20} />} hideText={!isOpen}>Processing Order</NavLink>
         )}
 
-        <NavDropdown
-          id="orders"
-          label="Orders"
-          icon={ClipboardList}
-          items={sections.orders}
-        />
+        <NavDropdown id="orders" label="Orders" icon={ClipboardList} items={sections.orders} />
+        <NavDropdown id="admin" label="Administrative" icon={ShieldCheck} items={sections.admin} />
+        <NavDropdown id="tools" label="Tools" icon={Wrench} items={sections.tools} />
+        <NavDropdown id="finance" label="Finance" icon={CircleDollarSign} items={sections.finance} />
 
-        <NavDropdown
-          id="admin"
-          label="Administrative"
-          icon={ShieldCheck}
-          items={sections.admin}
-        />
-
-        <NavDropdown
-          id="tools"
-          label="Tools"
-          icon={Wrench}
-          items={sections.tools}
-        />
-
-        <NavDropdown
-          id="finance"
-          label="Finance"
-          icon={CircleDollarSign}
-          items={sections.finance}
-        />
-
-        {hasPerm("users:view") && (
-          <NavLink
-            to={`${base}/consignees`}
-            icon={<Users size={20} />}
-            hideText={!isOpen}
-          >
-            Consignees
-          </NavLink>
+        {hasPerm("consignees:view") && (
+          <NavLink to={`${base}/consignees`} icon={<Users size={20} />} hideText={!isOpen}>Consignees</NavLink>
         )}
 
         {hasPerm("orders:view") && (
-          <NavLink
-            to={`${base}/warehouse`}
-            icon={<Warehouse size={20} />}
-            hideText={!isOpen}
-          >
-            Warehouse
-          </NavLink>
+          <NavLink to={`${base}/warehouse`} icon={<Warehouse size={20} />} hideText={!isOpen}>Warehouse</NavLink>
         )}
 
         {hasPerm("orders:view") && (
-          <NavLink
-            to={`${base}/reviews`}
-            icon={<ClipboardCheck size={20} />}
-            hideText={!isOpen}
-          >
-            Review
-          </NavLink>
+          <NavLink to={`${base}/reviews`} icon={<ClipboardCheck size={20} />} hideText={!isOpen}>Review</NavLink>
         )}
 
-        <NavLink
-          to={`${base}/scanned-orders`}
-          icon={<Package size={20} />}
-          hideText={!isOpen}
-        >
-          Scanned Orders
-        </NavLink>
+        {hasPerm("orders:view") && (
+          <NavLink to={`${base}/scanned-orders`} icon={<Package size={20} />} hideText={!isOpen}>Scanned Orders</NavLink>
+        )}
 
-        <NavLink
-          to={`${base}/tickets`}
-          icon={<Ticket size={20} />}
-          hideText={!isOpen}
-        >
-          Tickets
-        </NavLink>
+        <NavLink to={`${base}/tickets`} icon={<Ticket size={20} />} hideText={!isOpen}>Tickets</NavLink>
+        <NavLink to={`${base}/reports`} icon={<FileText size={20} />} hideText={!isOpen}>Reports</NavLink>
 
-        <NavLink
-          to={`${base}/reports`}
-          icon={<FileText size={20} />}
-          hideText={!isOpen}
-        >
-          Reports
-        </NavLink>
+        <NavDropdown id="settings" label="Settings" icon={Settings} items={sections.settings} />
 
-        <NavDropdown
-          id="settings"
-          label="Settings"
-          icon={Settings}
-          items={sections.settings}
-        />
-
-        {/* Logout */}
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-100 w-full rounded-lg"
-        >
+        <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-100 w-full rounded-lg">
           <LogOut size={20} />
           {isOpen && "Logout"}
         </button>

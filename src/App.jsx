@@ -53,6 +53,10 @@ const PermissionRoute = ({ children, permission }) => {
     (state) => state.auth,
   );
 
+  // Normalizing logic: 
+  // 1. super_admin gets everything.
+  // 2. If no specific permission string is passed, allow (it's a public dashboard page).
+  // 3. Otherwise, check if the string exists in the user's permissions array.
   const hasAccess =
     role === "super_admin" ||
     (permission ? permissions?.includes(permission) : true);
@@ -70,6 +74,7 @@ const PermissionRoute = ({ children, permission }) => {
     return <Navigate to="/login" />;
   }
 
+  // Redirect to dashboard if they try to access a route they aren't allowed to see
   return hasAccess ? children : <Navigate to="/dashboard" />;
 };
 
@@ -92,18 +97,6 @@ export default function App() {
             fontSize: "14px",
             fontWeight: "500",
             boxShadow: "0 8px 20px rgba(0,0,0,0.25)",
-          },
-          success: {
-            iconTheme: {
-              primary: "#22c55e",
-              secondary: "#ffffff",
-            },
-          },
-          error: {
-            iconTheme: {
-              primary: "#ef4444",
-              secondary: "#ffffff",
-            },
           },
         }}
       />
@@ -275,23 +268,42 @@ export default function App() {
                 </PermissionRoute>
               }
             />
+            
+            {/* Using orders:view for all order listing sub-routes */}
+            {[
+              "processing-order", "bulk-orders", "all-orders", "manifested", 
+              "not-picked", "in-transit", "pending", "out-for-delivery", 
+              "delivered", "rto-in-transit", "rto-delivered", "returned", 
+              "cancelled", "lost", "scanned-orders"
+            ].map(path => (
+              <Route
+                key={path}
+                path={path}
+                element={
+                  <PermissionRoute permission="orders:view">
+                    {path === "scanned-orders" ? <ScannedOrders /> : <ProcessingOrders />}
+                  </PermissionRoute>
+                }
+              />
+            ))}
 
-            <Route
-              path="serviceable-pincode"
-              element={<ServiceablePincode />}
-            />
+            <Route path="serviceable-pincode" element={<ServiceablePincode />} />
             <Route path="rate-calculator" element={<RateCalculator />} />
-            <Route
-              path="channel-integration"
-              element={<ChannelIntegration />}
-            />
+            <Route path="channel-integration" element={<ChannelIntegration />} />
 
-            {/* <Route path="admin/roles/add" element={<AddRolePage />} /> */}
-            <Route path="admin/roles" element={<RolesManagement />} />
+            {/* Admin / Roles */}
+            <Route
+              path="admin/roles"
+              element={
+                <PermissionRoute permission="roles:view">
+                  <RolesManagement />
+                </PermissionRoute>
+              }
+            />
             <Route
               path="admin/roles/add"
               element={
-                <PermissionRoute permission="roles:add">
+                <PermissionRoute permission="roles:create">
                   <RoleWizard />
                 </PermissionRoute>
               }
@@ -305,6 +317,7 @@ export default function App() {
               }
             />
 
+            {/* Finance */}
             <Route
               path="wallet"
               element={
@@ -330,11 +343,11 @@ export default function App() {
               }
             />
 
-            {/* CRM */}
+            {/* CRM & Operations */}
             <Route
               path="consignees"
               element={
-                <PermissionRoute permission="users:view">
+                <PermissionRoute permission="consignees:view">
                   <Consignees />
                 </PermissionRoute>
               }
@@ -360,15 +373,6 @@ export default function App() {
 
             <Route path="tickets" element={<Tickets />} />
             <Route path="reports" element={<Reports />} />
-
-            <Route
-              path="scanned-orders"
-              element={
-                <PermissionRoute permission="orders:view">
-                  <ScannedOrders />
-                </PermissionRoute>
-              }
-            />
 
             {/* Settings */}
             <Route
@@ -406,20 +410,12 @@ export default function App() {
               }
             />
 
-            {/* Admin */}
+            {/* Administrative */}
             <Route
               path="admin/assign-roles"
               element={
                 <PermissionRoute permission="user_roles:assign">
                   <Permissions />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="admin/roles"
-              element={
-                <PermissionRoute permission="roles:view">
-                  <Roles />
                 </PermissionRoute>
               }
             />
@@ -434,21 +430,39 @@ export default function App() {
             <Route
               path="admin/activity-logs"
               element={
-                <PermissionRoute permission="logs:view">
+                <PermissionRoute permission="activity_logs:view">
                   <ActivityLogs />
                 </PermissionRoute>
               }
             />
 
-            {/* Franchise */}
+            {/* Franchise - Updated to plural "franchises" to match your token */}
             <Route
               path="franchise"
               element={
-                <PermissionRoute permission="franchise:view">
+                <PermissionRoute permission="franchises:view">
                   <Franchise />
                 </PermissionRoute>
               }
             />
+            <Route
+              path="franchise/add"
+              element={
+                <PermissionRoute permission="franchises:create">
+                  <FranchiseWizard />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="franchise/edit/:id"
+              element={
+                <PermissionRoute permission="franchises:edit">
+                  <FranchiseWizard />
+                </PermissionRoute>
+              }
+            />
+            
+            {/* Staff within Franchise */}
             <Route
               path="franchise/add-staff"
               element={
@@ -462,22 +476,6 @@ export default function App() {
               element={
                 <PermissionRoute permission="users:edit">
                   <StaffRegistration />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="franchise/add"
-              element={
-                <PermissionRoute permission="franchise:create">
-                  <FranchiseWizard />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="franchise/edit/:id"
-              element={
-                <PermissionRoute permission="franchise:edit">
-                  <FranchiseWizard />
                 </PermissionRoute>
               }
             />
