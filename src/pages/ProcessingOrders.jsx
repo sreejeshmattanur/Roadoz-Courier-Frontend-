@@ -1004,10 +1004,10 @@ export function ProcessingOrders() {
                   </div>
                 )}
 
-                <div className="self-end space-y-2">
+                <div className="self-end flex items-center gap-2">
                   <Button
                     onClick={handleSearch}
-                    className="w-full bg-primary text-black hover:bg-primary/90 h-[34px] text-xs font-bold shadow-sm"
+                    className="bg-primary text-black hover:bg-primary/90 h-[34px] text-xs font-bold shadow-sm"
                   >
                     Search
                   </Button>
@@ -1034,7 +1034,7 @@ export function ProcessingOrders() {
                       currentFiltersRef.current = params;
                       dispatch(fetchOrders(params));
                     }}
-                    className="text-xs font-bold text-primary flex items-center justify-center gap-1 w-full"
+                    className="text-xs font-bold text-primary flex items-center justify-center gap-1"
                   >
                     <RotateCcw size={14} /> Clear Filters
                   </button>
