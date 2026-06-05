@@ -180,7 +180,23 @@ export default function App() {
               }
             />
             <Route
-              path="not-picked"
+              path="picked"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <ProcessingOrders />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="dispatched"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <ProcessingOrders />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="warehouse-orders"
               element={
                 <PermissionRoute permission="orders:view">
                   <ProcessingOrders />
