@@ -6,9 +6,11 @@ import { Download, RotateCcw, Loader2, Calendar as CalendarIcon } from "lucide-r
 import Pagination from "../components/ui/Pagination";
 import { Link } from "react-router-dom";
 import { fetchTransactions } from "../redux/walletSlice";
+import { usePermission } from "../hooks/usePermission";
 
 export function Wallet() {
   const dispatch = useDispatch();
+  const { wallet: walletPerms } = usePermission();
   const { transactions, pagination, loading } = useSelector((state) => state.wallet);
 
   const [filters, setFilters] = useState({
@@ -99,13 +101,15 @@ export function Wallet() {
             <h2 className="text-lg font-semibold text-text-main">
               Wallet Transactions (Showing {transactions.length} Out Of {pagination.total})
             </h2>
-            <Button 
-              onClick={handleExport}
-              disabled={loading || transactions.length === 0}
-              className="bg-primary hover:bg-primary/90 text-black h-9 px-4 text-xs font-bold rounded-md flex items-center gap-2"
-            >
-              <Download size={14} /> Export CSV
-            </Button>
+            {walletPerms.manage && (
+              <Button 
+                onClick={handleExport}
+                disabled={loading || transactions.length === 0}
+                className="bg-primary hover:bg-primary/90 text-black h-9 px-4 text-xs font-bold rounded-md flex items-center gap-2"
+              >
+                <Download size={14} /> Export CSV
+              </Button>
+            )}
           </div>
 
           <div className="p-6 bg-dashboard-bg/30 border-b border-border-subtle">

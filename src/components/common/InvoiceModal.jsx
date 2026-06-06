@@ -1,13 +1,8 @@
 import React from 'react';
-import { X, Printer } from 'lucide-react';
-import { Button } from '../ui/button';
+import { X } from 'lucide-react';
 
 export function InvoiceModal({ invoice, onClose, loading }) {
   if (!invoice && !loading) return null;
-
-  const handlePrint = () => {
-    window.print();
-  };
 
   const formatDate = (dateString) => {
     if (!dateString) return '-';
@@ -40,9 +35,6 @@ export function InvoiceModal({ invoice, onClose, loading }) {
         <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center z-10">
           <h2 className="text-lg font-bold text-gray-800">Invoice Details #{invoice?.invoice_number}</h2>
           <div className="flex gap-2">
-            <Button onClick={handlePrint} variant="outline" className="h-8 px-3 text-xs gap-2 border-blue-500 text-blue-600 hover:bg-blue-50">
-              <Printer size={14} /> Print
-            </Button>
             <button onClick={onClose} className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded-full text-gray-500">
               <X size={20} />
             </button>
@@ -54,38 +46,24 @@ export function InvoiceModal({ invoice, onClose, loading }) {
         ) : (
           <div id="printable-invoice" className="p-8 text-gray-900 bg-white font-sans">
             {/* Header Section */}
-            <div className="flex justify-between items-start mb-8">
-              {/* Company Details */}
-              <div className="flex-1">
-                <h1 className="text-lg font-bold text-black mb-1">Roadoz Logistics Pvt Ltd</h1>
-                <div className="text-xs text-gray-800 space-y-0.5 leading-relaxed">
-                  <p>MG Road, Kochi, Kerala - 682016</p>
-                  <p><span className="font-semibold">GSTIN:</span> 32ABCDE1234F1Z9</p>
-                  <p><span className="font-semibold">Phone:</span> +91 484 400 1234</p>
-                  <p><span className="font-semibold">Email:</span> billing@roadozlogistics.in</p>
-                </div>
-              </div>
-
-              {/* TAX INVOICE Title and Details */}
-              <div className="text-right">
-                <h2 className="text-xl font-bold text-black mb-3">TAX INVOICE</h2>
-                <table className="text-xs text-left ml-auto">
-                  <tbody>
-                    <tr>
-                      <td className="font-semibold pr-4 py-0.5">Invoice No:</td>
-                      <td className="py-0.5">{invoice.invoice_number}</td>
-                    </tr>
-                    <tr>
-                      <td className="font-semibold pr-4 py-0.5">Invoice Date:</td>
-                      <td className="py-0.5">{formatDate(invoice.created_at)}</td>
-                    </tr>
-                    <tr>
-                      <td className="font-semibold pr-4 py-0.5">Order Number:</td>
-                      <td className="py-0.5">{order?.order_number || '-'}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+            <div className="text-right mb-8">
+              <h2 className="text-xl font-bold text-black mb-3">TAX INVOICE</h2>
+              <table className="text-xs text-left ml-auto">
+                <tbody>
+                  <tr>
+                    <td className="font-semibold pr-4 py-0.5">Invoice No:</td>
+                    <td className="py-0.5">{invoice.invoice_number}</td>
+                  </tr>
+                  <tr>
+                    <td className="font-semibold pr-4 py-0.5">Invoice Date:</td>
+                    <td className="py-0.5">{formatDate(invoice.created_at)}</td>
+                  </tr>
+                  <tr>
+                    <td className="font-semibold pr-4 py-0.5">Order Number:</td>
+                    <td className="py-0.5">{order?.order_number || '-'}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
 
             <hr className="border-gray-400 my-4" />
@@ -122,8 +100,8 @@ export function InvoiceModal({ invoice, onClose, loading }) {
             {/* Shipment Details */}
             <h3 className="font-bold text-black mb-3 text-sm">Shipment Details</h3>
             <table className="w-full mb-6 border border-gray-300 text-xs border-collapse">
-              <thead className="bg-gray-100">
-                <tr className="text-left text-gray-800">
+              <thead className="bg-black text-white">
+                <tr className="text-left">
                   <th className="py-2 px-3 border border-gray-300 font-semibold">Product</th>
                   <th className="py-2 px-3 border border-gray-300 font-semibold">SKU</th>
                   <th className="py-2 px-3 border border-gray-300 font-semibold">Qty</th>
@@ -134,11 +112,11 @@ export function InvoiceModal({ invoice, onClose, loading }) {
               </thead>
               <tbody className="text-gray-800">
                 <tr>
-                  <td className="py-3 px-3 border border-gray-300">{order?.order_value ? 'abcd' : '-'}</td>
-                  <td className="py-3 px-3 border border-gray-300">abcd</td>
-                  <td className="py-3 px-3 border border-gray-300">1</td>
-                  <td className="py-3 px-3 border border-gray-300">10 KG</td>
-                  <td className="py-3 px-3 border border-gray-300">10 x 20 x 30 cm</td>
+                  <td className="py-3 px-3 border border-gray-300">{order?.product_name || '-'}</td>
+                  <td className="py-3 px-3 border border-gray-300">{order?.product_sku || '-'}</td>
+                  <td className="py-3 px-3 border border-gray-300">{order?.product_quantity || '-'}</td>
+                  <td className="py-3 px-3 border border-gray-300">{order?.weight ? `${order.weight} KG` : '-'}</td>
+                  <td className="py-3 px-3 border border-gray-300">{order?.dimensions || '-'}</td>
                   <td className="py-3 px-3 border border-gray-300 text-right">{formatCurrency(order?.order_value)}</td>
                 </tr>
               </tbody>
@@ -147,8 +125,8 @@ export function InvoiceModal({ invoice, onClose, loading }) {
             {/* Charges Breakdown */}
             <h3 className="font-bold text-black mb-3 text-sm">Charges Breakdown</h3>
             <table className="w-full mb-6 border border-gray-300 text-xs border-collapse">
-              <thead className="bg-gray-100">
-                <tr className="text-left text-gray-800">
+              <thead className="bg-black text-white">
+                <tr className="text-left">
                   <th className="py-2 px-3 border border-gray-300 font-semibold">Description</th>
                   <th className="py-2 px-3 border border-gray-300 font-semibold text-right">Amount</th>
                 </tr>
@@ -156,31 +134,31 @@ export function InvoiceModal({ invoice, onClose, loading }) {
               <tbody className="text-gray-800">
                 <tr>
                   <td className="py-2 px-3 border border-gray-300">Freight Charges</td>
-                  <td className="py-2 px-3 border border-gray-300 text-right">{formatCurrency(invoiceOrder?.base_freight)}</td>
+                  <td className="py-2 px-3 border border-gray-300 text-right">{invoiceOrder?.base_freight ? formatCurrency(invoiceOrder.base_freight) : '-'}</td>
                 </tr>
                 <tr>
                   <td className="py-2 px-3 border border-gray-300">Fuel Surcharge</td>
-                  <td className="py-2 px-3 border border-gray-300 text-right">{formatCurrency(invoiceOrder?.fuel_surcharge)}</td>
+                  <td className="py-2 px-3 border border-gray-300 text-right">{invoiceOrder?.fuel_surcharge ? formatCurrency(invoiceOrder.fuel_surcharge) : '-'}</td>
                 </tr>
                 <tr>
                   <td className="py-2 px-3 border border-gray-300">Handling Charges</td>
-                  <td className="py-2 px-3 border border-gray-300 text-right">{formatCurrency(40)}</td>
+                  <td className="py-2 px-3 border border-gray-300 text-right">{invoiceOrder?.handling_charges ? formatCurrency(invoiceOrder.handling_charges) : '-'}</td>
                 </tr>
                 <tr>
                   <td className="py-2 px-3 border border-gray-300">Insurance Charges</td>
-                  <td className="py-2 px-3 border border-gray-300 text-right">{formatCurrency(15)}</td>
+                  <td className="py-2 px-3 border border-gray-300 text-right">{invoiceOrder?.insurance_charges ? formatCurrency(invoiceOrder.insurance_charges) : '-'}</td>
                 </tr>
                 <tr className="font-semibold">
                   <td className="py-2 px-3 border border-gray-300">Subtotal</td>
-                  <td className="py-2 px-3 border border-gray-300 text-right">{formatCurrency(invoice.subtotal)}</td>
+                  <td className="py-2 px-3 border border-gray-300 text-right">{invoice.subtotal ? formatCurrency(invoice.subtotal) : '-'}</td>
                 </tr>
                 <tr>
                   <td className="py-2 px-3 border border-gray-300">GST @ 18%</td>
-                  <td className="py-2 px-3 border border-gray-300 text-right">{formatCurrency(invoice.tax_amount)}</td>
+                  <td className="py-2 px-3 border border-gray-300 text-right">{invoice.tax_amount ? formatCurrency(invoice.tax_amount) : '-'}</td>
                 </tr>
-                <tr className="font-bold bg-gray-100">
+                <tr className="font-bold bg-gray-200">
                   <td className="py-3 px-3 border border-gray-300">Grand Total</td>
-                  <td className="py-3 px-3 border border-gray-300 text-right">{formatCurrency(invoice.total_amount)}</td>
+                  <td className="py-3 px-3 border border-gray-300 text-right">{invoice.total_amount ? formatCurrency(invoice.total_amount) : '-'}</td>
                 </tr>
               </tbody>
             </table>
@@ -240,13 +218,6 @@ export function InvoiceModal({ invoice, onClose, loading }) {
           </div>
         )}
       </div>
-      <style>{`
-        @media print {
-          body * { visibility: hidden; }
-          #printable-invoice, #printable-invoice * { visibility: visible; }
-          #printable-invoice { position: absolute; left: 0; top: 0; width: 100%; background: white; }
-        }
-      `}</style>
     </div>
   );
 }

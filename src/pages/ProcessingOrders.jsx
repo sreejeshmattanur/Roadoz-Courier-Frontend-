@@ -47,8 +47,10 @@ import {
   fetchBulkOrdersApi,
   generateBulkInvoiceApi,
 } from "../services/apiCalls";
+import { usePermission } from "../hooks/usePermission";
 
 export function ProcessingOrders() {
+  const { orders: orderPerms, invoices: invoicePerms } = usePermission();
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -776,12 +778,14 @@ export function ProcessingOrders() {
                   >
                     <Download size={16} /> Export
                   </Button>
-                  <Button
-                    onClick={handleDeleteOrders}
-                    className="bg-red-500 text-white hover:bg-red-600 text-xs font-bold gap-2 h-9"
-                  >
-                    <Trash2 size={16} /> Delete
-                  </Button>
+                  {orderPerms.create && (
+                    <Button
+                      onClick={handleDeleteOrders}
+                      className="bg-red-500 text-white hover:bg-red-600 text-xs font-bold gap-2 h-9"
+                    >
+                      <Trash2 size={16} /> Delete
+                    </Button>
+                  )}
                 </>
               ) : (
                 <>
@@ -817,26 +821,28 @@ export function ProcessingOrders() {
                   >
                     <Download size={16} /> Export
                   </Button>
-                  <Button
-                    className="bg-primary text-black hover:bg-primary/90 text-xs font-bold gap-2 h-9"
-                    onClick={() => {
-                      if (selectedOrders.length === 0) {
-                        return toast.error("Please select at least one order");
-                      }
+                  {invoicePerms.generate && (
+                    <Button
+                      className="bg-primary text-black hover:bg-primary/90 text-xs font-bold gap-2 h-9"
+                      onClick={() => {
+                        if (selectedOrders.length === 0) {
+                          return toast.error("Please select at least one order");
+                        }
 
-                      const selectedOrderData = orders.find(
-                        (o) => o.id === selectedOrders[0],
-                      );
+                        const selectedOrderData = orders.find(
+                          (o) => o.id === selectedOrders[0],
+                        );
 
-                      if (!selectedOrderData) {
-                        return toast.error("Order not found");
-                      }
+                        if (!selectedOrderData) {
+                          return toast.error("Order not found");
+                        }
 
-                      handleGenerateInvoicePDF(selectedOrderData);
-                    }}
-                  >
-                    <FileText size={16} /> Invoices
-                  </Button>
+                        handleGenerateInvoicePDF(selectedOrderData);
+                      }}
+                    >
+                      <FileText size={16} /> Invoices
+                    </Button>
+                  )}
                 </>
               )}
             </div>
@@ -1043,7 +1049,13 @@ export function ProcessingOrders() {
             </div>
           )}
 
-          <div className="px-6 py-4 overflow-x-auto border-b border-border-subtle bg-card-bg">
+          <div
+            className="px-6 py-4 overflow-x-auto border-b border-border-subtle bg-card-bg thin-scrollbar"
+            style={{
+              scrollbarWidth: "thin",
+              scrollbarColor: "#4a4a4a transparent",
+            }}
+          >
             <div className="flex items-center gap-2 min-w-max">
               {tabs.map((tab) => (
                 <button
@@ -1164,14 +1176,16 @@ export function ProcessingOrders() {
                               {formatDate(bulkOrder.created_at)}
                             </td>
                             <td className="px-6 py-6 text-center">
-                              <button
-                                onClick={() =>
-                                  handleGenerateBulkInvoice(bulkOrder)
-                                }
-                                className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
-                              >
-                                <Printer size={14} />
-                              </button>
+                              {invoicePerms.generate && (
+                                <button
+                                  onClick={() =>
+                                    handleGenerateBulkInvoice(bulkOrder)
+                                  }
+                                  className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
+                                >
+                                  <Printer size={14} />
+                                </button>
+                              )}
                             </td>
                           </tr>
                         ))
@@ -1349,56 +1363,62 @@ export function ProcessingOrders() {
                               <td className="px-6 py-6 text-center">
                                 <div className="flex items-center justify-center gap-1">
                                   {isProcessing ? (
-                                    [Truck, Eye, Copy, Edit, Printer].map(
-                                      (Icon, i) => (
+                                    <>
+                                      {orderPerms.view && (
                                         <button
-                                          key={i}
                                           onClick={() => {
-                                            // VIEW
-                                            if (Icon === Eye) {
-                                              setSelectedOrder(mappedOrder);
-                                              setIsModalOpen(true);
-                                            }
-
-                                            // DUPLICATE
-                                            if (Icon === Copy) {
-                                              handleDuplicateOrder(order.id);
-                                            }
-
-                                            // EDIT
-                                            if (Icon === Edit) {
-                                              navigate(
-                                                `/dashboard/edit-order/${order.id}`,
-                                                {
-                                                  state: { order },
-                                                },
-                                              );
-                                            }
-
-                                            // PRINT INVOICE
-                                            if (Icon === Printer) {
-                                              handleGenerateInvoicePDF(order);
-                                            }
+                                            setSelectedOrder(mappedOrder);
+                                            setIsModalOpen(true);
                                           }}
                                           className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
                                         >
-                                          <Icon size={14} />
+                                          <Eye size={14} />
                                         </button>
-                                      ),
-                                    )
+                                      )}
+                                      {orderPerms.create && (
+                                        <button
+                                          onClick={() => handleDuplicateOrder(order.id)}
+                                          className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
+                                        >
+                                          <Copy size={14} />
+                                        </button>
+                                      )}
+                                      {orderPerms.create && (
+                                        <button
+                                          onClick={() =>
+                                            navigate(`/dashboard/edit-order/${order.id}`, {
+                                              state: { order },
+                                            })
+                                          }
+                                          className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
+                                        >
+                                          <Edit size={14} />
+                                        </button>
+                                      )}
+                                      {invoicePerms.generate && (
+                                        <button
+                                          onClick={() => handleGenerateInvoicePDF(order)}
+                                          className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
+                                        >
+                                          <Printer size={14} />
+                                        </button>
+                                      )}
+                                    </>
                                   ) : (
                                     <>
-                                      <button
-                                        onClick={() =>
-                                          handleGenerateInvoiceExcel(
-                                            order,
-                                            mappedOrder,
-                                          )
-                                        }
-                                        className="p-1.5 bg-primary text-black rounded-md shadow-sm transition-transform active:scale-95 hover:bg-primary/90"
-                                      >
-                                        <Download size={14} />
-                                      </button>
+                                      {invoicePerms.generate && (
+                                        <button
+                                          onClick={() =>
+                                            handleGenerateInvoiceExcel(
+                                              order,
+                                              mappedOrder,
+                                            )
+                                          }
+                                          className="p-1.5 bg-primary text-black rounded-md shadow-sm transition-transform active:scale-95 hover:bg-primary/90"
+                                        >
+                                          <Download size={14} />
+                                        </button>
+                                      )}
                                       <button
                                         onClick={() => {
                                           setSelectedOrder(mappedOrder);
@@ -1426,41 +1446,42 @@ export function ProcessingOrders() {
 
                                         {openMenuId === order.id && (
                                           <div className="absolute right-0 top-9 w-[190px] bg-card-bg border border-border-subtle rounded-lg shadow-[0_4px_14px_rgba(0,0,0,0.08)] z-50 overflow-hidden">
-                                            {/* DUPLICATE */}
-                                            <button
-                                              onClick={() => {
-                                                handleDuplicateOrder(order.id);
-                                                setOpenMenuId(null);
-                                              }}
-                                              className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
-                                            >
-                                              <Copy
-                                                size={15}
-                                                strokeWidth={1.9}
-                                                className="text-text-muted"
-                                              />
+                                            {orderPerms.create && (
+                                              <>
+                                                <button
+                                                  onClick={() => {
+                                                    handleDuplicateOrder(order.id);
+                                                    setOpenMenuId(null);
+                                                  }}
+                                                  className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
+                                                >
+                                                  <Copy
+                                                    size={15}
+                                                    strokeWidth={1.9}
+                                                    className="text-text-muted"
+                                                  />
+                                                  <span>Duplicate Order</span>
+                                                </button>
+                                                <div className="h-px bg-border-subtle" />
+                                              </>
+                                            )}
 
-                                              <span>Duplicate Order</span>
-                                            </button>
-
-                                            <div className="h-px bg-border-subtle" />
-
-                                            {/* DOWNLOAD INVOICE */}
-                                            <button
-                                              onClick={() => {
-                                                handleGenerateInvoicePDF(order);
-                                                setOpenMenuId(null);
-                                              }}
-                                              className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
-                                            >
-                                              <Printer
-                                                size={15}
-                                                strokeWidth={1.9}
-                                                className="text-text-muted"
-                                              />
-
-                                              <span>Generate Invoice</span>
-                                            </button>
+                                            {invoicePerms.generate && (
+                                              <button
+                                                onClick={() => {
+                                                  handleGenerateInvoicePDF(order);
+                                                  setOpenMenuId(null);
+                                                }}
+                                                className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
+                                              >
+                                                <Printer
+                                                  size={15}
+                                                  strokeWidth={1.9}
+                                                  className="text-text-muted"
+                                                />
+                                                <span>Generate Invoice</span>
+                                              </button>
+                                            )}
 
                                             <div className="h-px bg-border-subtle" />
 

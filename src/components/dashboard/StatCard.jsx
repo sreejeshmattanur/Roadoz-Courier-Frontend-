@@ -23,7 +23,10 @@ export function StatCard({ title, value, description, icon, iconBgColor, trend, 
             <p className="text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
               {title}
             </p>
-            <h3 className="text-3xl font-bold text-text-main mb-2 tabular-nums">
+            <h3
+              className="text-lg sm:text-xl lg:text-2xl font-bold text-text-main mb-2 tabular-nums truncate whitespace-nowrap"
+              title={value}
+            >
               {value}
             </h3>
             <p className="text-xs text-text-muted/70 leading-relaxed truncate">

@@ -10,46 +10,32 @@ export const generateInvoicePDF = (order) => {
     // -----------------------------
     const primary = [0, 0, 0];
     const lightGray = [240, 240, 240];
+    const black = [0, 0, 0];
+    const white = [255, 255, 255];
     const PAGE_LEFT = 14;
     const PAGE_RIGHT = 196; // 210mm - 14mm margin
 
     // ─────────────────────────────────────────────────────────
-    // HEADER  (company info LEFT | invoice meta RIGHT)
-    // Both columns share the same y-range so they never collide
+    // HEADER  (invoice meta RIGHT only)
     // ─────────────────────────────────────────────────────────
 
-    // --- Company name ---
+    // --- TAX INVOICE label — right-aligned ---
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(15);
-    doc.text("Roadoz Logistics Pvt Ltd", PAGE_LEFT, 20);
-
-    // --- TAX INVOICE label — right-aligned so it never overlaps the company name ---
     doc.setFontSize(18);
     doc.text("TAX INVOICE", PAGE_RIGHT, 20, { align: "right" });
 
-    // --- Company sub-details (left column, y = 27 … 47) ---
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    const companyLines = [
-      "MG Road, Kochi, Kerala - 682016",
-      "GSTIN: 32ABCDE1234F1Z9",
-      "Phone: +91 484 400 1234",
-      "Email: billing@roadozlogistics.in",
-    ];
-    companyLines.forEach((line, i) => doc.text(line, PAGE_LEFT, 27 + i * 5));
-
-    // --- Invoice meta (right column, same y-range = 27 … 47) ---
+    // --- Invoice meta (right column) ---
     // Render label left-of-center and value right-aligned for clean layout
     const META_LABEL_X = 125;
     const metaRows = [
       ["Invoice No", order.invoiceNo || "N/A"],
       ["Invoice Date", order.created || "N/A"],
-      ["AWB Number", order.awb || "N/A"],
       ["Order Number", order.id || "N/A"],
     ];
     metaRows.forEach(([label, value], i) => {
       const y = 27 + i * 5;
       doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
       doc.text(`${label}:`, META_LABEL_X, y);
       doc.setFont("helvetica", "normal");
       doc.text(value, PAGE_RIGHT, y, { align: "right" });
@@ -59,14 +45,14 @@ export const generateInvoicePDF = (order) => {
     // DIVIDER
     // -----------------------------
     doc.setDrawColor(180);
-    doc.line(PAGE_LEFT, 52, PAGE_RIGHT, 52);
+    doc.line(PAGE_LEFT, 47, PAGE_RIGHT, 47);
 
     // ─────────────────────────────────────────────────────────
     // PICKUP  &  DELIVERY  ADDRESSES
     // Split at midpoint (x = 105); right column starts at 108
     // ─────────────────────────────────────────────────────────
-    const ADDR_Y_TITLE = 61;
-    const ADDR_Y_START = 67;
+    const ADDR_Y_TITLE = 56;
+    const ADDR_Y_START = 62;
     const ADDR_LEFT_X = PAGE_LEFT;
     const ADDR_RIGHT_X = 108;
 
@@ -78,7 +64,7 @@ export const generateInvoicePDF = (order) => {
 
     // Vertical separator between the two address blocks
     doc.setDrawColor(200);
-    doc.line(105, 55, 105, 102);
+    doc.line(105, 50, 105, 97);
 
     // Address content
     doc.setFont("helvetica", "normal");
@@ -111,39 +97,42 @@ export const generateInvoicePDF = (order) => {
     // -----------------------------
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
-    doc.text("Shipment Details", PAGE_LEFT, 108);
+    doc.text("Shipment Details", PAGE_LEFT, 103);
 
     autoTable(doc, {
-      startY: 112,
+      startY: 107,
       head: [
         ["Product", "SKU", "Qty", "Weight", "Dimensions", "Declared Value"],
       ],
       body: [
         [
-          order.product?.name || "N/A",
-          order.product?.sku || "N/A",
-          order.product?.qty || 0,
-          order.weight || "0 KG",
-          order.dims || "0 x 0 x 0",
-          `Rs. ${order.product?.value || 0}`,
+          order.product?.name || "-",
+          order.product?.sku || "-",
+          order.product?.qty || "-",
+          order.weight ? `${order.weight} KG` : "-",
+          order.dims || "-",
+          order.product?.value ? `Rs. ${order.product.value}` : "-",
         ],
       ],
-      styles: { fontSize: 9, cellPadding: 3 },
+      styles: { fontSize: 9, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.5 },
       headStyles: {
-        fillColor: lightGray,
-        textColor: primary,
+        fillColor: black,
+        textColor: white,
         fontStyle: "bold",
+        lineColor: [200, 200, 200],
+        lineWidth: 0.5,
       },
       columnStyles: {
-        0: { cellWidth: 50 },
-        1: { cellWidth: 25 },
-        2: { cellWidth: 12, halign: "center" },
-        3: { cellWidth: 22, halign: "center" },
-        4: { cellWidth: 38, halign: "center" },
-        5: { cellWidth: 30, halign: "right" },
+        0: { cellWidth: "auto" },
+        1: { cellWidth: 30, halign: "center" },
+        2: { cellWidth: 15, halign: "center" },
+        3: { cellWidth: 25, halign: "center" },
+        4: { cellWidth: 40, halign: "center" },
+        5: { cellWidth: 35, halign: "right" },
       },
       theme: "grid",
-      margin: { left: PAGE_LEFT, right: 14 },
+      margin: { left: PAGE_LEFT, right: 0 },
+      tableWidth: PAGE_RIGHT - PAGE_LEFT,
     });
 
     // -----------------------------
@@ -159,23 +148,25 @@ export const generateInvoicePDF = (order) => {
       startY: chargeY + 4,
       head: [["Description", "Amount"]],
       body: [
-        ["Freight Charges", `Rs. ${order.charges?.freight || 0}`],
-        ["Fuel Surcharge", `Rs. ${order.charges?.fuel || 0}`],
-        ["Handling Charges", `Rs. ${order.charges?.handling || 0}`],
-        ["Insurance Charges", `Rs. ${order.charges?.insurance || 0}`],
-        ["Subtotal", `Rs. ${order.charges?.subtotal || 0}`],
-        ["GST @ 18%", `Rs. ${order.charges?.gst || 0}`],
-        ["Grand Total", `Rs. ${order.payment?.total || 0}`],
+        ["Freight Charges", order.charges?.freight ? `Rs. ${order.charges.freight}` : "-"],
+        ["Fuel Surcharge", order.charges?.fuel ? `Rs. ${order.charges.fuel}` : "-"],
+        ["Handling Charges", order.charges?.handling ? `Rs. ${order.charges.handling}` : "-"],
+        ["Insurance Charges", order.charges?.insurance ? `Rs. ${order.charges.insurance}` : "-"],
+        ["Subtotal", order.charges?.subtotal ? `Rs. ${order.charges.subtotal}` : "-"],
+        ["GST @ 18%", order.charges?.gst ? `Rs. ${order.charges.gst}` : "-"],
+        ["Grand Total", order.payment?.total ? `Rs. ${order.payment.total}` : "-"],
       ],
-      styles: { fontSize: 9, cellPadding: 3 },
+      styles: { fontSize: 9, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.5 },
       headStyles: {
-        fillColor: lightGray,
-        textColor: primary,
+        fillColor: black,
+        textColor: white,
         fontStyle: "bold",
+        lineColor: [200, 200, 200],
+        lineWidth: 0.5,
       },
       columnStyles: {
-        0: { cellWidth: 120 },
-        1: { cellWidth: 62, halign: "right" },
+        0: { cellWidth: "auto" },
+        1: { cellWidth: 60, halign: "right" },
       },
       // Bold the summary rows
       didParseCell: (data) => {
@@ -184,7 +175,8 @@ export const generateInvoicePDF = (order) => {
         }
       },
       theme: "grid",
-      margin: { left: PAGE_LEFT, right: 14 },
+      margin: { left: PAGE_LEFT, right: 0 },
+      tableWidth: PAGE_RIGHT - PAGE_LEFT,
     });
 
     // ─────────────────────────────────────────────────────────
@@ -195,7 +187,7 @@ export const generateInvoicePDF = (order) => {
     const BOTTOM_MARGIN = 10;
     const SAFE_BOTTOM = PAGE_H - BOTTOM_MARGIN; // 287mm — last safe y
 
-    const extraY = doc.lastAutoTable.finalY + 6;
+    const extraY = doc.lastAutoTable.finalY + 12;
     const INFO_BAR_H = 10; // compact bar height
 
     // Shaded background
@@ -231,46 +223,67 @@ export const generateInvoicePDF = (order) => {
     doc.text(String(order.totalBoxes || 1), PAGE_LEFT + 24, boxesY);
 
     // ─────────────────────────────────────────────────────────
-    // TERMS & CONDITIONS
-    // termsY = Math.max(termsFromTop, termsFromBot) ensures:
-    //   • always at least 8mm below "Total Boxes" (no collision)
-    //   • always leaves sigSpace room above signatures (no overflow)
+    // TERMS & CONDITIONS — with dynamic page breaks
     // ─────────────────────────────────────────────────────────
     const terms = [
-      "1. Goods are carried at owner's risk unless insured.",
-      "2. Claims for damages must be reported within 48 hours.",
-      "3. This is a computer-generated invoice and does not require a signature.",
-      "4. GST charged as per applicable Indian taxation laws.",
+      "All shipments are subject to Roadoz Logistics standard terms of carriage.",
+      "Misdeclaration of goods may result in penalties or shipment rejection.",
+      "Prohibited items, hazardous materials, and contraband are not accepted for transport.",
+      "Maximum liability for loss or damage is limited to the declared value or Rs. 100 per kg, whichever is lower.",
+      "Damaged or lost shipment claims must be reported within 48 hours of delivery.",
+      "Undelivered shipments will be held for 30 days before disposal.",
+      "Freight charges are non-refundable once shipment is dispatched.",
+      "GST is applicable as per Indian taxation laws and will be charged extra.",
     ];
+    
     const LINE_H = 4.5;
-    const TERMS_BLOCK_H = 6 + (terms.length - 1) * LINE_H + LINE_H;
-
-    const sigY = SAFE_BOTTOM - 5; // 282mm — always on-page
-    const sigSpace = 10; // gap between last term and sig line
-    const termsFromTop = boxesY + 8; // at least 8mm below "Total Boxes"
-    const termsFromBot = sigY - sigSpace - TERMS_BLOCK_H; // must leave room for signature
-    const termsY = Math.max(termsFromTop, termsFromBot);
+    const TERMS_TITLE_H = 6;
+    const MIN_SPACE_FOR_TERMS = 40; // minimum space needed for terms section
+    
+    let termsY = boxesY + 10; // at least 10mm below "Total Boxes"
+    
+    // Check if we need a new page for terms
+    if (termsY + TERMS_TITLE_H + (terms.length * LINE_H) > SAFE_BOTTOM - 20) {
+      doc.addPage();
+      termsY = 20; // start near top of new page
+    }
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
+    doc.setFontSize(10);
     doc.text("Terms & Conditions:", PAGE_LEFT, termsY);
 
     doc.setFont("helvetica", "normal");
-    terms.forEach((line, i) =>
-      doc.text(line, PAGE_LEFT, termsY + 6 + i * LINE_H),
-    );
+    doc.setFontSize(8);
+    let currentY = termsY + TERMS_TITLE_H;
+    
+    terms.forEach((line, i) => {
+      const termText = `${i + 1}. ${line}`;
+      const splitText = doc.splitTextToSize(termText, PAGE_RIGHT - PAGE_LEFT - 4);
+      const lineCount = splitText.length;
+      const lineHeight = lineCount * 3.5;
+      
+      // Check if we need a new page for this term
+      if (currentY + lineHeight > SAFE_BOTTOM - 25) {
+        doc.addPage();
+        currentY = 20;
+      }
+      
+      doc.text(splitText, PAGE_LEFT + 2, currentY);
+      currentY += lineHeight + 1;
+    });
 
     // ─────────────────────────────────────────────────────────
-    // SIGNATURES  — pinned to bottom of page, always visible
+    // SIGNATURES  — pinned to bottom of current page
     // ─────────────────────────────────────────────────────────
+    const finalSigY = SAFE_BOTTOM - 8;
     doc.setDrawColor(100);
-    doc.line(PAGE_LEFT, sigY, 80, sigY); // customer line
-    doc.line(130, sigY, PAGE_RIGHT, sigY); // authorized line
+    doc.line(PAGE_LEFT, finalSigY, 80, finalSigY); // customer line
+    doc.line(130, finalSigY, PAGE_RIGHT, finalSigY); // authorized line
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    doc.text("Customer Signature", PAGE_LEFT, sigY + 5);
-    doc.text("Authorized Signatory", 130, sigY + 5);
+    doc.text("Customer Signature", PAGE_LEFT, finalSigY + 5);
+    doc.text("Authorized Signatory", 130, finalSigY + 5);
 
     // -----------------------------
     // SAVE PDF

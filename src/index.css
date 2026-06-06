@@ -35,12 +35,28 @@
   /* Custom scrollbar */
   ::-webkit-scrollbar {
     width: 8px;
+    height: 8px;
   }
   ::-webkit-scrollbar-track {
     @apply bg-dashboard-bg;
   }
   ::-webkit-scrollbar-thumb {
     @apply bg-text-muted/20 rounded-full hover:bg-text-muted/30;
+  }
+
+  /* Thin scrollbar for horizontal scroll areas */
+  .thin-scrollbar::-webkit-scrollbar {
+    height: 4px;
+  }
+  .thin-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .thin-scrollbar::-webkit-scrollbar-thumb {
+    background: #4a4a4a;
+    border-radius: 2px;
+  }
+  .thin-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #6a6a6a;
   }
 
   @keyframes shake {

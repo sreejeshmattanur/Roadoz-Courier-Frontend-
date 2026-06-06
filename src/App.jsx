@@ -6,8 +6,6 @@ import {
 } from "react-router-dom";
 import Cookies from "js-cookie";
 import { Toaster, toast } from "react-hot-toast";
-import { useSelector } from "react-redux";
-import { useEffect } from "react";
 
 import { Login } from "./pages/Login";
 import { ForgotPassword } from "./pages/ForgotPassword";
@@ -40,6 +38,7 @@ import { Review } from "./pages/Review";
 import StaffRegistration from "./pages/StaffRegistration";
 import FranchiseWizard from "./components/common/FranchiseWizard";
 import { ProtectedRoute } from "./components/common/ProtectedRoute";
+import { PermissionRoute } from "./components/common/PermissionRoute";
 import { NotFound } from "./pages/NotFound";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { RolesManagement } from "./pages/admin/RolesManagement";
@@ -47,36 +46,6 @@ import AddRolePage from "./pages/admin/AddRolePage";
 import RoleWizard from "./components/common/RoleWizard";
 import ScannedOrders from "./pages/ScannedOrders";
 import ActivityLogs from "./pages/ActivityLogs";
-
-const PermissionRoute = ({ children, permission }) => {
-  const { role, permissions, isAuthenticated } = useSelector(
-    (state) => state.auth,
-  );
-
-  // Normalizing logic: 
-  // 1. super_admin gets everything.
-  // 2. If no specific permission string is passed, allow (it's a public dashboard page).
-  // 3. Otherwise, check if the string exists in the user's permissions array.
-  const hasAccess =
-    role === "super_admin" ||
-    (permission ? permissions?.includes(permission) : true);
-
-  useEffect(() => {
-    if (isAuthenticated && !hasAccess) {
-      toast.error("Access Denied! You do not have permission.", {
-        id: "access-denied",
-        icon: "🚫",
-      });
-    }
-  }, [hasAccess, isAuthenticated]);
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" />;
-  }
-
-  // Redirect to dashboard if they try to access a route they aren't allowed to see
-  return hasAccess ? children : <Navigate to="/dashboard" />;
-};
 
 export default function App() {
   const token = Cookies.get("access_token");
@@ -135,7 +104,7 @@ export default function App() {
             <Route
               path="edit-order/:orderId"
               element={
-                <PermissionRoute permission="orders:edit">
+                <PermissionRoute permission="orders:create">
                   <NewOrder />
                 </PermissionRoute>
               }
@@ -383,11 +352,18 @@ export default function App() {
                 </PermissionRoute>
               }
             />
-            <Route path="settings/password" element={<ChangePassword />} />
+            <Route
+              path="settings/password"
+              element={
+                <PermissionRoute permission="profile:view">
+                  <ChangePassword />
+                </PermissionRoute>
+              }
+            />
             <Route
               path="settings/pickup"
               element={
-                <PermissionRoute permission="profile:edit">
+                <PermissionRoute permission="pickup_addresses:view">
                   <PickupAddress />
                 </PermissionRoute>
               }
@@ -400,7 +376,14 @@ export default function App() {
                 </PermissionRoute>
               }
             />
-            <Route path="settings/label" element={<LabelSetting />} />
+            <Route
+              path="settings/label"
+              element={
+                <PermissionRoute permission="profile:edit">
+                  <LabelSetting />
+                </PermissionRoute>
+              }
+            />
             <Route
               path="settings/kyc"
               element={

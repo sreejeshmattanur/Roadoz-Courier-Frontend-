@@ -6,9 +6,11 @@ import { Download, Calendar, RotateCcw, Loader2, Eye } from "lucide-react";
 import Pagination from "../components/ui/Pagination";
 import { Link } from "react-router-dom";
 import { fetchRemittanceData } from "../redux/remittanceSlice";
+import { usePermission } from "../hooks/usePermission";
 
 export function CODRemittance() {
   const dispatch = useDispatch();
+  const { remittances: remittancePerms } = usePermission();
   const { items, summary, pagination, loading } = useSelector((state) => state.remittance);
 
   const [filters, setFilters] = useState({
@@ -99,12 +101,14 @@ export function CODRemittance() {
             <h2 className="text-lg font-semibold text-text-main">
               Remittance History (Showing {items.length} Out Of {pagination.total})
             </h2>
-            <Button 
-              onClick={handleExport}
-              className="bg-primary text-black h-9 px-4 text-xs font-bold rounded-md flex items-center gap-2"
-            >
-              <Download size={14} /> Export CSV
-            </Button>
+            {remittancePerms.manage && (
+              <Button 
+                onClick={handleExport}
+                className="bg-primary text-black h-9 px-4 text-xs font-bold rounded-md flex items-center gap-2"
+              >
+                <Download size={14} /> Export CSV
+              </Button>
+            )}
           </div>
 
           <div className="p-6 bg-dashboard-bg/30 border-b border-border-subtle">

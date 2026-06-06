@@ -8,8 +8,6 @@ import {
   Wrench,
   CircleDollarSign,
   Users,
-  Ticket,
-  FileText,
   Settings,
   ChevronDown,
   ChevronUp,
@@ -26,6 +24,7 @@ import { cn } from "../../lib/utils";
 import logo from "../../assets/images/Roadoz Golden hd.png";
 import { logoutUser } from "../../redux/authSlice";
 import { toast } from "react-hot-toast";
+import { hasPermission } from "../../lib/permissions";
 
 export function Sidebar({ isOpen, setIsOpen }) {
   const location = useLocation();
@@ -48,17 +47,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
      Permission Helpers
   ========================= */
   // Checks if user has a specific permission or any from a list
-  const hasPerm = (perm) => {
-    if (role === "super_admin" || role === "Super Admin") return true;
-    if (!perm) return true;
-
-    // If perm is an array, check if user has at least one of them
-    if (Array.isArray(perm)) {
-      return perm.some((p) => permissions?.includes(p));
-    }
-
-    return permissions?.includes(perm);
-  };
+  const hasPerm = (perm) => hasPermission(permissions, role, perm);
 
   /* =========================
      Sidebar Sections
@@ -107,8 +96,8 @@ export function Sidebar({ isOpen, setIsOpen }) {
 
     settings: [
       { name: "General Details", to: `${base}/settings/general`, perm: "profile:view" },
-      { name: "Change Password", to: `${base}/settings/password` },
-      { name: "Pickup Address", to: `${base}/settings/pickup`, perm: "profile:edit" },
+      { name: "Change Password", to: `${base}/settings/password`, perm: "profile:view" },
+      { name: "Pickup Address", to: `${base}/settings/pickup`, perm: "pickup_addresses:view" },
       { name: "RTO Address", to: `${base}/settings/rto`, perm: "profile:edit" },
       { name: "Label Setting", to: `${base}/settings/label`, perm: "profile:edit" },
       { name: "KYC", to: `${base}/settings/kyc`, perm: "profile:edit" },
@@ -247,9 +236,6 @@ export function Sidebar({ isOpen, setIsOpen }) {
         {hasPerm("orders:view") && (
           <NavLink to={`${base}/scanned-orders`} icon={<Package size={20} />} hideText={!isOpen}>Scanned Orders</NavLink>
         )}
-
-        <NavLink to={`${base}/tickets`} icon={<Ticket size={20} />} hideText={!isOpen}>Tickets</NavLink>
-        <NavLink to={`${base}/reports`} icon={<FileText size={20} />} hideText={!isOpen}>Reports</NavLink>
 
         <NavDropdown id="settings" label="Settings" icon={Settings} items={sections.settings} />
 

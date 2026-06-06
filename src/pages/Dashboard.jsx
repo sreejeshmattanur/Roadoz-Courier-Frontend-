@@ -71,43 +71,56 @@ export function Dashboard() {
             <span>Dashboard</span>
           </p>
         </div>
-        <div className="bg-card-bg border border-border-subtle rounded-lg px-4 py-2.5 inline-flex items-center gap-3 text-sm text-text-muted shadow-sm">
-          <Calendar size={16} className="text-primary" />
+        <div className="bg-card-bg border border-border-subtle rounded-lg px-3 sm:px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 text-sm text-text-muted shadow-sm w-full sm:w-auto">
           <div className="flex items-center gap-2">
+            <Calendar size={16} className="text-primary flex-shrink-0" />
             <input
               type="date"
-              className="bg-transparent text-sm text-text-main px-1 py-0.5 rounded focus:outline-none"
+              className="bg-transparent text-sm text-text-main px-1 py-0.5 rounded focus:outline-none w-[110px]"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
             />
+          </div>
+          <div className="hidden sm:flex items-center gap-2">
             <span className="text-text-muted">→</span>
             <input
               type="date"
-              className="bg-transparent text-sm text-text-main px-1 py-0.5 rounded focus:outline-none"
+              className="bg-transparent text-sm text-text-main px-1 py-0.5 rounded focus:outline-none w-[110px]"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
             />
+          </div>
+          <div className="flex sm:hidden items-center gap-2">
+            <span className="text-text-muted">→</span>
+            <input
+              type="date"
+              className="bg-transparent text-sm text-text-main px-1 py-0.5 rounded focus:outline-none w-[110px]"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2">
             {(startDate !== "" || endDate !== "") && (
               <button
                 onClick={() => {
                   setStartDate("");
                   setEndDate("");
                 }}
-                className="ml-2 text-primary hover:text-primary-dark focus:outline-none flex items-center justify-center p-1 rounded-full hover:bg-gray-100 transition-colors"
+                className="text-primary hover:text-primary-dark focus:outline-none flex items-center justify-center p-1 rounded-full hover:bg-gray-100 transition-colors"
                 title="Clear date filter"
               >
-                <RefreshCw size={16} />
+                <RefreshCw size={14} />
               </button>
             )}
+            {loading && (
+              <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            )}
           </div>
-          {loading && (
-            <span className="ml-2 w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          )}
         </div>
       </div>
 
-      {/* ── Row 1: Stat Cards (7 cards) ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-4">
+      {/* ── Row 1: Stat Cards (8 cards) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <StatCard
           title="Total Orders"
           value={totalOrders}
@@ -180,29 +193,13 @@ export function Dashboard() {
         <PieChartCard
           title="Order Statuses"
           subtitle="Current status breakdown"
-          data={
-            orderStatusData.length
-              ? orderStatusData
-              : [
-                { name: "Picked", value: 7 },
-                { name: "Processing", value: 18 },
-                { name: "Delivered", value: 2 },
-                { name: "Warehouse", value: 1 },
-              ]
-          }
+          data={orderStatusData}
           colors={["#3b82f6", "#ffc107", "#22c55e", "#a855f7"]}
         />
         <PieChartCard
           title="COD vs Prepaid"
           subtitle="Payment mode split"
-          data={
-            codPrepaidData.length
-              ? codPrepaidData
-              : [
-                { name: "Prepaid", value: 28 },
-                { name: "COD", value: 2 },
-              ]
-          }
+          data={codPrepaidData}
           isDonut={true}
           colors={["#22c55e", "#f97316"]}
         />
@@ -213,28 +210,12 @@ export function Dashboard() {
         <BarChartCard
           title="Statewise Orders"
           subtitle="Top states by order volume"
-          data={
-            statewiseData.length
-              ? statewiseData
-              : [
-                { name: "Kerala", value: 16 },
-                { name: "Maharashtra", value: 4 },
-                { name: "Karnataka", value: 3 },
-                { name: "Telangana", value: 2 },
-              ]
-          }
+          data={statewiseData}
         />
         <RadialChartCard
           title="Delivered vs RTO"
           subtitle="Final delivery outcome"
-          data={
-            deliveredRtoData.length
-              ? deliveredRtoData
-              : [
-                { name: "Delivered", value: 2 },
-                { name: "RTO", value: 0 },
-              ]
-          }
+          data={deliveredRtoData}
           colors={["#22c55e", "#ef4444"]}
         />
       </div>
