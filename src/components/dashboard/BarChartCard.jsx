@@ -20,16 +20,20 @@ const CustomTooltip = ({ active, payload, label }) => {
     return (
       <div
         style={{
-          backgroundColor: "var(--card-bg)",
-          border: "1px solid var(--border-subtle)",
-          borderRadius: "10px",
-          padding: "10px 16px",
-          color: "var(--text-main)",
-          boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+          backgroundColor: "#1e1e1e",
+          border: "1px solid #333333",
+          borderRadius: "8px",
+          padding: "8px 12px",
+          color: "#fff",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+          zIndex: 1000,
+          pointerEvents: "none",
+          fontSize: "13px",
+          minWidth: "120px",
         }}
       >
-        <p style={{ fontWeight: 600, marginBottom: 4 }}>{label}</p>
-        <p style={{ color: "#ffc107", fontWeight: 700 }}>{payload[0].value} orders</p>
+        <p style={{ fontWeight: 600, marginBottom: 2, color: "#fff" }}>{label}</p>
+        <p style={{ color: "#ffc107", fontWeight: 700, fontSize: "14px" }}>{payload[0].value} orders</p>
       </div>
     );
   }
@@ -37,6 +41,8 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export function BarChartCard({ title, data, subtitle }) {
+  const hasData = data && data.length > 0 && data.some(d => d.value > 0);
+  
   return (
     <Card className="bg-card-bg border-border-subtle h-full transition-colors duration-300">
       <CardHeader className="pb-2">
@@ -52,6 +58,11 @@ export function BarChartCard({ title, data, subtitle }) {
         <div className="h-px bg-border-subtle w-full mt-3" />
       </CardHeader>
       <CardContent className="pt-2">
+        {!hasData ? (
+          <div className="flex items-center justify-center h-[260px] text-text-muted text-sm">
+            No data available
+          </div>
+        ) : (
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={data} margin={{ top: 8, right: 8, left: -20, bottom: 8 }} barSize={32}>
             <CartesianGrid
@@ -79,6 +90,7 @@ export function BarChartCard({ title, data, subtitle }) {
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+        )}
       </CardContent>
     </Card>
   );

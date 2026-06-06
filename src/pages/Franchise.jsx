@@ -18,35 +18,13 @@ import {
   toggleFranchiseStatus,
 } from "../redux/franchiseSlice";
 import Pagination from "../components/ui/Pagination";
-
-/**
- * Custom Hook to determine permissions
- * Aligned with your JWT token structure
- */
-const usePermission = () => {
-  // Get role name and permissions array from auth state
-  const { role, permissions } = useSelector((state) => state.auth || {});
-  
-  const userPerms = useMemo(() => permissions || [], [permissions]);
-
-  // Only the actual 'super_admin' role bypasses all checks.
-  // We remove the profile:edit check here so Staff don't get Admin rights.
-  const isSuperAdmin = role === "super_admin";
-
-  return {
-    canCreate: isSuperAdmin || userPerms.includes("franchises:create"),
-    canEdit:   isSuperAdmin || userPerms.includes("franchises:edit"),
-    canDelete: isSuperAdmin || userPerms.includes("franchises:delete"),
-    canView:   isSuperAdmin || userPerms.includes("franchises:view"),
-  };
-};
+import { usePermission } from "../hooks/usePermission";
 
 export function Franchise() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  
-  // Get specific permission states
-  const { canCreate, canEdit, canDelete, canView } = usePermission();
+  const { franchises } = usePermission();
+  const { create: canCreate, edit: canEdit, delete: canDelete, view: canView } = franchises;
 
   const { items, loading, pagination } = useSelector((state) => state.franchise);
 

@@ -2,15 +2,21 @@ import { useSelector } from "react-redux";
 import { Navigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { useEffect } from "react";
+import { hasPermission } from "../../lib/permissions";
 
 export const PermissionRoute = ({ children, permission }) => {
-  const { role, permissions, isAuthenticated } = useSelector((state) => state.auth);
+  const { role, permissions, isAuthenticated } = useSelector(
+    (state) => state.auth,
+  );
 
-  const hasAccess = role === "super_admin" || (permission ? permissions.includes(permission) : true);
+  const hasAccess = hasPermission(permissions, role, permission);
 
   useEffect(() => {
     if (isAuthenticated && !hasAccess) {
-      toast.error("No Permission: Access Denied to this module.");
+      toast.error("Access Denied! You do not have permission.", {
+        id: "access-denied",
+        icon: "🚫",
+      });
     }
   }, [hasAccess, isAuthenticated]);
 

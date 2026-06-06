@@ -23,6 +23,7 @@ import { toast } from "react-hot-toast";
 import { motion, AnimatePresence } from "motion/react";
 
 import { Button } from "../../components/ui/button";
+import { usePermission } from "../../hooks/usePermission";
 import { Card, CardContent } from "../../components/ui/card";
 import { cn } from "../../lib/utils";
 import { swalConfirmDelete, swalSuccess, swalError } from "../../lib/swal";
@@ -33,6 +34,7 @@ import Pagination from "../../components/ui/Pagination";
 import { assignRoleToUserApi } from "../../services/apiCalls";
 
 export function Permissions() {
+  const { userRoles } = usePermission();
   const dispatch = useDispatch();
 
   const {
@@ -167,12 +169,14 @@ export function Permissions() {
           >
             <RotateCcw size={14} className="mr-2" /> Reset
           </Button>
-          <Button
-            onClick={handleAssignRole}
-            className="bg-primary hover:bg-primary/90 text-black font-bold h-10 px-6 shadow-lg rounded-xl text-xs"
-          >
-            <ShieldCheck size={16} className="mr-2" /> Save Assignment
-          </Button>
+          {userRoles.assign && (
+            <Button
+              onClick={handleAssignRole}
+              className="bg-primary hover:bg-primary/90 text-black font-bold h-10 px-6 shadow-lg rounded-xl text-xs"
+            >
+              <ShieldCheck size={16} className="mr-2" /> Save Assignment
+            </Button>
+          )}
         </div>
       </div>
 

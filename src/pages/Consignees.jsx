@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { 
-  Download, Plus, X, RotateCcw, Edit, Trash2, 
+  Download, Plus, X, RotateCcw,
   Search, Mail, Phone, Loader2, ShieldAlert, User 
 } from "lucide-react";
 import Pagination from "../components/ui/Pagination";
@@ -16,32 +16,15 @@ import {
   createConsignee,
   fetchConsignees,
   updateConsignee,
-  deleteConsignee,
 } from "../redux/consigneeSlice";
-import { swalConfirmDelete, swalSuccess, swalError } from "../lib/swal";
-
-/**
- * Custom Hook to determine permissions
- */
-const usePermission = () => {
-  const { role, permissions } = useSelector((state) => state.auth || {});
-  const userPerms = useMemo(() => permissions || [], [permissions]);
-  
-  const isSuperAdmin = role === "super_admin" || role === "Super Admin";
-
-  return {
-    canCreate: isSuperAdmin || userPerms.includes("consignees:create"),
-    canEdit:   isSuperAdmin || userPerms.includes("users:edit"),
-    canDelete: isSuperAdmin || userPerms.includes("users:delete"),
-    canView:   isSuperAdmin || userPerms.includes("consignees:view"),
-  };
-};
+import { swalSuccess, swalError } from "../lib/swal";
+import { usePermission } from "../hooks/usePermission";
 
 export function Consignees() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  
-  const { canCreate, canEdit, canDelete, canView } = usePermission();
+  const { consignees: consigneePerms } = usePermission();
+  const { create: canCreate, view: canView } = consigneePerms;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingConsignee, setEditingConsignee] = useState(null);
@@ -131,20 +114,6 @@ export function Consignees() {
       state: consignee.state || "",
     });
     setIsModalOpen(true);
-  };
-
-  const handleDelete = async (id) => {
-    if (!canDelete) return;
-    const res = await swalConfirmDelete("Remove Consignee?", "This record will be permanently deleted.");
-    if (res.isConfirmed) {
-      try {
-        await dispatch(deleteConsignee(id)).unwrap();
-        swalSuccess("Deleted", "Consignee removed.");
-        dispatch(fetchConsignees({ page: filters.page, limit: 10 }));
-      } catch (err) {
-        swalError("Error", "Delete operation failed.");
-      }
-    }
   };
 
   const handleSelectRow = (id) => {
@@ -276,20 +245,7 @@ export function Consignees() {
                           {c.status || "Inactive"}
                         </span>
                       </td>
-                      <td className="py-4 px-6">
-                        <div className="flex justify-center items-center gap-2">
-                          {canEdit && (
-                            <button onClick={() => handleEdit(c)} className="w-8 h-8 flex items-center justify-center text-primary bg-primary/10 border border-primary/20 rounded-lg hover:bg-primary hover:text-black transition-all">
-                              <Edit size={14} />
-                            </button>
-                          )}
-                          {canDelete && (
-                            <button onClick={() => handleDelete(c.id)} className="w-8 h-8 flex items-center justify-center text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-500 hover:text-white transition-all">
-                              <Trash2 size={14} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
+                      <td className="py-4 px-6 text-center text-text-muted text-xs">—</td>
                     </tr>
                   ))
                 )}

@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
 // 8 colors from completely different hue families — no two are similar shades
 const UNIQUE_POOL = [
@@ -28,16 +29,19 @@ const CustomTooltip = ({ active, payload }) => {
     return (
       <div
         style={{
-          backgroundColor: "var(--card-bg)",
-          border: "1px solid var(--border-subtle)",
-          borderRadius: "10px",
-          padding: "10px 16px",
-          color: "var(--text-main)",
-          boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+          backgroundColor: "#1e1e1e",
+          border: "1px solid #333333",
+          borderRadius: "8px",
+          padding: "8px 12px",
+          color: "#fff",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+          pointerEvents: "none",
+          fontSize: "13px",
+          minWidth: "120px",
         }}
       >
-        <p style={{ fontWeight: 600, marginBottom: 4 }}>{item.name}</p>
-        <p style={{ color: item.payload.fill, fontWeight: 700 }}>
+        <p style={{ fontWeight: 600, marginBottom: 2, color: "#fff" }}>{item.name}</p>
+        <p style={{ color: item.payload.fill, fontWeight: 700, fontSize: "14px" }}>
           {item.value} ({item.payload.percent !== undefined ? (item.payload.percent * 100).toFixed(1) : ""}%)
         </p>
       </div>
@@ -47,11 +51,16 @@ const CustomTooltip = ({ active, payload }) => {
 };
 
 export function PieChartCard({ title, data, colors, isDonut = false, centerLabel, subtitle }) {
+  const [hoveredData, setHoveredData] = useState(null);
+  
+  // Handle empty data
+  const hasData = data && data.length > 0 && data.some(d => d.value > 0);
   const resolved = resolveColors(colors, data.length);
   const total = data.reduce((acc, d) => acc + d.value, 0);
-  const dataWithPercent = data.map((d) => ({
+  const dataWithPercent = data.map((d, index) => ({
     ...d,
     percent: total > 0 ? d.value / total : 0,
+    fill: resolved[index],
   }));
 
   return (
@@ -69,46 +78,78 @@ export function PieChartCard({ title, data, colors, isDonut = false, centerLabel
         <div className="h-px bg-border-subtle w-full mt-3" />
       </CardHeader>
       <CardContent className="pt-2">
+        {!hasData ? (
+          <div className="flex items-center justify-center h-[220px] text-text-muted text-sm">
+            No data available
+          </div>
+        ) : (
         <div className="flex flex-col items-center">
           <div className="relative w-full" style={{ height: 220 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={dataWithPercent}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={isDonut ? 55 : 0}
-                  outerRadius={90}
-                  paddingAngle={isDonut ? 3 : 1}
-                  dataKey="value"
-                  stroke="none"
-                >
-                  {dataWithPercent.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={resolved[index]} />
-                  ))}
-                </Pie>
-                <Tooltip content={<CustomTooltip />} />
-              </PieChart>
-            </ResponsiveContainer>
-
-            {/* Donut center label */}
-            {isDonut && (
+            {/* Tooltip - positioned top right below the line */}
+            {hoveredData && (
               <div
+                className="absolute right-2 top-2 z-20"
                 style={{
-                  position: "absolute",
-                  top: "50%",
-                  left: "50%",
-                  transform: "translate(-50%, -50%)",
-                  textAlign: "center",
+                  backgroundColor: "#1e1e1e",
+                  border: "1px solid #333333",
+                  borderRadius: "8px",
+                  padding: "8px 12px",
+                  color: "#fff",
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+                  fontSize: "13px",
+                  minWidth: "100px",
                   pointerEvents: "none",
                 }}
               >
-                <p className="text-xl font-bold text-text-main leading-tight">
-                  {centerLabel ?? total}
+                <p style={{ fontWeight: 600, marginBottom: 2, color: "#fff" }}>{hoveredData.name}</p>
+                <p style={{ color: hoveredData.fill, fontWeight: 700, fontSize: "14px" }}>
+                  {hoveredData.value} ({(hoveredData.percent * 100).toFixed(1)}%)
                 </p>
-                <p className="text-xs text-text-muted">Total</p>
               </div>
             )}
+            
+            <div className="relative w-full h-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={dataWithPercent}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={isDonut ? 55 : 0}
+                    outerRadius={90}
+                    paddingAngle={isDonut ? 3 : 1}
+                    dataKey="value"
+                    stroke="none"
+                    onMouseEnter={(_, index) => setHoveredData(dataWithPercent[index])}
+                    onMouseLeave={() => setHoveredData(null)}
+                  >
+                    {dataWithPercent.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={resolved[index]} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+
+              {/* Donut center label */}
+              {isDonut && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    textAlign: "center",
+                    pointerEvents: "none",
+                    zIndex: 10,
+                  }}
+                >
+                  <p className="text-xl font-bold text-text-main leading-tight">
+                    {centerLabel ?? total}
+                  </p>
+                  <p className="text-xs text-text-muted">Total</p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Legend grid */}
@@ -125,6 +166,7 @@ export function PieChartCard({ title, data, colors, isDonut = false, centerLabel
             ))}
           </div>
         </div>
+        )}
       </CardContent>
     </Card>
   );

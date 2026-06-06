@@ -16,16 +16,20 @@ const CustomTooltip = ({ active, payload, label }) => {
     return (
       <div
         style={{
-          backgroundColor: "var(--card-bg)",
-          border: "1px solid var(--border-subtle)",
-          borderRadius: "10px",
-          padding: "10px 16px",
-          color: "var(--text-main)",
-          boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+          backgroundColor: "#1e1e1e",
+          border: "1px solid #333333",
+          borderRadius: "8px",
+          padding: "8px 12px",
+          color: "#fff",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+          zIndex: 1000,
+          pointerEvents: "none",
+          fontSize: "13px",
+          minWidth: "120px",
         }}
       >
-        <p style={{ fontWeight: 600, marginBottom: 4 }}>{label}</p>
-        <p style={{ color: payload[0].fill, fontWeight: 700 }}>
+        <p style={{ fontWeight: 600, marginBottom: 2, color: "#fff" }}>{label}</p>
+        <p style={{ color: payload[0].fill, fontWeight: 700, fontSize: "14px" }}>
           {payload[0].value} orders
         </p>
       </div>
@@ -35,6 +39,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export function RadialChartCard({ title, subtitle, data, colors = [] }) {
+  const hasData = data && data.length > 0 && data.some(d => d.value > 0);
   const total = data.reduce((acc, d) => acc + d.value, 0);
 
   const enriched = data.map((d, i) => ({
@@ -63,6 +68,12 @@ export function RadialChartCard({ title, subtitle, data, colors = [] }) {
       </CardHeader>
 
       <CardContent className="pt-4 flex flex-col justify-center" style={{ minHeight: 260 }}>
+        {!hasData ? (
+          <div className="flex items-center justify-center h-[260px] text-text-muted text-sm">
+            No data available
+          </div>
+        ) : (
+        <>
         {/* Big stat numbers */}
         <div className="grid grid-cols-2 gap-4 mb-6">
           {enriched.map((item, i) => (
@@ -126,6 +137,8 @@ export function RadialChartCard({ title, subtitle, data, colors = [] }) {
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+        </>
+        )}
       </CardContent>
     </Card>
   );

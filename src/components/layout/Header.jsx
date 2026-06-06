@@ -18,6 +18,7 @@ import { toast } from "react-hot-toast";
 import Cookies from "js-cookie";
 
 import { addNotification, markNotificationAsRead, fetchNotifications } from "../../redux/notificationSlice";
+import { usePermission } from "../../hooks/usePermission";
 
 const IMAGE_BASE_URL = "http://api.roadozcourier.com";
 
@@ -25,6 +26,7 @@ export function Header({ toggleSidebar }) {
     const { theme, toggleTheme } = useTheme();
     const dispatch = useDispatch();
     const navigate = useNavigate();
+    const { orders: orderPerms, invoices: invoicePerms, wallet: walletPerms, remittances: remittancePerms } = usePermission();
 
     const { user } = useSelector((state) => state.profile);
     const role = useSelector((state) => state.auth.role);
@@ -174,49 +176,56 @@ export function Header({ toggleSidebar }) {
     };
 
     const quickActions = [
-        { icon: <ShoppingBag className="text-primary" />, label: "Add an Order" },
-        { icon: <List className="text-primary" />, label: "All Orders" },
-        { icon: <Calculator className="text-primary" />, label: "Rate Calculator" },
-        { icon: <FileText className="text-primary" />, label: "Create Invoice" },
-        { icon: <History className="text-primary" />, label: "Remittance Transaction Log" },
-    ];
+        orderPerms.create && { icon: <ShoppingBag className="text-primary" />, label: "Add an Order", path: "/dashboard/new-orders" },
+        orderPerms.view && { icon: <List className="text-primary" />, label: "All Orders", path: "/dashboard/all-orders" },
+        invoicePerms.generate && { icon: <FileText className="text-primary" />, label: "Create Invoice", path: "/dashboard/invoices" },
+        remittancePerms.view && { icon: <History className="text-primary" />, label: "Remittance Transaction Log", path: "/dashboard/cod-remittance" },
+    ].filter(Boolean);
 
     return (
         <div className="sticky top-0 z-50 w-full">
-            <header className="h-16 bg-card-bg border-b border-border-subtle flex items-center justify-between px-3 md:px-6 transition-colors duration-300">
-                <div className="flex items-center gap-2 md:gap-4">
+            <header className="h-14 sm:h-16 bg-card-bg border-b border-border-subtle flex items-center justify-between px-2 sm:px-3 md:px-6 transition-colors duration-300">
+                <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
                     <button
                         onClick={(e) => { e.stopPropagation(); toggleSidebar(); }}
-                        className="p-2 text-text-muted hover:text-text-main hover:bg-dashboard-bg rounded-lg transition-colors active:scale-95"
+                        className="p-1.5 sm:p-2 text-text-muted hover:text-text-main hover:bg-dashboard-bg rounded-lg transition-colors active:scale-95"
                     >
-                        <Menu size={24} />
+                        <Menu size={20} className="sm:w-6 sm:h-6" />
                     </button>
-                    <img src={Logo} alt="Logo" className="h-8 w-auto lg:hidden block md:hidden" />
+                    <img src={Logo} alt="Logo" className="h-6 sm:h-8 w-auto lg:hidden md:hidden" />
                 </div>
 
-                <div className="flex items-center gap-1.5 md:gap-3">
-                    <Button
-                        onClick={() => setIsImportModalOpen(true)}
-                        className="bg-primary text-black hover:bg-primary/90 h-9 px-3 flex items-center gap-1 text-xs sm:text-sm"
-                    >
-                        <Plus size={16} />
-                        <span className="hidden sm:inline">Import</span>
-                    </Button>
+                <div className="flex items-center gap-1 sm:gap-1.5 md:gap-3">
+                    {orderPerms.create && (
+                      <Button
+                          onClick={() => setIsImportModalOpen(true)}
+                          className="bg-primary text-black hover:bg-primary/90 h-7 sm:h-8 px-2 sm:px-2.5 flex items-center gap-1 text-xs font-bold"
+                      >
+                          <Plus size={12} className="sm:w-3.5 sm:h-3.5" />
+                          <span className="hidden sm:inline">Import</span>
+                      </Button>
+                    )}
 
-                    <button onClick={() => setIsQuickActionsOpen(true)} className="w-9 h-9 md:w-10 md:h-10 bg-primary text-black rounded-full flex items-center justify-center hover:bg-primary/90 transition-all shadow-sm active:scale-90">
-                        <Zap size={18} fill="currentColor" />
-                    </button>
+                    {quickActions.length > 0 && (
+                      <button onClick={() => setIsQuickActionsOpen(true)} className="w-7 h-7 sm:w-8 sm:h-8 bg-primary text-black rounded-full flex items-center justify-center hover:bg-primary/90 transition-all shadow-sm active:scale-90">
+                          <Zap size={14} className="sm:w-4 sm:h-4" fill="currentColor" />
+                      </button>
+                    )}
 
-                    <div onClick={() => setIsWalletModalOpen(true)} className="flex items-center gap-1 bg-dashboard-bg px-2 md:px-3 py-1.5 rounded-full border border-border-subtle cursor-pointer hover:border-primary/50 transition-all">
-                        <span className="text-text-main font-bold text-xs md:text-sm">₹ {user?.wallet_balance || "689"}</span>
-                        <div className="w-4 h-4 md:w-5 md:h-5 bg-primary rounded-full flex items-center justify-center text-black ml-0.5">
-                            <Plus size={10} strokeWidth={4} />
-                        </div>
+                    {walletPerms.view && (
+                    <div onClick={() => walletPerms.recharge && setIsWalletModalOpen(true)} className={cn("flex items-center gap-0.5 sm:gap-1 bg-dashboard-bg px-1.5 sm:px-2 md:px-3 py-1 sm:py-1.5 rounded-full border border-border-subtle transition-all", walletPerms.recharge && "cursor-pointer hover:border-primary/50")}>
+                        <span className="text-text-main font-bold text-xs">₹{user?.wallet_balance || "689"}</span>
+                        {walletPerms.recharge && (
+                          <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 bg-primary rounded-full flex items-center justify-center text-black ml-0.5">
+                              <Plus size={8} strokeWidth={4} />
+                          </div>
+                        )}
                     </div>
+                    )}
 
                     <div className="relative" ref={notificationRef}>
-                        <button onClick={() => setIsNotificationsOpen(!isNotificationsOpen)} className="text-text-muted hover:text-text-main p-2 relative group">
-                            <Bell size={20} className={unreadCount > 0 ? "animate-shake" : "group-hover:animate-shake"} />
+                        <button onClick={() => setIsNotificationsOpen(!isNotificationsOpen)} className="text-text-muted hover:text-text-main p-1.5 sm:p-2 relative group">
+                            <Bell size={18} className="sm:w-5 sm:h-5" />
                             {unreadCount > 0 && (
                                 <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-card-bg">
                                     {unreadCount > 99 ? '99+' : unreadCount}
@@ -280,13 +289,13 @@ export function Header({ toggleSidebar }) {
                         </AnimatePresence>
                     </div>
 
-                    <button onClick={toggleTheme} className="text-text-muted hover:text-text-main p-2 transition-colors">
-                        {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
+                    <button onClick={toggleTheme} className="text-text-muted hover:text-text-main p-1.5 sm:p-2 transition-colors">
+                        {theme === "dark" ? <Sun size={18} className="sm:w-5 sm:h-5" /> : <Moon size={18} className="sm:w-5 sm:h-5" />}
                     </button>
 
                     <Link to="/profile" className="flex-shrink-0">
-                        <div className="flex items-center gap-2 pl-2 border-l border-border-subtle cursor-pointer hover:bg-primary/5 px-1 md:px-2 py-1 rounded-lg transition">
-                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center overflow-hidden border border-primary/20">
+                        <div className="flex items-center gap-1.5 sm:gap-2 pl-1.5 sm:pl-2 border-l border-border-subtle cursor-pointer hover:bg-primary/5 px-1 md:px-2 py-1 rounded-lg transition">
+                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-primary/10 flex items-center justify-center overflow-hidden border border-primary/20">
                                 <img src={getProfileImageUrl()} alt="User Avatar" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = PLACEHOLDER_IMAGE; }} />
                             </div>
                             <div className="flex flex-col items-start leading-none hidden md:flex">
@@ -348,7 +357,7 @@ export function Header({ toggleSidebar }) {
             </AnimatePresence>
 
             <AnimatePresence>
-                {isWalletModalOpen && (
+                {walletPerms.recharge && isWalletModalOpen && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                         <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-card-bg border border-border-subtle rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
                             <div className="p-5 md:p-6 border-b border-border-subtle flex justify-between items-center"><h2 className="text-lg font-bold text-text-main">Recharge Wallet</h2><button onClick={() => setIsWalletModalOpen(false)} className="p-2 text-text-muted hover:text-primary transition-colors"><X size={24} /></button></div>
@@ -371,7 +380,14 @@ export function Header({ toggleSidebar }) {
                                 <div className="flex justify-between items-center mb-8"><h2 className="text-xl md:text-2xl font-bold text-text-main">Quick Actions</h2><button onClick={() => setIsQuickActionsOpen(false)} className="p-2 bg-dashboard-bg rounded-lg text-text-muted"><X size={24} /></button></div>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 md:gap-6">
                                     {quickActions.map((action, i) => (
-                                        <button key={i} className="flex flex-col items-center gap-3 p-4 md:p-6 rounded-2xl hover:bg-primary/10 transition-all group border border-transparent hover:border-primary/20">
+                                        <button
+                                          key={i}
+                                          onClick={() => {
+                                            if (action.path) navigate(action.path);
+                                            setIsQuickActionsOpen(false);
+                                          }}
+                                          className="flex flex-col items-center gap-3 p-4 md:p-6 rounded-2xl hover:bg-primary/10 transition-all group border border-transparent hover:border-primary/20"
+                                        >
                                             <div className="w-12 h-12 md:w-16 md:h-16 bg-primary/10 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">{action.icon}</div>
                                             <span className="text-[10px] md:text-xs font-bold text-text-main text-center leading-tight">{action.label}</span>
                                         </button>

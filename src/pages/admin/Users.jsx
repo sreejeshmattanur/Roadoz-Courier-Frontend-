@@ -15,9 +15,11 @@ import { swalConfirmDelete, swalSuccess, swalError } from "../../lib/swal";
 import { cn } from "../../lib/utils";
 import { getUsers, addUser, editUser, removeUser } from "../../redux/userSlice";
 import Pagination from "../../components/ui/Pagination";
+import { usePermission } from "../../hooks/usePermission";
 
 export function Users() {
   const dispatch = useDispatch();
+  const { users: userPerms } = usePermission();
   const { items, loading, pagination } = useSelector((state) => state.users);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -178,9 +180,11 @@ export function Users() {
             <Button variant="outline" onClick={exportToCSV} className="flex-1 sm:flex-none border-border-subtle h-10 text-text-main text-xs">
                 <Download size={16} className="mr-2" /> Export CSV
             </Button>
-            <Button onClick={() => handleOpenModal()} className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-black font-bold h-10 px-4 rounded-xl shadow-lg text-xs">
+            {userPerms.create && (
+              <Button onClick={() => handleOpenModal()} className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-black font-bold h-10 px-4 rounded-xl shadow-lg text-xs">
                 <Plus size={18} className="mr-2" /> Add New User
-            </Button>
+              </Button>
+            )}
         </div>
       </div>
 
@@ -245,12 +249,22 @@ export function Users() {
                        <div className="flex items-center gap-1 text-xs font-bold text-text-main uppercase"><MapPin size={12} className="text-primary"/> {user.pincode || "N/A"}</div>
                     </td>
                     <td className="px-6 py-4">
-                       <button onClick={() => toggleStatus(user)}>{user.is_active ? <ToggleRight className="text-green-500" size={28} /> : <ToggleLeft className="text-text-muted/50" size={28} />}</button>
+                       {userPerms.edit ? (
+                         <button onClick={() => toggleStatus(user)}>{user.is_active ? <ToggleRight className="text-green-500" size={28} /> : <ToggleLeft className="text-text-muted/50" size={28} />}</button>
+                       ) : (
+                         <span className={cn("text-[10px] px-2 py-1 rounded font-bold", user.is_active ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500")}>
+                           {user.is_active ? "ACTIVE" : "INACTIVE"}
+                         </span>
+                       )}
                     </td>
                     <td className="px-6 py-4">
                        <div className="flex justify-center items-center gap-2">
-                          <button onClick={() => handleOpenModal(user)} className="p-1.5 text-primary bg-primary/10 rounded-lg border border-primary/20 hover:bg-primary hover:text-black"><Edit size={16}/></button>
-                          <button onClick={() => handleDelete(user.id)} className="p-1.5 text-red-500 bg-red-500/10 rounded-lg border border-red-500/20 hover:bg-red-500 hover:text-white"><Trash2 size={16}/></button>
+                          {userPerms.edit && (
+                            <button onClick={() => handleOpenModal(user)} className="p-1.5 text-primary bg-primary/10 rounded-lg border border-primary/20 hover:bg-primary hover:text-black"><Edit size={16}/></button>
+                          )}
+                          {userPerms.delete && (
+                            <button onClick={() => handleDelete(user.id)} className="p-1.5 text-red-500 bg-red-500/10 rounded-lg border border-red-500/20 hover:bg-red-500 hover:text-white"><Trash2 size={16}/></button>
+                          )}
                        </div>
                     </td>
                   </tr>

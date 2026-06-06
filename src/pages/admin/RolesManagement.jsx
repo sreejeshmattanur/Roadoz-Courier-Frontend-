@@ -20,9 +20,11 @@ import { Card } from "../../components/ui/card";
 import Pagination from "../../components/ui/Pagination";
 
 import { fetchRoles, deleteRole, updateRole } from "../../redux/roleSlice";
+import { usePermission } from "../../hooks/usePermission";
 
 export function RolesManagement() {
   const dispatch = useDispatch();
+  const { roles: rolePerms } = usePermission();
   const { items, loading, pagination } = useSelector((state) => state.roles);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -168,13 +170,15 @@ export function RolesManagement() {
             Export CSV
           </button>
 
-          <button
-            onClick={() => navigate("/dashboard/admin/roles/add")}
-            className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-black font-bold h-10 px-4 rounded-xl shadow-lg text-xs flex items-center justify-center gap-2"
-          >
-            <Plus size={18} />
-            Add New Role
-          </button>
+          {rolePerms.create && (
+            <button
+              onClick={() => navigate("/dashboard/admin/roles/add")}
+              className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-black font-bold h-10 px-4 rounded-xl shadow-lg text-xs flex items-center justify-center gap-2"
+            >
+              <Plus size={18} />
+              Add New Role
+            </button>
+          )}
         </div>
       </div>
 
@@ -303,32 +307,42 @@ export function RolesManagement() {
                   </td>
 
                   <td className="px-6 py-4">
-                    <button onClick={() => toggleStatus(role)}>
-                      {role.is_active ? (
-                        <ToggleRight size={28} className="text-green-500" />
-                      ) : (
-                        <ToggleLeft size={28} className="text-text-muted/50" />
-                      )}
-                    </button>
+                    {rolePerms.edit ? (
+                      <button onClick={() => toggleStatus(role)}>
+                        {role.is_active ? (
+                          <ToggleRight size={28} className="text-green-500" />
+                        ) : (
+                          <ToggleLeft size={28} className="text-text-muted/50" />
+                        )}
+                      </button>
+                    ) : (
+                      <span className={`text-[10px] px-2 py-1 rounded font-bold ${role.is_active ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"}`}>
+                        {role.is_active ? "ACTIVE" : "INACTIVE"}
+                      </span>
+                    )}
                   </td>
 
                   <td className="px-6 py-4">
                     <div className="flex justify-center items-center gap-2">
-                      <button
-                        onClick={() =>
-                          navigate(`/dashboard/admin/roles/edit/${role.id}`)
-                        }
-                        className="p-1.5 text-primary bg-primary/10 rounded-lg border border-primary/20 hover:bg-primary hover:text-black"
-                      >
-                        <Edit size={16} />
-                      </button>
+                      {rolePerms.edit && (
+                        <button
+                          onClick={() =>
+                            navigate(`/dashboard/admin/roles/edit/${role.id}`)
+                          }
+                          className="p-1.5 text-primary bg-primary/10 rounded-lg border border-primary/20 hover:bg-primary hover:text-black"
+                        >
+                          <Edit size={16} />
+                        </button>
+                      )}
 
-                      <button
-                        onClick={() => handleDelete(role.id)}
-                        className="p-1.5 text-red-500 bg-red-500/10 rounded-lg border border-red-500/20 hover:bg-red-500 hover:text-white"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {rolePerms.delete && (
+                        <button
+                          onClick={() => handleDelete(role.id)}
+                          className="p-1.5 text-red-500 bg-red-500/10 rounded-lg border border-red-500/20 hover:bg-red-500 hover:text-white"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

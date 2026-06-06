@@ -24,8 +24,10 @@ import {
   updatePickupAddress,
   deletePickupAddress,
 } from "../redux/orderSlice";
+import { usePermission } from "../hooks/usePermission";
 
 export function PickupAddress() {
+  const { pickupAddresses: pickupPerms } = usePermission();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState(null);
 
@@ -410,13 +412,15 @@ export function PickupAddress() {
             Export CSV
           </Button>
 
-          <Button
-            onClick={() => setIsModalOpen(true)}
-            className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-black font-bold h-10 px-4 rounded-xl shadow-lg transition-all text-xs"
-          >
-            <Plus size={18} className="mr-2" />
-            New Pickup Address
-          </Button>
+          {pickupPerms.create && (
+            <Button
+              onClick={() => setIsModalOpen(true)}
+              className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-black font-bold h-10 px-4 rounded-xl shadow-lg transition-all text-xs"
+            >
+              <Plus size={18} className="mr-2" />
+              New Pickup Address
+            </Button>
+          )}
         </div>
       </div>
 
@@ -660,21 +664,23 @@ export function PickupAddress() {
                     </td>
 
                     <td className="px-6 py-6">
-                      <div className="flex justify-center items-center gap-2">
-                        <button
-                          onClick={() => handleEdit(addr)}
-                          className="w-8 h-8 flex items-center justify-center text-primary bg-primary/10 border border-primary/20 rounded-lg hover:bg-primary hover:text-black transition-all duration-200"
-                        >
-                          <Edit size={14} />
-                        </button>
+                      {pickupPerms.create && (
+                        <div className="flex justify-center items-center gap-2">
+                          <button
+                            onClick={() => handleEdit(addr)}
+                            className="w-8 h-8 flex items-center justify-center text-primary bg-primary/10 border border-primary/20 rounded-lg hover:bg-primary hover:text-black transition-all duration-200"
+                          >
+                            <Edit size={14} />
+                          </button>
 
-                        <button
-                          onClick={() => handleDelete(addr.id)}
-                          className="w-8 h-8 flex items-center justify-center text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-500 hover:text-white transition-all duration-200"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                          <button
+                            onClick={() => handleDelete(addr.id)}
+                            className="w-8 h-8 flex items-center justify-center text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-500 hover:text-white transition-all duration-200"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
