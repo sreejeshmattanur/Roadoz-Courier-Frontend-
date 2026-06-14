@@ -46,24 +46,29 @@ export function InvoiceModal({ invoice, onClose, loading }) {
         ) : (
           <div id="printable-invoice" className="p-8 text-gray-900 bg-white font-sans">
             {/* Header Section */}
-            <div className="text-right mb-8">
-              <h2 className="text-xl font-bold text-black mb-3">TAX INVOICE</h2>
-              <table className="text-xs text-left ml-auto">
-                <tbody>
-                  <tr>
-                    <td className="font-semibold pr-4 py-0.5">Invoice No:</td>
-                    <td className="py-0.5">{invoice.invoice_number}</td>
-                  </tr>
-                  <tr>
-                    <td className="font-semibold pr-4 py-0.5">Invoice Date:</td>
-                    <td className="py-0.5">{formatDate(invoice.created_at)}</td>
-                  </tr>
-                  <tr>
-                    <td className="font-semibold pr-4 py-0.5">Order Number:</td>
-                    <td className="py-0.5">{order?.order_number || '-'}</td>
-                  </tr>
-                </tbody>
-              </table>
+            <div className="flex justify-between items-start mb-8">
+              <div className="text-left">
+                <h1 className="text-2xl font-bold text-black mb-2">Roadoz Logistics Pvt Ltd</h1>
+              </div>
+              <div className="text-right">
+                <h2 className="text-xl font-bold text-black mb-3">TAX INVOICE</h2>
+                <table className="text-xs text-left ml-auto">
+                  <tbody>
+                    <tr>
+                      <td className="font-semibold pr-4 py-0.5">Invoice No:</td>
+                      <td className="py-0.5">{invoice.invoice_number}</td>
+                    </tr>
+                    <tr>
+                      <td className="font-semibold pr-4 py-0.5">Invoice Date:</td>
+                      <td className="py-0.5">{formatDate(invoice.created_at)}</td>
+                    </tr>
+                    <tr>
+                      <td className="font-semibold pr-4 py-0.5">Order Number:</td>
+                      <td className="py-0.5">{order?.order_number || '-'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <hr className="border-gray-400 my-4" />
@@ -140,14 +145,7 @@ export function InvoiceModal({ invoice, onClose, loading }) {
                   <td className="py-2 px-3 border border-gray-300">Fuel Surcharge</td>
                   <td className="py-2 px-3 border border-gray-300 text-right">{invoiceOrder?.fuel_surcharge ? formatCurrency(invoiceOrder.fuel_surcharge) : '-'}</td>
                 </tr>
-                <tr>
-                  <td className="py-2 px-3 border border-gray-300">Handling Charges</td>
-                  <td className="py-2 px-3 border border-gray-300 text-right">{invoiceOrder?.handling_charges ? formatCurrency(invoiceOrder.handling_charges) : '-'}</td>
-                </tr>
-                <tr>
-                  <td className="py-2 px-3 border border-gray-300">Insurance Charges</td>
-                  <td className="py-2 px-3 border border-gray-300 text-right">{invoiceOrder?.insurance_charges ? formatCurrency(invoiceOrder.insurance_charges) : '-'}</td>
-                </tr>
+
                 <tr className="font-semibold">
                   <td className="py-2 px-3 border border-gray-300">Subtotal</td>
                   <td className="py-2 px-3 border border-gray-300 text-right">{invoice.subtotal ? formatCurrency(invoice.subtotal) : '-'}</td>
@@ -182,7 +180,7 @@ export function InvoiceModal({ invoice, onClose, loading }) {
             </div>
 
             {/* Total Boxes */}
-            <div className="mb-4 text-xs">
+            <div className="mt-4 mb-4 text-xs">
               <span className="font-semibold">Total Boxes:</span>
               <span className="ml-2">1</span>
             </div>
@@ -194,7 +192,6 @@ export function InvoiceModal({ invoice, onClose, loading }) {
                 <li>All shipments are subject to Roadoz Logistics standard terms of carriage.</li>
                 <li>Misdeclaration of goods may result in penalties or shipment rejection.</li>
                 <li>Prohibited items, hazardous materials, and contraband are not accepted for transport.</li>
-                <li>Maximum liability for loss or damage is limited to the declared value or Rs. 100 per kg, whichever is lower.</li>
                 <li>Damaged or lost shipment claims must be reported within 48 hours of delivery.</li>
                 <li>Undelivered shipments will be held for 30 days before disposal.</li>
                 <li>Freight charges are non-refundable once shipment is dispatched.</li>

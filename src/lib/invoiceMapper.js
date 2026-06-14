@@ -44,13 +44,12 @@ export const mapOrderToInvoice = (order, formatDate) => {
 
     product: {
       name: order.items?.[0]?.product_name || "Product",
-
       sku: order.items?.[0]?.sku || "SKU",
-
       qty: order.items?.[0]?.qty || 1,
-
       value: order.items?.[0]?.total || 0,
     },
+
+    items: order.items || [],
 
     weight: `${order.weight_summary?.total_weight_kg || 0} KG`,
 

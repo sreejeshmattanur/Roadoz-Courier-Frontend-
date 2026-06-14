@@ -19,8 +19,13 @@ export const generateInvoicePDF = (order) => {
     // HEADER  (invoice meta RIGHT only)
     // ─────────────────────────────────────────────────────────
 
-    // --- TAX INVOICE label — right-aligned ---
+    // --- Header Section ---
+    // Company name on left
     doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text("Roadoz Logistics Pvt Ltd", PAGE_LEFT, 20);
+
+    // --- TAX INVOICE label — right-aligned ---
     doc.setFontSize(18);
     doc.text("TAX INVOICE", PAGE_RIGHT, 20, { align: "right" });
 
@@ -104,16 +109,25 @@ export const generateInvoicePDF = (order) => {
       head: [
         ["Product", "SKU", "Qty", "Weight", "Dimensions", "Declared Value"],
       ],
-      body: [
-        [
-          order.product?.name || "-",
-          order.product?.sku || "-",
-          order.product?.qty || "-",
-          order.weight ? `${order.weight} KG` : "-",
-          order.dims || "-",
-          order.product?.value ? `Rs. ${order.product.value}` : "-",
-        ],
-      ],
+      body: order.items && order.items.length > 0 
+        ? order.items.map((item, index) => [
+            item.product_name || "-",
+            item.sku || "-",
+            item.qty || "-",
+            index === 0 && order.weight ? order.weight : "-",
+            index === 0 && order.dims ? order.dims : "-",
+            item.total ? `Rs. ${item.total}` : "-",
+          ])
+        : [
+            [
+              order.product?.name || "-",
+              order.product?.sku || "-",
+              order.product?.qty || "-",
+              order.weight ? order.weight : "-",
+              order.dims || "-",
+              order.product?.value ? `Rs. ${order.product.value}` : "-",
+            ],
+          ],
       styles: { fontSize: 9, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.5 },
       headStyles: {
         fillColor: black,
@@ -138,7 +152,7 @@ export const generateInvoicePDF = (order) => {
     // -----------------------------
     // CHARGES BREAKDOWN TABLE
     // -----------------------------
-    const chargeY = doc.lastAutoTable.finalY + 10;
+    const chargeY = doc.lastAutoTable.finalY + 6;
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
@@ -150,8 +164,6 @@ export const generateInvoicePDF = (order) => {
       body: [
         ["Freight Charges", order.charges?.freight ? `Rs. ${order.charges.freight}` : "-"],
         ["Fuel Surcharge", order.charges?.fuel ? `Rs. ${order.charges.fuel}` : "-"],
-        ["Handling Charges", order.charges?.handling ? `Rs. ${order.charges.handling}` : "-"],
-        ["Insurance Charges", order.charges?.insurance ? `Rs. ${order.charges.insurance}` : "-"],
         ["Subtotal", order.charges?.subtotal ? `Rs. ${order.charges.subtotal}` : "-"],
         ["GST @ 18%", order.charges?.gst ? `Rs. ${order.charges.gst}` : "-"],
         ["Grand Total", order.payment?.total ? `Rs. ${order.payment.total}` : "-"],
@@ -170,7 +182,7 @@ export const generateInvoicePDF = (order) => {
       },
       // Bold the summary rows
       didParseCell: (data) => {
-        if (data.section === "body" && data.row.index >= 4) {
+        if (data.section === "body" && data.row.index >= 2) {
           data.cell.styles.fontStyle = "bold";
         }
       },
@@ -187,7 +199,7 @@ export const generateInvoicePDF = (order) => {
     const BOTTOM_MARGIN = 10;
     const SAFE_BOTTOM = PAGE_H - BOTTOM_MARGIN; // 287mm — last safe y
 
-    const extraY = doc.lastAutoTable.finalY + 12;
+    const extraY = doc.lastAutoTable.finalY + 6;
     const INFO_BAR_H = 10; // compact bar height
 
     // Shaded background
@@ -216,7 +228,7 @@ export const generateInvoicePDF = (order) => {
     doc.text(order.riskType || "N/A", 168, barTextY);
 
     // Total Boxes row
-    const boxesY = extraY + INFO_BAR_H + 5;
+    const boxesY = extraY + INFO_BAR_H + 7;
     doc.setFont("helvetica", "bold");
     doc.text("Total Boxes:", PAGE_LEFT, boxesY);
     doc.setFont("helvetica", "normal");
@@ -229,7 +241,6 @@ export const generateInvoicePDF = (order) => {
       "All shipments are subject to Roadoz Logistics standard terms of carriage.",
       "Misdeclaration of goods may result in penalties or shipment rejection.",
       "Prohibited items, hazardous materials, and contraband are not accepted for transport.",
-      "Maximum liability for loss or damage is limited to the declared value or Rs. 100 per kg, whichever is lower.",
       "Damaged or lost shipment claims must be reported within 48 hours of delivery.",
       "Undelivered shipments will be held for 30 days before disposal.",
       "Freight charges are non-refundable once shipment is dispatched.",
@@ -240,10 +251,10 @@ export const generateInvoicePDF = (order) => {
     const TERMS_TITLE_H = 6;
     const MIN_SPACE_FOR_TERMS = 40; // minimum space needed for terms section
     
-    let termsY = boxesY + 10; // at least 10mm below "Total Boxes"
+    let termsY = boxesY + 6; // at least 6mm below "Total Boxes"
     
     // Check if we need a new page for terms
-    if (termsY + TERMS_TITLE_H + (terms.length * LINE_H) > SAFE_BOTTOM - 20) {
+    if (termsY + TERMS_TITLE_H + (terms.length * LINE_H) > SAFE_BOTTOM - 15) {
       doc.addPage();
       termsY = 20; // start near top of new page
     }
@@ -273,9 +284,17 @@ export const generateInvoicePDF = (order) => {
     });
 
     // ─────────────────────────────────────────────────────────
-    // SIGNATURES  — pinned to bottom of current page
+    // SIGNATURES  — pinned to bottom of current page or right below terms
     // ─────────────────────────────────────────────────────────
-    const finalSigY = SAFE_BOTTOM - 8;
+    let finalSigY = currentY + 15;
+    if (finalSigY > SAFE_BOTTOM) {
+      doc.addPage();
+      finalSigY = 20;
+    } else if (finalSigY < SAFE_BOTTOM - 8) {
+      // If there's plenty of space, still pin to bottom
+      finalSigY = SAFE_BOTTOM - 8;
+    }
+
     doc.setDrawColor(100);
     doc.line(PAGE_LEFT, finalSigY, 80, finalSigY); // customer line
     doc.line(130, finalSigY, PAGE_RIGHT, finalSigY); // authorized line

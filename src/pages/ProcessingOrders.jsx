@@ -740,9 +740,7 @@ export function ProcessingOrders() {
             <div className="flex flex-wrap items-center gap-2">
               {activeStatus === "bulk" ? null : isProcessing ? (
                 <>
-                  <Button className="bg-primary text-black hover:bg-primary/90 text-xs font-bold gap-2 h-9">
-                    <Ship size={16} /> Ship
-                  </Button>
+
                   <Button
                     onClick={() => {
                       if (selectedOrders.length === 0) {
@@ -840,7 +838,7 @@ export function ProcessingOrders() {
                         handleGenerateInvoicePDF(selectedOrderData);
                       }}
                     >
-                      <FileText size={16} /> Invoices
+                      <FileText size={16} /> Generate Invoice
                     </Button>
                   )}
                 </>
@@ -1395,12 +1393,16 @@ export function ProcessingOrders() {
                                           <Edit size={14} />
                                         </button>
                                       )}
+
                                       {invoicePerms.generate && (
                                         <button
-                                          onClick={() => handleGenerateInvoicePDF(order)}
+                                          onClick={() => {
+                                            const mappedOrderData = mapOrderToInvoice(order, formatDate);
+                                            generateInvoicePDF(mappedOrderData);
+                                          }}
                                           className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
                                         >
-                                          <Printer size={14} />
+                                          <Download size={14} />
                                         </button>
                                       )}
                                     </>
@@ -1408,13 +1410,11 @@ export function ProcessingOrders() {
                                     <>
                                       {invoicePerms.generate && (
                                         <button
-                                          onClick={() =>
-                                            handleGenerateInvoiceExcel(
-                                              order,
-                                              mappedOrder,
-                                            )
-                                          }
-                                          className="p-1.5 bg-primary text-black rounded-md shadow-sm transition-transform active:scale-95 hover:bg-primary/90"
+                                          onClick={() => {
+                                            const mappedOrderData = mapOrderToInvoice(order, formatDate);
+                                            generateInvoicePDF(mappedOrderData);
+                                          }}
+                                          className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
                                         >
                                           <Download size={14} />
                                         </button>
@@ -1428,82 +1428,15 @@ export function ProcessingOrders() {
                                       >
                                         <Eye size={14} />
                                       </button>
-                                      <div className="relative" ref={menuRef}>
+                                      {orderPerms.create && (
                                         <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-
-                                            if (openMenuId === order.id) {
-                                              setOpenMenuId(null);
-                                            } else {
-                                              setOpenMenuId(order.id);
-                                            }
-                                          }}
-                                          className="p-1.5 text-text-muted hover:text-text-main rounded-md hover:bg-dashboard-bg/60 transition"
+                                          onClick={() => handleDuplicateOrder(order.id)}
+                                          className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
                                         >
-                                          <MoreVertical size={16} />
+                                          <Copy size={14} />
                                         </button>
+                                      )}
 
-                                        {openMenuId === order.id && (
-                                          <div className="absolute right-0 top-9 w-[190px] bg-card-bg border border-border-subtle rounded-lg shadow-[0_4px_14px_rgba(0,0,0,0.08)] z-50 overflow-hidden">
-                                            {orderPerms.create && (
-                                              <>
-                                                <button
-                                                  onClick={() => {
-                                                    handleDuplicateOrder(order.id);
-                                                    setOpenMenuId(null);
-                                                  }}
-                                                  className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
-                                                >
-                                                  <Copy
-                                                    size={15}
-                                                    strokeWidth={1.9}
-                                                    className="text-text-muted"
-                                                  />
-                                                  <span>Duplicate Order</span>
-                                                </button>
-                                                <div className="h-px bg-border-subtle" />
-                                              </>
-                                            )}
-
-                                            {invoicePerms.generate && (
-                                              <button
-                                                onClick={() => {
-                                                  handleGenerateInvoicePDF(order);
-                                                  setOpenMenuId(null);
-                                                }}
-                                                className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
-                                              >
-                                                <Printer
-                                                  size={15}
-                                                  strokeWidth={1.9}
-                                                  className="text-text-muted"
-                                                />
-                                                <span>Generate Invoice</span>
-                                              </button>
-                                            )}
-
-                                            <div className="h-px bg-border-subtle" />
-
-                                            {/* VIEW CHARGES */}
-                                            <button
-                                              onClick={() => {
-                                                console.log("View Charges");
-                                                setOpenMenuId(null);
-                                              }}
-                                              className="w-full h-[44px] flex items-center gap-2.5 px-4 text-[13px] font-medium text-text-main hover:bg-dashboard-bg/60 transition"
-                                            >
-                                              <FileText
-                                                size={15}
-                                                strokeWidth={1.9}
-                                                className="text-text-muted"
-                                              />
-
-                                              <span>View Charges</span>
-                                            </button>
-                                          </div>
-                                        )}
-                                      </div>
                                     </>
                                   )}
                                 </div>
