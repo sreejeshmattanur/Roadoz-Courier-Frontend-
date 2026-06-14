@@ -72,16 +72,7 @@ function calculateLabelHeight(order) {
 
   height += productLines * 3 + 6;
 
-  const footerText = [
-    pickup.nickname,
-    pickup.address_line_1,
-    pickup.address_line_2,
-    pickup.city,
-    pickup.state,
-    pickup.pincode,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const footerText = "Roadoz pvt Ltd , 1st Floor, A..., 1st main koramangala, 1st Block Bengaluru, 560034";
 
   const footerLines = Math.ceil(footerText.length / 45);
 
@@ -249,11 +240,7 @@ function drawLabel(doc, order, pageHeight) {
     align: "center",
   });
 
-  doc.text(`AWB No: ${awbNo}`, PW / 2, currentY + 13, {
-    align: "center",
-  });
-
-  doc.text("PCS #: 1", PW / 2, currentY + 18, {
+  doc.text("PCS #: 1", PW / 2, currentY + 12, {
     align: "center",
   });
 
@@ -499,32 +486,19 @@ function drawLabel(doc, order, pageHeight) {
   // FOOTER
   // ============================================================
 
-  const returnAddr = [
-    pickup.nickname || pickup.contact_name,
-    pickup.address_line_1,
-    pickup.address_line_2,
-    pickup.city,
-    pickup.state,
-    pickup.pincode,
-    "India",
-  ]
-    .filter(Boolean)
-    .join(", ");
-
-  const contacts = [pickup.phone, pickup.alternate_phone]
-    .filter(Boolean)
-    .join(", ");
+  const returnAddr = "Roadoz pvt Ltd , 1st Floor, A..., 1st main koramangala, 1st Block Bengaluru, 560034";
+  const mobileNo = "9496630687";
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(5.2);
 
   const noteLines = doc.splitTextToSize(
-    `${returnAddr} Mobile: ${pickup.phone || ""}`,
+    `${returnAddr} Mobile: ${mobileNo}`,
     RIGHT - LEFT - 4,
   );
 
   const complaintLines = doc.splitTextToSize(
-    `For complaints & queries please contact ${contacts}`,
+    `For complaints & queries please contact ${mobileNo}`,
     RIGHT - LEFT - 4,
   );
 

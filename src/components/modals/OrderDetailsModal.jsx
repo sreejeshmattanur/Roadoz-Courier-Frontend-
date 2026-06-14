@@ -238,20 +238,11 @@ export default function OrderDetailsModal({
           </div>
         </div>
 
-        <div className="flex justify-between px-6 py-4 border-t border-border-subtle">
-
-          <button className="flex items-center gap-2 text-primary text-sm border border-primary/40 px-3 py-1 rounded-md hover:bg-primary/10 transition-colors">
-            <RotateCcw size={14} />
-            Refresh Tracking
-          </button>
-
-          <button
-            onClick={onClose}
-            className="px-6 py-2 bg-text-main text-card-bg rounded-xl text-xs font-bold hover:bg-text-main/90 hover:shadow-md transition-all active:scale-95"
-          >
-            Close
-          </button>
+        <div className="px-6 py-4 border-t border-border-subtle">
+          <div className="h-[32px]"></div>
         </div>
+
+
       </div>
     </div>
   );
