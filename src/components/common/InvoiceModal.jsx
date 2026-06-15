@@ -3,7 +3,7 @@ import { X, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { generateInvoiceDataUri } from '../../lib/generateInvoicePDF';
 import { mapOrderToInvoice } from '../../lib/invoiceMapper';
 
-export function InvoiceModal({ invoice, onClose, loading, onPrev, onNext, hasPrev, hasNext, currentIndex, totalItems, onDownloadAll }) {
+export function InvoiceModal({ invoice, pdfTitle, onClose, loading, onPrev, onNext, hasPrev, hasNext, currentIndex, totalItems, onDownloadAll }) {
   const [pdfUri, setPdfUri] = useState(null);
 
   const formatDate = (dateString) => {
@@ -25,7 +25,7 @@ export function InvoiceModal({ invoice, onClose, loading, onPrev, onNext, hasPre
       const rawOrder = invoice.invoice_orders[0].order;
       if (rawOrder) {
         const mapped = mapOrderToInvoice(rawOrder, formatDate);
-        const uri = generateInvoiceDataUri(mapped);
+        const uri = generateInvoiceDataUri(mapped, pdfTitle);
         setPdfUri(uri);
       } else {
         setPdfUri(null);
@@ -39,7 +39,7 @@ export function InvoiceModal({ invoice, onClose, loading, onPrev, onNext, hasPre
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-card-bg border border-border-subtle w-[95%] max-w-4xl h-[90vh] flex flex-col rounded-xl shadow-2xl overflow-hidden">
+      <div className="bg-card-bg border border-border-subtle w-[98%] max-w-6xl h-[95vh] flex flex-col rounded-xl shadow-2xl overflow-hidden">
         <div className="bg-card-bg border-b border-border-subtle p-4 flex justify-between items-center z-10 shrink-0">
           <h2 className="text-lg font-bold text-text-main truncate pr-4">
             Invoice Details #{invoice?.invoice_number}
@@ -70,6 +70,15 @@ export function InvoiceModal({ invoice, onClose, loading, onPrev, onNext, hasPre
               </div>
             )}
 
+            <button onClick={() => {
+              const filename = pdfTitle || `Invoice-${invoice?.invoice_number || 'invoice'}.pdf`;
+              const a = document.createElement("a");
+              a.href = pdfUri;
+              a.download = filename;
+              a.click();
+            }} className="flex items-center gap-1 px-3 py-1.5 mr-2 text-sm font-medium text-white bg-black hover:bg-gray-800 rounded-md transition-colors" title="Download Invoice">
+              <Download size={14} /> <span className="hidden sm:inline">Download</span>
+            </button>
             <button onClick={onClose} className="w-8 h-8 flex items-center justify-center hover:bg-dashboard-bg rounded-full text-text-muted">
               <X size={20} />
             </button>

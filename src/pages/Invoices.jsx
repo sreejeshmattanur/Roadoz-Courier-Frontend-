@@ -401,15 +401,7 @@ export function Invoices() {
                                   <Eye size={16} />
                                 </button>
                               )}
-                              {invoicePerms.generate && (
-                                <button
-                                  onClick={() => handleDownloadPDF(inv)}
-                                  className="w-8 h-8 flex items-center justify-center text-black bg-primary border border-primary/20 rounded-lg hover:bg-primary/90"
-                                  title="Download PDF"
-                                >
-                                  <Download size={16} />
-                                </button>
-                              )}
+                              
                             </div>
                           </td>
                         </tr>
@@ -511,14 +503,7 @@ export function Invoices() {
                               <Eye size={16} />
                             </button>
                           )}
-                          {invoicePerms.generate && (
-                            <button
-                              onClick={() => handleDownloadPDF(inv)}
-                              className="p-2 bg-primary border border-primary/20 text-black rounded-lg"
-                            >
-                              <Download size={16} />
-                            </button>
-                          )}
+                          
                         </div>
                       </div>
                     </div>
@@ -550,6 +535,7 @@ export function Invoices() {
       {isModalOpen && (
         <InvoiceModal
           invoice={selectedInvoice}
+          pdfTitle={selectedInvoice ? `Invoice-${selectedInvoice?.invoice_orders?.[0]?.order?.order_number || selectedInvoice?.invoice_number}.pdf` : undefined}
           loading={detailLoading}
           onClose={() => {
             setIsModalOpen(false);

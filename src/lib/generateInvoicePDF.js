@@ -312,7 +312,7 @@ export const generateInvoicePDF = (order) => {
   }
 };
 
-export const generateInvoiceDataUri = (order) => {
+export const generateInvoiceDataUri = (order, pdfTitle) => {
   try {
     const doc = new jsPDF();
     drawInvoice(doc, order);

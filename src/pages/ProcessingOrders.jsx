@@ -71,11 +71,13 @@ export function ProcessingOrders() {
   const [currentBulkInvoiceIndex, setCurrentBulkInvoiceIndex] = useState(0);
   const [isBulkInvoiceViewerOpen, setIsBulkInvoiceViewerOpen] = useState(false);
   const [bulkInvoiceLoading, setBulkInvoiceLoading] = useState(false);
+  const [bulkInvoicePdfTitle, setBulkInvoicePdfTitle] = useState("");
 
   const [isLabelViewerOpen, setIsLabelViewerOpen] = useState(false);
   const [isLabelViewerBulk, setIsLabelViewerBulk] = useState(true);
   const [labelPdfUri, setLabelPdfUri] = useState(null);
   const [labelLoading, setLabelLoading] = useState(false);
+  const [labelPdfTitle, setLabelPdfTitle] = useState("");
 
   const menuRef = useRef(null);
 
@@ -357,7 +359,7 @@ export function ProcessingOrders() {
 
   const mapSingleOrderToInvoice = (order) => {
     return {
-      invoice_number: `PREVIEW-${order.order_number}`,
+      invoice_number: order.order_number,
       created_at: order.created_at,
       subtotal: order.order_value || 0,
       tax_amount: Number(order.order_value || 0) * 0.18,
@@ -379,6 +381,7 @@ export function ProcessingOrders() {
 
   const handleViewBulkInvoices = async (bulkOrder) => {
     setIsBulkInvoiceViewerOpen(true);
+    setBulkInvoicePdfTitle(`Bulk-Order-Invoice-${bulkOrder.id}`);
     setBulkInvoiceLoading(true);
     setBulkInvoiceList([]);
     setBulkRawOrders([]);
@@ -408,7 +411,9 @@ export function ProcessingOrders() {
       const ordersArray = data.orders || data.data?.orders || [];
       const doc = generateShippingLabel(ordersArray, true);
       if (doc) {
-        setLabelPdfUri(doc.output('datauristring'));
+        setLabelPdfTitle(`Bulk-Order-Label-${bulkOrder.id}.pdf`);
+        doc.setProperties({ title: `Bulk-Order-Label-${bulkOrder.id}.pdf` });
+        setLabelPdfUri(doc.output('datauristring', { filename: labelPdfTitle || 'label.pdf' }));
       }
     } catch (err) {
       console.error(err);
@@ -427,7 +432,10 @@ export function ProcessingOrders() {
     try {
       const doc = generateShippingLabel([order], true);
       if (doc) {
-        setLabelPdfUri(doc.output('datauristring'));
+        const filename = `Label-${order.order_number || order.id}.pdf`;
+        setLabelPdfTitle(filename);
+        doc.setProperties({ title: filename });
+        setLabelPdfUri(doc.output('datauristring', { filename: labelPdfTitle || 'label.pdf' }));
       }
     } catch (err) {
       console.error(err);
@@ -1910,6 +1918,7 @@ export function ProcessingOrders() {
       {isBulkInvoiceViewerOpen && (
         <InvoiceModal
           invoice={bulkInvoiceList[currentBulkInvoiceIndex]}
+          pdfTitle={bulkInvoicePdfTitle ? `${bulkInvoicePdfTitle}.pdf` : undefined}
           loading={bulkInvoiceLoading}
           onClose={() => {
             setIsBulkInvoiceViewerOpen(false);
@@ -1930,12 +1939,20 @@ export function ProcessingOrders() {
       )}
       {isLabelViewerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-card-bg w-[95%] max-w-4xl h-[90vh] flex flex-col rounded-xl shadow-2xl overflow-hidden border border-border-subtle">
+          <div className="bg-card-bg w-[98%] max-w-6xl h-[95vh] flex flex-col rounded-xl shadow-2xl overflow-hidden border border-border-subtle">
             <div className="flex justify-between items-center p-4 border-b border-border-subtle">
               <h2 className="font-bold text-lg text-text-main">
                 {isLabelViewerBulk ? "Bulk Shipping Labels" : "Shipping Label"}
               </h2>
               <div className="flex gap-2 items-center">
+                 <button onClick={() => {
+                   const a = document.createElement("a");
+                   a.href = labelPdfUri;
+                   a.download = labelPdfTitle;
+                   a.click();
+                 }} className="flex items-center gap-1 px-3 py-1.5 mr-2 text-sm font-medium text-white bg-black hover:bg-gray-800 rounded-md transition-colors" title="Download Label">
+                   <Download size={14} /> <span className="hidden sm:inline">Download</span>
+                 </button>
                  <button onClick={() => setIsLabelViewerOpen(false)} className="w-8 h-8 flex items-center justify-center hover:bg-dashboard-bg rounded-full text-text-muted">
                    <X size={20} />
                  </button>
@@ -1950,7 +1967,7 @@ export function ProcessingOrders() {
                   </div>
                 </div>
               ) : labelPdfUri ? (
-                <iframe src={labelPdfUri} className="absolute inset-0 w-full h-full rounded border-0 shadow-inner" title="Shipping Labels" />
+                <iframe src={labelPdfUri} className="absolute inset-0 w-full h-full rounded border-0 shadow-inner" title={isLabelViewerBulk ? `${bulkInvoicePdfTitle || "Bulk_Labels"}.pdf` : "Shipping_Label.pdf"} />
               ) : (
                 <div className="flex justify-center items-center h-full text-red-500 font-medium">Failed to load labels.</div>
               )}
