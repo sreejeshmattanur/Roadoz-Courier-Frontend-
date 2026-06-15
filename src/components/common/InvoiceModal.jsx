@@ -69,16 +69,7 @@ export function InvoiceModal({ invoice, onClose, loading, onPrev, onNext, hasPre
                 </button>
               </div>
             )}
-            {onDownloadAll && totalItems > 1 && (
-              <button 
-                onClick={onDownloadAll} 
-                className="flex items-center gap-1 px-3 py-1.5 mr-2 text-sm font-medium text-white bg-black hover:bg-gray-800 rounded-md transition-colors"
-                title="Download All Invoices as single PDF"
-              >
-                <Download size={14} />
-                <span className="hidden sm:inline">Download All</span>
-              </button>
-            )}
+
             <button onClick={onClose} className="w-8 h-8 flex items-center justify-center hover:bg-dashboard-bg rounded-full text-text-muted">
               <X size={20} />
             </button>

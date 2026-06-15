@@ -440,11 +440,12 @@ export function ProcessingOrders() {
 
   useEffect(() => {
     if (activeStatus === "bulk") {
+      setFilters((prev) => ({ ...prev, status: "" }));
       fetchBulkOrdersData(1);
     } else {
       setFilters((prev) => ({
         ...prev,
-        status: activeStatus === "processing" ? "" : activeStatus,
+        status: activeStatus === "processing" || activeStatus === "bulk" ? "" : activeStatus,
       }));
       const params = {
         page: 1,
@@ -1023,7 +1024,8 @@ export function ProcessingOrders() {
 
             <div className="p-6 bg-dashboard-bg/30 border-b border-border-subtle">
               <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                <div className="space-y-1.5">
+                {!(activeStatus === "bulk" && selectedBulkOrderData) && (<>
+<div className="space-y-1.5">
                   <label className="text-xs font-medium text-text-muted">
                     Starting Date
                   </label>
@@ -1066,6 +1068,7 @@ export function ProcessingOrders() {
                     />
                   </div>
                 </div>
+</>)}
 
                 {activeStatus === "bulk" && !selectedBulkOrderData && (
                   <div className="space-y-1.5">
@@ -1100,22 +1103,6 @@ export function ProcessingOrders() {
                         className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
                       />
                     </div>
-                    {!isProcessing && (
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-text-muted">
-                          AWB NO
-                        </label>
-                        <input
-                          type="text"
-                          value={filters.awb}
-                          onChange={(e) =>
-                            setFilters({ ...filters, awb: e.target.value })
-                          }
-                          placeholder="AWB No"
-                          className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
-                        />
-                      </div>
-                    )}
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-text-muted">
                         Buyer Name
@@ -1163,7 +1150,7 @@ export function ProcessingOrders() {
                   />
                 </div>
 
-                {!(activeStatus === "bulk" && !selectedBulkOrderData) && !isProcessing && (
+                {activeStatus !== "bulk" && !isProcessing && (
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-text-muted">
                       Status:
@@ -1224,8 +1211,7 @@ export function ProcessingOrders() {
                         awb: "",
                         buyerName: "",
                         paymentMethod: "",
-                        status:
-                          activeStatus === "processing" ? "" : activeStatus,
+                        status: activeStatus === "processing" || activeStatus === "bulk" ? "" : activeStatus,
                         limit: 25,
                         fileName: "",
                       };
@@ -1322,22 +1308,11 @@ export function ProcessingOrders() {
                           />
                         </th>
                         <th className="px-6 py-4">Customer</th>
-                        {!isProcessing && (
-                          <th className="px-6 py-4">Shipment</th>
-                        )}
+                        
                         <th className="px-6 py-4">Route</th>
                         <th className="px-6 py-4">Payment</th>
-                        {isProcessing ? (
-                          <th className="px-6 py-4">Order Details</th>
-                        ) : (
-                          <th className="px-6 py-4">Weight</th>
-                        )}
-                        {!isProcessing && (
-                          <th className="px-6 py-4">Created</th>
-                        )}
-                        {isProcessing && (
-                          <th className="px-6 py-4">Weight/Dims</th>
-                        )}
+                        <th className="px-6 py-4">Order Details</th>
+                        <th className="px-6 py-4">Weight/Dims</th>
                         <th className="px-6 py-4 text-center">Actions</th>
                       </tr>
                     )}
@@ -1526,23 +1501,13 @@ export function ProcessingOrders() {
                                   <span className="bg-orange-100 text-orange-600 text-[10px] font-bold px-2 py-0.5 rounded uppercase inline-block mt-1">
                                     {mappedOrder.status}
                                   </span>
-                                  {isProcessing && (
-                                    <p className="text-[10px] text-text-muted mt-1">
-                                      {mappedOrder.customer.date}
-                                    </p>
-                                  )}
+                                  <p className="text-[10px] text-text-muted mt-1">
+                                    {mappedOrder.customer.date}
+                                  </p>
                                 </div>
                               </td>
 
-                              {!isProcessing && (
-                                <td className="px-6 py-6 text-xs font-bold text-text-main">
-                                  {mappedOrder.shipment.id}
-                                  <br />
-                                  <span className="font-normal text-text-muted">
-                                    {mappedOrder.shipment.courier}
-                                  </span>
-                                </td>
-                              )}
+                              
 
                               <td className="px-6 py-6">
                                 <div className="text-xs font-bold text-text-main">
@@ -1574,39 +1539,25 @@ export function ProcessingOrders() {
                                 </p>
                               </td>
 
-                              {isProcessing ? (
-                                <td className="px-6 py-6 text-xs">
+                              <td className="px-6 py-6 text-xs">
+                                <p className="font-bold text-text-main">
+                                  #{mappedOrder.order.id}
+                                </p>
+                                <span className="bg-primary/20 text-primary text-[10px] font-bold px-2 py-0.5 rounded uppercase inline-block mt-1">
+                                  {mappedOrder.order.channel}
+                                </span>
+                              </td>
+
+                              <td className="px-6 py-6 text-xs">
+                                <div className="space-y-1">
                                   <p className="font-bold text-text-main">
-                                    #{mappedOrder.order.id}
+                                    {mappedOrder.weight}
                                   </p>
-                                  <span className="bg-primary/20 text-primary text-[10px] font-bold px-2 py-0.5 rounded uppercase inline-block mt-1">
-                                    {mappedOrder.order.channel}
-                                  </span>
-                                </td>
-                              ) : (
-                                <td className="px-6 py-6 text-xs font-bold text-text-main">
-                                  {mappedOrder.weight}
-                                </td>
-                              )}
-
-                              {!isProcessing && (
-                                <td className="px-6 py-6 text-xs text-text-muted">
-                                  {mappedOrder.created}
-                                </td>
-                              )}
-
-                              {isProcessing && (
-                                <td className="px-6 py-6 text-xs">
-                                  <div className="space-y-1">
-                                    <p className="font-bold text-text-main">
-                                      {mappedOrder.weight}
-                                    </p>
-                                    <p className="text-text-muted">
-                                      {mappedOrder.dims}
-                                    </p>
-                                  </div>
-                                </td>
-                              )}
+                                  <p className="text-text-muted">
+                                    {mappedOrder.dims}
+                                  </p>
+                                </div>
+                              </td>
 
                               <td className="px-6 py-6 text-center">
                                 <div className="flex items-center justify-center gap-1">
@@ -1843,19 +1794,16 @@ export function ProcessingOrders() {
                                     <p className="font-bold text-red-500">{mappedOrder.payment.method} ({mappedOrder.payment.total})</p>
                                   </div>
                                 </div>
-                                {!isProcessing && (
-                                  <div className="grid grid-cols-2 gap-2 text-xs border-t border-border-subtle pt-3">
-                                    <div>
-                                      <p className="text-[9px] text-text-muted uppercase font-bold tracking-wider mb-1">Shipment</p>
-                                      <p className="font-bold text-text-main">{mappedOrder.shipment.id}</p>
-                                      <p className="text-text-muted">{mappedOrder.shipment.courier}</p>
-                                    </div>
+                                <div className="grid grid-cols-2 gap-2 text-xs border-t border-border-subtle pt-3">
                                     <div>
                                       <p className="text-[9px] text-text-muted uppercase font-bold tracking-wider mb-1">Weight</p>
                                       <p className="font-bold text-text-main">{mappedOrder.weight}</p>
                                     </div>
+                                    <div>
+                                      <p className="text-[9px] text-text-muted uppercase font-bold tracking-wider mb-1">Dimensions</p>
+                                      <p className="font-bold text-text-main">{mappedOrder.dims}</p>
+                                    </div>
                                   </div>
-                                )}
                               </div>
                               <div className="flex flex-wrap items-center gap-2 border-t border-border-subtle pt-3 mt-2">
                                 {isProcessing ? (
