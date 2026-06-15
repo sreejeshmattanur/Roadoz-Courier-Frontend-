@@ -27,6 +27,7 @@ export const ENDPOINTS = {
   SERVICE_REVIEWS: "/project/reviews",
   ORDER_REVIEWS: "/product-reviews",
   BULK_ORDER_UPLOAD: "/orders/bulk",
+  BULK_ORDER_DETAILS: (id) => `/orders/bulk-order/${id}`,
   NOTIFICATIONS_WS: "/websocket/ws/notifications",
   READ_NOTIFICATION: (id) => `/notifications/${id}/read`,
   RATE_CALCULATOR: "/rate-calculator/calculate",

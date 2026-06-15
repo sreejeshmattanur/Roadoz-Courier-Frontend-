@@ -436,6 +436,11 @@ export const fetchBulkOrdersApi = async (params) => {
   return res.data;
 };
 
+export const fetchBulkOrderDetailsApi = async (id) => {
+  const res = await API.get(ENDPOINTS.BULK_ORDER_DETAILS(id));
+  return res.data;
+};
+
 // ORDER REVIEWS
 export const fetchOrderReviewsApi = async (params) => {
   const res = await API.get(`${ENDPOINTS.ORDER_REVIEWS}/all-reviews/`, {

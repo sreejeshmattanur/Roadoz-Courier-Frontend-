@@ -15,7 +15,7 @@ export default function ChangePickupAddressModal({
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-5xl bg-card-bg border border-border-subtle rounded-3xl shadow-2xl overflow-hidden">
+      <div className="w-[95%] max-w-5xl bg-card-bg border border-border-subtle rounded-3xl shadow-2xl overflow-hidden">
         {/* HEADER */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-border-subtle">
           <div>
