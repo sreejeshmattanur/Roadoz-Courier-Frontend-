@@ -84,7 +84,7 @@ function calculateLabelHeight(order) {
 // ─────────────────────────────────────────────────────────────
 // MAIN FUNCTION
 // ─────────────────────────────────────────────────────────────
-export function generateShippingLabel(orders) {
+export function generateShippingLabel(orders, returnDoc = false) {
   if (!orders?.length) return;
 
   const firstHeight = calculateLabelHeight(orders[0]);
@@ -105,6 +105,9 @@ export function generateShippingLabel(orders) {
     drawLabel(doc, order, pageHeight);
   });
 
+  if (returnDoc) {
+    return doc;
+  }
   doc.save("shipping_labels.pdf");
 }
 

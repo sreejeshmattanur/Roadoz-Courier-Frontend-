@@ -1,10 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-export const generateInvoicePDF = (order) => {
-  try {
-    const doc = new jsPDF();
-
+const drawInvoice = (doc, order) => {
     // -----------------------------
     // COLORS & CONSTANTS
     // -----------------------------
@@ -283,9 +280,9 @@ export const generateInvoicePDF = (order) => {
       currentY += lineHeight + 1;
     });
 
-    // ─────────────────────────────────────────────────────────
+    // -----------------------------
     // SIGNATURES  — pinned to bottom of current page or right below terms
-    // ─────────────────────────────────────────────────────────
+    // -----------------------------
     let finalSigY = currentY + 15;
     if (finalSigY > SAFE_BOTTOM) {
       doc.addPage();
@@ -303,12 +300,54 @@ export const generateInvoicePDF = (order) => {
     doc.setFontSize(9);
     doc.text("Customer Signature", PAGE_LEFT, finalSigY + 5);
     doc.text("Authorized Signatory", 130, finalSigY + 5);
+};
 
-    // -----------------------------
-    // SAVE PDF
-    // -----------------------------
+export const generateInvoicePDF = (order) => {
+  try {
+    const doc = new jsPDF();
+    drawInvoice(doc, order);
     doc.save(`Invoice_${order.id || "invoice"}.pdf`);
   } catch (error) {
     console.error("PDF Generation Error:", error);
+  }
+};
+
+export const generateInvoiceDataUri = (order) => {
+  try {
+    const doc = new jsPDF();
+    drawInvoice(doc, order);
+    return doc.output('datauristring');
+  } catch (error) {
+    console.error("PDF URI Generation Error:", error);
+    return null;
+  }
+};
+
+export const generateBulkInvoicesPDF = (orders) => {
+  try {
+    if (!orders || orders.length === 0) return;
+    const doc = new jsPDF();
+    orders.forEach((order, index) => {
+      if (index > 0) doc.addPage();
+      drawInvoice(doc, order);
+    });
+    doc.save(`Bulk_Invoices_${orders.length}_Orders.pdf`);
+  } catch (error) {
+    console.error("Bulk PDF Generation Error:", error);
+  }
+};
+
+export const generateBulkInvoicesDataUri = (orders) => {
+  try {
+    if (!orders || orders.length === 0) return null;
+    const doc = new jsPDF();
+    orders.forEach((order, index) => {
+      if (index > 0) doc.addPage();
+      drawInvoice(doc, order);
+    });
+    return doc.output('datauristring');
+  } catch (error) {
+    console.error("Bulk PDF URI Generation Error:", error);
+    return null;
   }
 };

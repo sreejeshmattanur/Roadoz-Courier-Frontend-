@@ -6,7 +6,7 @@ import {
   Eye,
   Copy,
   Edit,
-  Printer,
+  FilePlus,
   Ship,
   MapPin,
   Download,
@@ -17,6 +17,9 @@ import {
   Search,
   X,
   Loader2,
+  ArrowLeft,
+  User,
+  ArrowRight,
 } from "lucide-react";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -39,15 +42,17 @@ import OrderDetailsModal from "../components/modals/OrderDetailsModal";
 import EditWeightModal from "../components/modals/EditWeightModal";
 import ChangePickupAddressModal from "../components/modals/ChangePickupAddressModal";
 import toast from "react-hot-toast";
-import { generateInvoicePDF } from "../lib/generateInvoicePDF";
+import { generateInvoicePDF, generateBulkInvoicesPDF } from "../lib/generateInvoicePDF";
 import { mapOrderToInvoice } from "../lib/invoiceMapper";
 import { generateShippingLabel } from "../lib/generateShippingLabel";
 import {
   generateInvoiceApi,
   fetchBulkOrdersApi,
   generateBulkInvoiceApi,
+  fetchBulkOrderDetailsApi,
 } from "../services/apiCalls";
 import { usePermission } from "../hooks/usePermission";
+import { InvoiceModal } from "../components/common/InvoiceModal";
 
 export function ProcessingOrders() {
   const { orders: orderPerms, invoices: invoicePerms } = usePermission();
@@ -57,6 +62,20 @@ export function ProcessingOrders() {
   const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
   const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState(null);
+
+  const [isOrderInvoiceModalOpen, setIsOrderInvoiceModalOpen] = useState(false);
+  const [previewOrderInvoice, setPreviewOrderInvoice] = useState(null);
+
+  const [bulkInvoiceList, setBulkInvoiceList] = useState([]);
+  const [bulkRawOrders, setBulkRawOrders] = useState([]);
+  const [currentBulkInvoiceIndex, setCurrentBulkInvoiceIndex] = useState(0);
+  const [isBulkInvoiceViewerOpen, setIsBulkInvoiceViewerOpen] = useState(false);
+  const [bulkInvoiceLoading, setBulkInvoiceLoading] = useState(false);
+
+  const [isLabelViewerOpen, setIsLabelViewerOpen] = useState(false);
+  const [isLabelViewerBulk, setIsLabelViewerBulk] = useState(true);
+  const [labelPdfUri, setLabelPdfUri] = useState(null);
+  const [labelLoading, setLabelLoading] = useState(false);
 
   const menuRef = useRef(null);
 
@@ -73,6 +92,11 @@ export function ProcessingOrders() {
   const [bulkPage, setBulkPage] = useState(1);
   const [bulkLoading, setBulkLoading] = useState(false);
 
+  const [selectedBulkOrderData, setSelectedBulkOrderData] = useState(null);
+  const [isFetchingBulkDetails, setIsFetchingBulkDetails] = useState(false);
+  const [localFilterTrigger, setLocalFilterTrigger] = useState(0);
+  const [bulkDetailsPage, setBulkDetailsPage] = useState(1);
+
   const [filters, setFilters] = useState({
     startDate: "",
     endDate: "",
@@ -82,6 +106,7 @@ export function ProcessingOrders() {
     paymentMethod: "",
     status: "",
     limit: 25,
+    fileName: "",
   });
 
   const location = useLocation();
@@ -128,6 +153,7 @@ export function ProcessingOrders() {
     pathToStatus["/dashboard/processing-order"];
 
   const handleTabClick = (tab) => {
+    setSelectedBulkOrderData(null);
     navigate(`/dashboard${tab.path}`);
   };
 
@@ -199,7 +225,7 @@ export function ProcessingOrders() {
     pickupAddresses,
   } = useSelector((state) => state.orders);
 
-  const isPageLoading = activeStatus === "bulk" ? bulkLoading : loading;
+  const isPageLoading = (activeStatus === "bulk" && !selectedBulkOrderData) ? bulkLoading : (isFetchingBulkDetails || loading);
   const refreshTrigger = useSelector(
     (state) => state.bulkOrders?.refreshTrigger || 0,
   );
@@ -292,12 +318,16 @@ export function ProcessingOrders() {
     },
   ];
 
-  const fetchBulkOrdersData = async (pageNum = 1) => {
+  const fetchBulkOrdersData = async (pageNum = 1, filtersOverride = null) => {
     setBulkLoading(true);
     try {
+      const currentFilters = filtersOverride || filters;
       const res = await fetchBulkOrdersApi({
         page: pageNum,
-        limit: filters.limit,
+        limit: currentFilters.limit,
+        start_date: currentFilters.startDate || undefined,
+        end_date: currentFilters.endDate || undefined,
+        file_name: currentFilters.fileName || undefined,
       });
       setBulkOrders(res.items || []);
       setBulkTotal(res.total || 0);
@@ -308,6 +338,103 @@ export function ProcessingOrders() {
       toast.error("Failed to fetch bulk orders");
     } finally {
       setBulkLoading(false);
+    }
+  };
+
+  const handleViewBulkOrder = async (bulkOrderId) => {
+    setIsFetchingBulkDetails(true);
+    try {
+      const data = await fetchBulkOrderDetailsApi(bulkOrderId);
+      setSelectedBulkOrderData(data);
+      setBulkDetailsPage(1);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to fetch bulk order details");
+    } finally {
+      setIsFetchingBulkDetails(false);
+    }
+  };
+
+  const mapSingleOrderToInvoice = (order) => {
+    return {
+      invoice_number: `PREVIEW-${order.order_number}`,
+      created_at: order.created_at,
+      subtotal: order.order_value || 0,
+      tax_amount: Number(order.order_value || 0) * 0.18,
+      total_amount: Number(order.order_value || 0) * 1.18,
+      invoice_orders: [
+        {
+          base_freight: order.shipping_charge || 0,
+          fuel_surcharge: 0,
+          order: order
+        }
+      ]
+    };
+  };
+
+  const handleViewOrderInvoice = (order) => {
+    setPreviewOrderInvoice(mapSingleOrderToInvoice(order));
+    setIsOrderInvoiceModalOpen(true);
+  };
+
+  const handleViewBulkInvoices = async (bulkOrder) => {
+    setIsBulkInvoiceViewerOpen(true);
+    setBulkInvoiceLoading(true);
+    setBulkInvoiceList([]);
+    setBulkRawOrders([]);
+    setCurrentBulkInvoiceIndex(0);
+    try {
+      const data = await fetchBulkOrderDetailsApi(bulkOrder.id);
+      const ordersArray = data.orders || data.data?.orders || [];
+      const mappedInvoices = ordersArray.map(mapSingleOrderToInvoice);
+      setBulkInvoiceList(mappedInvoices);
+      setBulkRawOrders(ordersArray);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to fetch orders for invoice preview");
+      setIsBulkInvoiceViewerOpen(false);
+    } finally {
+      setBulkInvoiceLoading(false);
+    }
+  };
+
+  const handleViewBulkLabels = async (bulkOrder) => {
+    setIsLabelViewerOpen(true);
+    setIsLabelViewerBulk(true);
+    setLabelLoading(true);
+    setLabelPdfUri(null);
+    try {
+      const data = await fetchBulkOrderDetailsApi(bulkOrder.id);
+      const ordersArray = data.orders || data.data?.orders || [];
+      const doc = generateShippingLabel(ordersArray, true);
+      if (doc) {
+        setLabelPdfUri(doc.output('datauristring'));
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate bulk labels");
+      setIsLabelViewerOpen(false);
+    } finally {
+      setLabelLoading(false);
+    }
+  };
+
+  const handleViewOrderLabel = (order) => {
+    setIsLabelViewerOpen(true);
+    setIsLabelViewerBulk(false);
+    setLabelLoading(true);
+    setLabelPdfUri(null);
+    try {
+      const doc = generateShippingLabel([order], true);
+      if (doc) {
+        setLabelPdfUri(doc.output('datauristring'));
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate label");
+      setIsLabelViewerOpen(false);
+    } finally {
+      setLabelLoading(false);
     }
   };
 
@@ -361,19 +488,28 @@ export function ProcessingOrders() {
   }, []);
 
   const handleSearch = () => {
-    const payload = {
-      page: 1,
-      limit: filters.limit,
-      status_filter: filters.status || activeStatus,
-      order_id: filters.orderId || undefined,
-      awb_no: filters.awb || undefined,
-      buyer_name: filters.buyerName || undefined,
-      payment_method: filters.paymentMethod || undefined,
-      start_date: filters.startDate || undefined,
-      end_date: filters.endDate || undefined,
-    };
-    currentFiltersRef.current = payload;
-    dispatch(fetchOrders(payload));
+    if (activeStatus === "bulk" && !selectedBulkOrderData) {
+      currentFiltersRef.current = { ...filters };
+      fetchBulkOrdersData(1);
+    } else if (activeStatus === "bulk" && selectedBulkOrderData) {
+      currentFiltersRef.current = { ...filters };
+      setLocalFilterTrigger(prev => prev + 1);
+      setBulkDetailsPage(1);
+    } else {
+      const payload = {
+        page: 1,
+        limit: filters.limit,
+        status_filter: filters.status || activeStatus,
+        order_id: filters.orderId || undefined,
+        awb_no: filters.awb || undefined,
+        buyer_name: filters.buyerName || undefined,
+        payment_method: filters.paymentMethod || undefined,
+        start_date: filters.startDate || undefined,
+        end_date: filters.endDate || undefined,
+      };
+      currentFiltersRef.current = payload;
+      dispatch(fetchOrders(payload));
+    }
   };
 
   const handlePageChange = (newPage) => {
@@ -660,7 +796,7 @@ export function ProcessingOrders() {
   };
 
   const handleExportOrders = () => {
-    const selected = orders.filter((order) =>
+    const selected = getCurrentOrders().filter((order) =>
       selectedOrders.includes(order.id),
     );
 
@@ -669,47 +805,88 @@ export function ProcessingOrders() {
       return;
     }
 
-    const mappedOrders = selected.map((order) => ({
-      transactionId: order.id,
+    downloadInvoiceExcel(selected);
+  };
 
-      id: order.order_number,
+  const getFilteredBulkOrders = () => {
+    if (!selectedBulkOrderData) return [];
+    
+    const ordersArray = selectedBulkOrderData.orders || 
+                        (selectedBulkOrderData.data && selectedBulkOrderData.data.orders) || 
+                        [];
+                        
+    if (!Array.isArray(ordersArray) || ordersArray.length === 0) return [];
+    
+    // We want to apply the filters stored in currentFiltersRef.current. 
+    // If not set yet, fallback to filters.
+    // Triggered by localFilterTrigger update.
+    const activeFilters = currentFiltersRef.current || filters;
+    // this variable is just to make linter happy about localFilterTrigger usage
+    const trigger = localFilterTrigger;
+    
+    return ordersArray.filter(order => {
+      if (activeFilters.startDate) {
+        if (new Date(order.created_at) < new Date(activeFilters.startDate)) {
+          return false;
+        }
+      }
+      
+      if (activeFilters.endDate) {
+        const end = new Date(activeFilters.endDate);
+        end.setHours(23, 59, 59, 999);
+        if (new Date(order.created_at) > end) {
+          return false;
+        }
+      }
 
-      customer: {
-        name: order.consignee?.name || "N/A",
-        phone: order.consignee?.mobile || "N/A",
-      },
+      if (activeFilters.orderId) {
+        const query = activeFilters.orderId.toLowerCase();
+        if (!order.order_number?.toLowerCase().includes(query) && !order.id?.toLowerCase().includes(query)) {
+          return false;
+        }
+      }
 
-      shipment: {
-        id: order.order_shipment || "",
-        courier: order.courier_name || "",
-      },
+      if (activeFilters.awb) {
+        const query = activeFilters.awb.toLowerCase();
+        const eway = order.eway_bill_number?.toLowerCase() || "";
+        const shipment = order.order_shipment?.toLowerCase() || "";
+        if (!eway.includes(query) && !shipment.includes(query)) {
+          return false;
+        }
+      }
 
-      route: {
-        from: order.pickup_address?.city || "",
-        fromPin: order.pickup_address?.pincode || "",
-        to: order.consignee?.city || "",
-        toPin: order.consignee?.pincode || "",
-      },
+      if (activeFilters.buyerName) {
+        const query = activeFilters.buyerName.toLowerCase();
+        if (!order.consignee?.name?.toLowerCase().includes(query)) {
+          return false;
+        }
+      }
 
-      payment: {
-        method: order.payment_method || "",
-        total: order.order_value || 0,
-      },
+      if (activeFilters.paymentMethod && activeFilters.paymentMethod !== "All" && activeFilters.paymentMethod !== "") {
+        if (order.payment_method?.toLowerCase() !== activeFilters.paymentMethod.toLowerCase()) {
+          return false;
+        }
+      }
 
-      weight: `${order.weight_summary?.total_weight_kg || 0} kg`,
+      if (activeFilters.status && activeFilters.status !== "All" && activeFilters.status !== "") {
+        if (order.status?.toLowerCase().replace(/\s+/g, "_") !== activeFilters.status) {
+          return false;
+        }
+      }
 
-      dims: `${order.packages?.[0]?.length_cm || 0}×${
-        order.packages?.[0]?.breadth_cm || 0
-      }×${order.packages?.[0]?.height_cm || 0}`,
+      return true;
+    });
+  };
 
-      created: order.created_at,
-
-      order: {
-        id: order.order_number,
-      },
-    }));
-
-    downloadInvoiceExcel(mappedOrders);
+  const getCurrentOrders = () => {
+    if (activeStatus === "bulk" && selectedBulkOrderData) {
+      const filtered = getFilteredBulkOrders();
+      const currentFilters = currentFiltersRef.current || filters;
+      const limit = Number(currentFilters.limit) || 25;
+      const startIndex = ((Number(bulkDetailsPage) || 1) - 1) * limit;
+      return filtered.slice(startIndex, startIndex + limit);
+    }
+    return orders;
   };
 
   return (
@@ -732,13 +909,27 @@ export function ProcessingOrders() {
       <Card className="bg-card-bg border-border-subtle overflow-hidden">
         <CardContent className="p-0">
           <div className="p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border-subtle">
-            <h2 className="text-lg font-semibold text-text-main">
-              {activeTab} {activeStatus === "bulk" ? "" : "Orders"} (Showing{" "}
-              {activeStatus === "bulk" ? bulkOrders.length : orders.length}{" "}
-              entries)
-            </h2>
+            <div className="flex items-center gap-2">
+              {activeStatus === "bulk" && selectedBulkOrderData && (
+                <Button
+                  onClick={() => {
+                    setSelectedBulkOrderData(null);
+                    setSelectedOrders([]);
+                  }}
+                  className="bg-dashboard-bg border border-border-subtle text-text-muted hover:bg-gray-100 hover:text-black mr-4 px-3 py-1 h-8 gap-1 shadow-sm"
+                  title="Back to Bulk Orders"
+                >
+                  <ArrowLeft size={14} /> Back
+                </Button>
+              )}
+              <h2 className="text-lg font-semibold text-text-main">
+                {activeTab} {activeStatus === "bulk" ? (selectedBulkOrderData ? "Details" : "") : "Orders"} (Showing{" "}
+                {activeStatus === "bulk" ? (selectedBulkOrderData ? selectedBulkOrderData.orders?.length || 0 : bulkOrders.length) : orders.length}{" "}
+                entries)
+              </h2>
+            </div>
             <div className="flex flex-wrap items-center gap-2">
-              {activeStatus === "bulk" ? null : isProcessing ? (
+              {activeStatus === "bulk" && !selectedBulkOrderData ? null : isProcessing ? (
                 <>
 
                   <Button
@@ -747,14 +938,14 @@ export function ProcessingOrders() {
                         return toast.error("Please select at least one order");
                       }
 
-                      const selectedOrdersData = orders.filter((o) =>
+                      const selectedOrdersData = getCurrentOrders().filter((o) =>
                         selectedOrders.includes(o.id),
                       );
 
                       setPickupOrderIds(selectedOrdersData);
 
                       // select current pickup address automatically
-                      const firstSelectedOrder = orders.find(
+                      const firstSelectedOrder = getCurrentOrders().find(
                         (o) => o.id === selectedOrders[0],
                       );
 
@@ -787,22 +978,6 @@ export function ProcessingOrders() {
                 </>
               ) : (
                 <>
-                  <Button
-                    className="bg-primary text-black hover:bg-primary/90 text-xs font-bold gap-2 h-9"
-                    onClick={() => {
-                      if (selectedOrders.length === 0) {
-                        return toast.error("Please select at least one order");
-                      }
-
-                      const selectedOrdersData = orders.filter((o) =>
-                        selectedOrders.includes(o.id),
-                      );
-
-                      generateShippingLabel(selectedOrdersData);
-                    }}
-                  >
-                    <Tag size={16} /> Labels
-                  </Button>
                   {activeTab === "Manifested" && (
                     <Button className="bg-primary text-black text-xs font-bold h-9 px-4 gap-2">
                       <FileText size={16} /> Manifests
@@ -827,7 +1002,7 @@ export function ProcessingOrders() {
                           return toast.error("Please select at least one order");
                         }
 
-                        const selectedOrderData = orders.find(
+                        const selectedOrderData = getCurrentOrders().find(
                           (o) => o.id === selectedOrders[0],
                         );
 
@@ -846,7 +1021,6 @@ export function ProcessingOrders() {
             </div>
           </div>
 
-          {activeStatus !== "bulk" && (
             <div className="p-6 bg-dashboard-bg/30 border-b border-border-subtle">
               <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <div className="space-y-1.5">
@@ -892,66 +1066,88 @@ export function ProcessingOrders() {
                     />
                   </div>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    Order ID
-                  </label>
-                  <input
-                    type="text"
-                    value={filters.orderId}
-                    onChange={(e) =>
-                      setFilters({ ...filters, orderId: e.target.value })
-                    }
-                    placeholder="Order Ids"
-                    className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
-                  />
-                </div>
-                {!isProcessing && (
+
+                {activeStatus === "bulk" && !selectedBulkOrderData && (
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-text-muted">
-                      AWB NO
+                      File Name
                     </label>
                     <input
                       type="text"
-                      value={filters.awb}
+                      value={filters.fileName}
                       onChange={(e) =>
-                        setFilters({ ...filters, awb: e.target.value })
+                        setFilters({ ...filters, fileName: e.target.value })
                       }
-                      placeholder="AWB No"
+                      placeholder="File Name"
                       className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
                     />
                   </div>
                 )}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    Buyer Name
-                  </label>
-                  <input
-                    type="text"
-                    value={filters.buyerName}
-                    onChange={(e) =>
-                      setFilters({ ...filters, buyerName: e.target.value })
-                    }
-                    placeholder="Buyer Name"
-                    className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-muted">
-                    Payment Method:
-                  </label>
-                  <select
-                    value={filters.paymentMethod}
-                    onChange={(e) =>
-                      setFilters({ ...filters, paymentMethod: e.target.value })
-                    }
-                    className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main appearance-none focus:outline-none focus:border-primary"
-                  >
-                    <option value="">All</option>
-                    <option value="COD">COD</option>
-                    <option value="Prepaid">Prepaid</option>
-                  </select>
-                </div>
+
+                {!(activeStatus === "bulk" && !selectedBulkOrderData) && (
+                  <>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-text-muted">
+                        Order ID
+                      </label>
+                      <input
+                        type="text"
+                        value={filters.orderId}
+                        onChange={(e) =>
+                          setFilters({ ...filters, orderId: e.target.value })
+                        }
+                        placeholder="Order Ids"
+                        className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
+                      />
+                    </div>
+                    {!isProcessing && (
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-text-muted">
+                          AWB NO
+                        </label>
+                        <input
+                          type="text"
+                          value={filters.awb}
+                          onChange={(e) =>
+                            setFilters({ ...filters, awb: e.target.value })
+                          }
+                          placeholder="AWB No"
+                          className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                    )}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-text-muted">
+                        Buyer Name
+                      </label>
+                      <input
+                        type="text"
+                        value={filters.buyerName}
+                        onChange={(e) =>
+                          setFilters({ ...filters, buyerName: e.target.value })
+                        }
+                        placeholder="Buyer Name"
+                        className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-text-muted">
+                        Payment Method:
+                      </label>
+                      <select
+                        value={filters.paymentMethod}
+                        onChange={(e) =>
+                          setFilters({ ...filters, paymentMethod: e.target.value })
+                        }
+                        className="w-full bg-card-bg border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main appearance-none focus:outline-none focus:border-primary"
+                      >
+                        <option value="">All</option>
+                        <option value="COD">COD</option>
+                        <option value="Prepaid">Prepaid</option>
+                      </select>
+                    </div>
+                  </>
+                )}
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-text-muted">
@@ -967,7 +1163,7 @@ export function ProcessingOrders() {
                   />
                 </div>
 
-                {!isProcessing && (
+                {!(activeStatus === "bulk" && !selectedBulkOrderData) && !isProcessing && (
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-text-muted">
                       Status:
@@ -985,9 +1181,12 @@ export function ProcessingOrders() {
                               ...filters,
                               status: newStatus,
                             });
-                            const mappedPath = statusToPath[newStatus];
-                            if (mappedPath) {
-                              navigate(mappedPath);
+                            // only navigate if we're not in bulk detail view
+                            if (!(activeStatus === "bulk" && selectedBulkOrderData)) {
+                              const mappedPath = statusToPath[newStatus];
+                              if (mappedPath) {
+                                navigate(mappedPath);
+                              }
                             }
                           }}
                           className={cn(
@@ -1018,7 +1217,7 @@ export function ProcessingOrders() {
                   <button
                     onClick={() => {
                       // 1. Reset local filters
-                      setFilters({
+                      const resetState = {
                         startDate: "",
                         endDate: "",
                         orderId: "",
@@ -1028,15 +1227,25 @@ export function ProcessingOrders() {
                         status:
                           activeStatus === "processing" ? "" : activeStatus,
                         limit: 25,
-                      });
-
-                      const params = {
-                        page: 1,
-                        limit: 25,
-                        status_filter: activeStatus,
+                        fileName: "",
                       };
-                      currentFiltersRef.current = params;
-                      dispatch(fetchOrders(params));
+                      setFilters(resetState);
+
+                      if (activeStatus === "bulk" && !selectedBulkOrderData) {
+                        fetchBulkOrdersData(1, resetState);
+                      } else if (activeStatus === "bulk" && selectedBulkOrderData) {
+                        currentFiltersRef.current = resetState;
+                        setLocalFilterTrigger(prev => prev + 1);
+                        setBulkDetailsPage(1);
+                      } else {
+                        const params = {
+                          page: 1,
+                          limit: 25,
+                          status_filter: activeStatus,
+                        };
+                        currentFiltersRef.current = params;
+                        dispatch(fetchOrders(params));
+                      }
                     }}
                     className="text-xs font-bold text-primary flex items-center justify-center gap-1"
                   >
@@ -1045,7 +1254,6 @@ export function ProcessingOrders() {
                 </div>
               </div>
             </div>
-          )}
 
           <div
             className="px-6 py-4 overflow-x-auto border-b border-border-subtle bg-card-bg thin-scrollbar"
@@ -1078,11 +1286,12 @@ export function ProcessingOrders() {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              <div className="hidden lg:block overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    {activeStatus === "bulk" ? (
+                    {activeStatus === "bulk" && !selectedBulkOrderData ? (
                       <tr className="bg-dashboard-bg/50 text-text-muted text-[11px] font-bold uppercase border-b border-border-subtle">
+                        <th className="px-6 py-4">Bulk Order ID</th>
                         <th className="px-6 py-4">File Name</th>
                         <th className="px-6 py-4">Order Type</th>
                         <th className="px-6 py-4">Pickup Address ID</th>
@@ -1098,12 +1307,13 @@ export function ProcessingOrders() {
                           <input
                             type="checkbox"
                             checked={
-                              orders.length > 0 &&
-                              selectedOrders.length === orders.length
+                              getCurrentOrders().length > 0 &&
+                              selectedOrders.length === getCurrentOrders().length
                             }
                             onChange={(e) => {
+                              const displayOrders = getCurrentOrders();
                               if (e.target.checked) {
-                                setSelectedOrders(orders.map((o) => o.id));
+                                setSelectedOrders(displayOrders.map((o) => o.id));
                               } else {
                                 setSelectedOrders([]);
                               }
@@ -1133,12 +1343,18 @@ export function ProcessingOrders() {
                     )}
                   </thead>
                   <tbody className="divide-y divide-border-subtle">
-                    {activeStatus === "bulk"
+                    {activeStatus === "bulk" && !selectedBulkOrderData
                       ? bulkOrders.map((bulkOrder, idx) => (
                           <tr
                             key={idx}
                             className="hover:bg-dashboard-bg/30 transition-colors"
                           >
+                            <td 
+                              className="px-6 py-6 text-sm font-bold text-primary underline hover:text-primary/80 cursor-pointer"
+                              onClick={() => handleViewBulkOrder(bulkOrder.id)}
+                            >
+                              {bulkOrder.id}
+                            </td>
                             <td className="px-6 py-6 text-sm font-bold text-text-main">
                               {bulkOrder.file_name}
                             </td>
@@ -1174,20 +1390,54 @@ export function ProcessingOrders() {
                               {formatDate(bulkOrder.created_at)}
                             </td>
                             <td className="px-6 py-6 text-center">
-                              {invoicePerms.generate && (
+                              <div className="flex justify-center items-center gap-2">
                                 <button
-                                  onClick={() =>
-                                    handleGenerateBulkInvoice(bulkOrder)
-                                  }
+                                  onClick={() => handleViewBulkOrder(bulkOrder.id)}
                                   className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
+                                  title="View Orders in Bulk"
                                 >
-                                  <Printer size={14} />
+                                  <Eye size={14} />
                                 </button>
-                              )}
+                                {orderPerms.view && (
+                                  <button
+                                    onClick={() => handleViewBulkLabels(bulkOrder)}
+                                    className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
+                                    title="View Shipping Labels"
+                                  >
+                                    <Tag size={14} />
+                                  </button>
+                                )}
+                                {invoicePerms.view && (
+                                  <button
+                                    onClick={() => handleViewBulkInvoices(bulkOrder)}
+                                    className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
+                                    title="View Invoices"
+                                  >
+                                    <FileText size={14} />
+                                  </button>
+                                )}
+                                {invoicePerms.generate && (
+                                  <button
+                                    onClick={() =>
+                                      handleGenerateBulkInvoice(bulkOrder)
+                                    }
+                                    className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
+                                    title="Generate Bulk Invoice"
+                                  >
+                                    <FilePlus size={14} />
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))
-                      : orders.map((order, idx) => {
+                      : getCurrentOrders().length === 0 ? (
+                          <tr>
+                            <td colSpan={isProcessing ? "8" : "9"} className="px-6 py-12 text-center text-text-muted">
+                              No orders found. Please check your search filters or page limit.
+                            </td>
+                          </tr>
+                        ) : getCurrentOrders().map((order, idx) => {
                           const mappedOrder = {
                             transactionId: order.id,
                             id: order.order_number,
@@ -1369,7 +1619,7 @@ export function ProcessingOrders() {
                                             setIsModalOpen(true);
                                           }}
                                           className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
-                                        >
+                                        title="View Order Details">
                                           <Eye size={14} />
                                         </button>
                                       )}
@@ -1377,7 +1627,7 @@ export function ProcessingOrders() {
                                         <button
                                           onClick={() => handleDuplicateOrder(order.id)}
                                           className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
-                                        >
+                                        title="Duplicate Order">
                                           <Copy size={14} />
                                         </button>
                                       )}
@@ -1389,34 +1639,47 @@ export function ProcessingOrders() {
                                             })
                                           }
                                           className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
-                                        >
+                                        title="Edit Order">
                                           <Edit size={14} />
                                         </button>
                                       )}
-
-                                      {invoicePerms.generate && (
+                                      {invoicePerms.view && (
                                         <button
-                                          onClick={() => {
-                                            const mappedOrderData = mapOrderToInvoice(order, formatDate);
-                                            generateInvoicePDF(mappedOrderData);
-                                          }}
+                                          onClick={() => handleViewOrderInvoice(order)}
                                           className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
+                                          title="View Invoice"
                                         >
-                                          <Download size={14} />
+                                          <FileText size={14} />
+                                        </button>
+                                      )}
+                                      {orderPerms.view && (
+                                        <button
+                                          onClick={() => handleViewOrderLabel(order)}
+                                          className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
+                                          title="View Label"
+                                        >
+                                          <Tag size={14} />
                                         </button>
                                       )}
                                     </>
                                   ) : (
                                     <>
-                                      {invoicePerms.generate && (
+                                      {invoicePerms.view && (
                                         <button
-                                          onClick={() => {
-                                            const mappedOrderData = mapOrderToInvoice(order, formatDate);
-                                            generateInvoicePDF(mappedOrderData);
-                                          }}
+                                          onClick={() => handleViewOrderInvoice(order)}
                                           className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
+                                          title="View Invoice"
                                         >
-                                          <Download size={14} />
+                                          <FileText size={14} />
+                                        </button>
+                                      )}
+                                      {orderPerms.view && (
+                                        <button
+                                          onClick={() => handleViewOrderLabel(order)}
+                                          className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
+                                          title="View Label"
+                                        >
+                                          <Tag size={14} />
                                         </button>
                                       )}
                                       <button
@@ -1425,14 +1688,14 @@ export function ProcessingOrders() {
                                           setIsModalOpen(true);
                                         }}
                                         className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
-                                      >
+                                      title="View Order Details">
                                         <Eye size={14} />
                                       </button>
                                       {orderPerms.create && (
                                         <button
                                           onClick={() => handleDuplicateOrder(order.id)}
                                           className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md shadow-sm transition-colors"
-                                        >
+                                        title="Duplicate Order">
                                           <Copy size={14} />
                                         </button>
                                       )}
@@ -1447,20 +1710,202 @@ export function ProcessingOrders() {
                   </tbody>
                 </table>
               </div>
-              {activeStatus === "bulk" ? (
+              {/* MOBILE CARD VIEW */}
+              <div className="lg:hidden space-y-4 p-4 bg-dashboard-bg/30">
+                {activeStatus === "bulk" && !selectedBulkOrderData
+                  ? bulkOrders.length === 0 ? (
+                      <div className="p-8 text-center text-text-muted bg-dashboard-bg/50 rounded-xl border border-border-subtle">
+                        No bulk orders found.
+                      </div>
+                    ) : (
+                      bulkOrders.map((bulkOrder) => (
+                        <Card key={bulkOrder.id} className="bg-card-bg border-border-subtle overflow-hidden shadow-sm">
+                          <CardContent className="p-4">
+                            <div className="flex justify-between items-start mb-3">
+                              <div 
+                                className="font-mono font-bold text-primary text-sm underline hover:text-primary/80 cursor-pointer"
+                                onClick={() => handleViewBulkOrder(bulkOrder.id)}
+                              >
+                                {bulkOrder.id}
+                              </div>
+                              <span className={cn(
+                                "text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider",
+                                bulkOrder.status === "completed" ? "bg-green-500/10 text-green-500" :
+                                bulkOrder.status === "processing" ? "bg-blue-500/10 text-blue-500" :
+                                "bg-red-500/10 text-red-500"
+                              )}>
+                                {bulkOrder.status}
+                              </span>
+                            </div>
+                            <div className="space-y-2 mb-4">
+                              <p className="text-sm font-bold text-text-main truncate" title={bulkOrder.file_name}>{bulkOrder.file_name}</p>
+                              <div className="flex justify-between items-center text-xs text-text-muted border-t border-border-subtle pt-2 mt-2">
+                                <div><span className="font-bold text-green-500 text-sm">{bulkOrder.successful_orders}</span> Success</div>
+                                <div><span className="font-bold text-red-500 text-sm">{bulkOrder.failed_orders}</span> Failed</div>
+                              </div>
+                              <div className="text-[10px] text-text-muted font-medium">{formatDate(bulkOrder.created_at)}</div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 border-t border-border-subtle pt-3">
+                                <button onClick={() => handleViewBulkOrder(bulkOrder.id)} className="p-2 bg-dashboard-bg border border-border-subtle text-primary hover:bg-primary/10 rounded-lg flex-1 flex justify-center transition-colors" title="View Orders in Bulk"><Eye size={16} /></button>
+                                {orderPerms.view && (
+                                  <button onClick={() => handleViewBulkLabels(bulkOrder)} className="p-2 bg-dashboard-bg border border-border-subtle text-primary hover:bg-primary/10 rounded-lg flex-1 flex justify-center transition-colors" title="View Shipping Labels"><Tag size={16} /></button>
+                                )}
+                                {invoicePerms.view && (
+                                  <button onClick={() => handleViewBulkInvoices(bulkOrder)} className="p-2 bg-dashboard-bg border border-border-subtle text-primary hover:bg-primary/10 rounded-lg flex-1 flex justify-center transition-colors" title="View Invoices"><FileText size={16} /></button>
+                                )}
+                                {invoicePerms.generate && (
+                                  <button onClick={() => handleGenerateBulkInvoice(bulkOrder)} className="p-2 bg-dashboard-bg border border-border-subtle text-primary hover:bg-primary/10 rounded-lg flex-1 flex justify-center transition-colors" title="Generate Bulk Invoice"><FilePlus size={16} /></button>
+                                )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))
+                    )
+                  : getCurrentOrders().length === 0 ? (
+                      <div className="p-8 text-center text-text-muted bg-dashboard-bg/50 rounded-xl border border-border-subtle">
+                        No orders found. Please check your search filters or page limit.
+                      </div>
+                    ) : (
+                      getCurrentOrders().map((order) => {
+                          const mappedOrder = {
+                            transactionId: order.id,
+                            id: order.order_number,
+                            status: order.status,
+                            customer: {
+                              name: order.consignee?.name || "N/A",
+                              phone: order.consignee?.mobile || "N/A",
+                              date: formatDate(order.created_at),
+                            },
+                            shipment: {
+                              id: order.order_shipment ? order.order_shipment : "No shipment ID",
+                              courier: order.courier_name || "Courier not selected",
+                            },
+                            route: {
+                              from: order.pickup_address?.city || "N/A",
+                              fromPin: order.pickup_address?.pincode || "",
+                              to: order.consignee?.city || "N/A",
+                              toPin: order.consignee?.pincode || "",
+                            },
+                            payment: {
+                              method: order.payment_method || "N/A",
+                              total: `₹${order.order_value || 0}`,
+                              payable: order.payment_method === "COD" ? `₹${order.cod_amount || 0}` : "Paid",
+                              channel: order.order_type || "N/A",
+                            },
+                            order: {
+                              id: order.order_number || "N/A",
+                              channel: order.order_type || "N/A",
+                            },
+                            items: order.items || [],
+                            weight: `${order.weight_summary?.total_weight_kg || 0} kg`,
+                            dims: `${order.packages?.[0]?.length_cm || 0}×${order.packages?.[0]?.breadth_cm || 0}×${order.packages?.[0]?.height_cm || 0} cm`,
+                            created: order.created_at ? formatDate(order.created_at) : "N/A",
+                          };
+
+                        return (
+                          <Card key={order.id} className="bg-card-bg border-border-subtle overflow-hidden shadow-sm">
+                            <CardContent className="p-4">
+                              <div className="flex justify-between items-start mb-3">
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedOrders.includes(order.id)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedOrders([...selectedOrders, order.id]);
+                                      } else {
+                                        setSelectedOrders(selectedOrders.filter((id) => id !== order.id));
+                                      }
+                                    }}
+                                    className="w-4 h-4 rounded border-border-subtle text-primary focus:ring-primary"
+                                  />
+                                  <div className="font-mono font-bold text-primary text-sm">#{mappedOrder.order.id}</div>
+                                </div>
+                                <span className="bg-orange-100 text-orange-600 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">
+                                  {mappedOrder.status}
+                                </span>
+                              </div>
+                              <div className="space-y-3 mb-4">
+                                <div>
+                                  <p className="text-sm font-bold text-text-main flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-full bg-dashboard-bg flex items-center justify-center text-primary"><User size={12} /></div>
+                                    {mappedOrder.customer.name}
+                                  </p>
+                                  <p className="text-xs text-text-muted ml-8">{mappedOrder.customer.phone}</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-xs border-t border-border-subtle pt-3">
+                                  <div>
+                                    <p className="text-[9px] text-text-muted uppercase font-bold tracking-wider mb-1">Route</p>
+                                    <p className="font-bold text-text-main flex items-center gap-1">{mappedOrder.route.from} <ArrowRight size={10} className="text-text-muted"/> {mappedOrder.route.to}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[9px] text-text-muted uppercase font-bold tracking-wider mb-1">Payment</p>
+                                    <p className="font-bold text-red-500">{mappedOrder.payment.method} ({mappedOrder.payment.total})</p>
+                                  </div>
+                                </div>
+                                {!isProcessing && (
+                                  <div className="grid grid-cols-2 gap-2 text-xs border-t border-border-subtle pt-3">
+                                    <div>
+                                      <p className="text-[9px] text-text-muted uppercase font-bold tracking-wider mb-1">Shipment</p>
+                                      <p className="font-bold text-text-main">{mappedOrder.shipment.id}</p>
+                                      <p className="text-text-muted">{mappedOrder.shipment.courier}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-[9px] text-text-muted uppercase font-bold tracking-wider mb-1">Weight</p>
+                                      <p className="font-bold text-text-main">{mappedOrder.weight}</p>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2 border-t border-border-subtle pt-3 mt-2">
+                                {isProcessing ? (
+                                  <>
+                                    {orderPerms.view && (
+                                      <button onClick={() => { setSelectedOrder(mappedOrder); setIsModalOpen(true); }} className="p-2 bg-dashboard-bg border border-border-subtle text-primary hover:bg-primary/10 rounded-lg flex-1 flex justify-center transition-colors" title="View Order"><Eye size={16} /></button>
+                                    )}
+                                    {orderPerms.create && (
+                                      <button onClick={() => handleDuplicateOrder(order.id)} className="p-2 bg-dashboard-bg border border-border-subtle text-primary hover:bg-primary/10 rounded-lg flex-1 flex justify-center transition-colors" title="Duplicate Order"><Copy size={16} /></button>
+                                    )}
+                                    {orderPerms.create && (
+                                      <button onClick={() => navigate(`/dashboard/edit-order/${order.id}`, { state: { order } })} className="p-2 bg-dashboard-bg border border-border-subtle text-primary hover:bg-primary/10 rounded-lg flex-1 flex justify-center transition-colors" title="Edit Order"><Edit size={16} /></button>
+                                    )}
+                                    {invoicePerms.view && (
+                                      <button onClick={() => handleViewOrderInvoice(order)} className="p-2 bg-dashboard-bg border border-border-subtle text-primary hover:bg-primary/10 rounded-lg flex-1 flex justify-center transition-colors" title="View Invoice"><FileText size={16} /></button>
+                                    )}
+                                    {orderPerms.view && (
+                                      <button onClick={() => handleViewOrderLabel(order)} className="p-2 bg-dashboard-bg border border-border-subtle text-primary hover:bg-primary/10 rounded-lg flex-1 flex justify-center transition-colors" title="View Label"><Tag size={16} /></button>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    {invoicePerms.view && (
+                                      <button onClick={() => handleViewOrderInvoice(order)} className="p-2 bg-dashboard-bg border border-border-subtle text-primary hover:bg-primary/10 rounded-lg flex-1 flex justify-center transition-colors" title="View Invoice"><FileText size={16} /></button>
+                                    )}
+                                    {orderPerms.view && (
+                                      <button onClick={() => handleViewOrderLabel(order)} className="p-2 bg-dashboard-bg border border-border-subtle text-primary hover:bg-primary/10 rounded-lg flex-1 flex justify-center transition-colors" title="View Label"><Tag size={16} /></button>
+                                    )}
+                                    <button onClick={() => { setSelectedOrder(mappedOrder); setIsModalOpen(true); }} className="p-2 bg-dashboard-bg border border-border-subtle text-primary hover:bg-primary/10 rounded-lg flex-1 flex justify-center transition-colors" title="View Order"><Eye size={16} /></button>
+                                    {orderPerms.create && (
+                                      <button onClick={() => handleDuplicateOrder(order.id)} className="p-2 bg-dashboard-bg border border-border-subtle text-primary hover:bg-primary/10 rounded-lg flex-1 flex justify-center transition-colors" title="Duplicate Order"><Copy size={16} /></button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })
+                    )
+                }
+              </div>
+              {activeStatus === "bulk" && selectedBulkOrderData ? (
                 <Pagination
-                  currentPage={activeStatus === "bulk" ? bulkPage : page}
-                  totalPages={activeStatus === "bulk" ? bulkPages : totalPages}
-                  totalEntries={
-                    activeStatus === "bulk" ? bulkTotal : totalOrders
-                  }
-                  limit={limit}
+                  currentPage={bulkDetailsPage}
+                  totalPages={Math.ceil(getFilteredBulkOrders().length / (currentFiltersRef.current || filters).limit) || 1}
+                  totalEntries={getFilteredBulkOrders().length}
+                  limit={(currentFiltersRef.current || filters).limit}
                   onPageChange={(newPage) => {
-                    if (activeStatus === "bulk") {
-                      fetchBulkOrdersData(newPage);
-                    } else {
-                      handlePageChange(newPage);
-                    }
+                    setBulkDetailsPage(newPage);
                   }}
                 />
               ) : (
@@ -1470,7 +1915,7 @@ export function ProcessingOrders() {
                   totalEntries={
                     activeStatus === "bulk" ? bulkTotal : totalOrders
                   }
-                  limit={limit}
+                  limit={activeStatus === "bulk" ? (currentFiltersRef.current?.limit || filters.limit) : limit}
                   onPageChange={(newPage) => {
                     if (activeStatus === "bulk") {
                       fetchBulkOrdersData(newPage);
@@ -1504,6 +1949,67 @@ export function ProcessingOrders() {
         pickupOrderIds={pickupOrderIds}
         onSubmit={handleChangePickupAddress}
       />
+      {isOrderInvoiceModalOpen && (
+        <InvoiceModal
+          invoice={previewOrderInvoice}
+          loading={false}
+          onClose={() => {
+            setIsOrderInvoiceModalOpen(false);
+            setPreviewOrderInvoice(null);
+          }}
+        />
+      )}
+      {isBulkInvoiceViewerOpen && (
+        <InvoiceModal
+          invoice={bulkInvoiceList[currentBulkInvoiceIndex]}
+          loading={bulkInvoiceLoading}
+          onClose={() => {
+            setIsBulkInvoiceViewerOpen(false);
+            setBulkInvoiceList([]);
+            setBulkRawOrders([]);
+          }}
+          onPrev={() => setCurrentBulkInvoiceIndex(prev => prev - 1)}
+          onNext={() => setCurrentBulkInvoiceIndex(prev => prev + 1)}
+          hasPrev={currentBulkInvoiceIndex > 0}
+          hasNext={currentBulkInvoiceIndex < bulkInvoiceList.length - 1}
+          currentIndex={currentBulkInvoiceIndex}
+          totalItems={bulkInvoiceList.length}
+          onDownloadAll={() => {
+            const mappedOrdersForPDF = bulkRawOrders.map(order => mapOrderToInvoice(order, formatDate));
+            generateBulkInvoicesPDF(mappedOrdersForPDF);
+          }}
+        />
+      )}
+      {isLabelViewerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-card-bg w-[95%] max-w-4xl h-[90vh] flex flex-col rounded-xl shadow-2xl overflow-hidden border border-border-subtle">
+            <div className="flex justify-between items-center p-4 border-b border-border-subtle">
+              <h2 className="font-bold text-lg text-text-main">
+                {isLabelViewerBulk ? "Bulk Shipping Labels" : "Shipping Label"}
+              </h2>
+              <div className="flex gap-2 items-center">
+                 <button onClick={() => setIsLabelViewerOpen(false)} className="w-8 h-8 flex items-center justify-center hover:bg-dashboard-bg rounded-full text-text-muted">
+                   <X size={20} />
+                 </button>
+              </div>
+            </div>
+            <div className="flex-1 bg-dashboard-bg p-4 relative">
+              {labelLoading ? (
+                <div className="flex justify-center items-center h-full">
+                  <div className="flex flex-col items-center gap-4">
+                    <Loader2 size={40} className="animate-spin text-text-muted" />
+                    <p className="text-text-muted font-medium">Generating Labels...</p>
+                  </div>
+                </div>
+              ) : labelPdfUri ? (
+                <iframe src={labelPdfUri} className="absolute inset-0 w-full h-full rounded border-0 shadow-inner" title="Shipping Labels" />
+              ) : (
+                <div className="flex justify-center items-center h-full text-red-500 font-medium">Failed to load labels.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
