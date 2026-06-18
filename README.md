@@ -20,7 +20,7 @@ A modern, fully responsive admin dashboard for managing courier operations, buil
 
 ## 🛠️ Tech Stack
 
-- **Frontend:** React (Vite)
+- **Frontend:** react (Vite)
 - **Styling:** CSS / Tailwind CSS / Bootstrap (customizable)
 - **State Management:** Context API / Redux (optional)
 - **Routing:** React Router
