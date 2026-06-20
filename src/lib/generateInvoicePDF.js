@@ -316,7 +316,7 @@ export const generateInvoiceDataUri = (order, pdfTitle) => {
   try {
     const doc = new jsPDF();
     drawInvoice(doc, order);
-    return doc.output('datauristring');
+    return doc.output('bloburl');
   } catch (error) {
     console.error("PDF URI Generation Error:", error);
     return null;
@@ -345,7 +345,7 @@ export const generateBulkInvoicesDataUri = (orders) => {
       if (index > 0) doc.addPage();
       drawInvoice(doc, order);
     });
-    return doc.output('datauristring');
+    return doc.output('bloburl');
   } catch (error) {
     console.error("Bulk PDF URI Generation Error:", error);
     return null;
