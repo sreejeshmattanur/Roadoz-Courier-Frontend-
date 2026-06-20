@@ -388,7 +388,7 @@ export function ProcessingOrders() {
     setCurrentBulkInvoiceIndex(0);
     try {
       const data = await fetchBulkOrderDetailsApi(bulkOrder.id);
-      const ordersArray = data.orders || data.data?.orders || [];
+      const ordersArray = data.items || data.orders || data.data?.items || data.data?.orders || [];
       const mappedInvoices = ordersArray.map(mapSingleOrderToInvoice);
       setBulkInvoiceList(mappedInvoices);
       setBulkRawOrders(ordersArray);
@@ -408,7 +408,7 @@ export function ProcessingOrders() {
     setLabelPdfUri(null);
     try {
       const data = await fetchBulkOrderDetailsApi(bulkOrder.id);
-      const ordersArray = data.orders || data.data?.orders || [];
+      const ordersArray = data.items || data.orders || data.data?.items || data.data?.orders || [];
       const doc = generateShippingLabel(ordersArray, true);
       if (doc) {
         setLabelPdfTitle(`Bulk-Order-Label-${bulkOrder.id}.pdf`);
@@ -820,7 +820,8 @@ export function ProcessingOrders() {
   const getFilteredBulkOrders = () => {
     if (!selectedBulkOrderData) return [];
     
-    const ordersArray = selectedBulkOrderData.orders || 
+    const ordersArray = selectedBulkOrderData.items || selectedBulkOrderData.orders || 
+                        (selectedBulkOrderData.data && selectedBulkOrderData.data.items) || 
                         (selectedBulkOrderData.data && selectedBulkOrderData.data.orders) || 
                         [];
                         
@@ -933,7 +934,7 @@ export function ProcessingOrders() {
               )}
               <h2 className="text-lg font-semibold text-text-main">
                 {activeTab} {activeStatus === "bulk" ? (selectedBulkOrderData ? "Details" : "") : "Orders"} (Showing{" "}
-                {activeStatus === "bulk" ? (selectedBulkOrderData ? selectedBulkOrderData.orders?.length || 0 : bulkOrders.length) : orders.length}{" "}
+                {activeStatus === "bulk" ? (selectedBulkOrderData ? (selectedBulkOrderData.items?.length || selectedBulkOrderData.orders?.length || 0) : bulkOrders.length) : orders.length}{" "}
                 entries)
               </h2>
             </div>
