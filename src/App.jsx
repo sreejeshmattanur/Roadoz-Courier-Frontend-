@@ -47,6 +47,8 @@ import RoleWizard from "./components/common/RoleWizard";
 import ScannedOrders from "./pages/ScannedOrders";
 import ActivityLogs from "./pages/ActivityLogs";
 import { FranchiseApproval } from "./pages/FranchiseApproval";
+import ChatPlatform from "./pages/ChatPlatform"; 
+
 
 export default function App() {
   const token = Cookies.get("access_token");
@@ -286,7 +288,14 @@ export default function App() {
                 </PermissionRoute>
               }
             />
-
+<Route
+  path="chat"
+  element={
+    <PermissionRoute permission="orders:view"> 
+      <ChatPlatform />
+    </PermissionRoute>
+  }
+/>
             {/* Finance */}
             <Route
               path="wallet"
