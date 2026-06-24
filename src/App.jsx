@@ -46,6 +46,7 @@ import AddRolePage from "./pages/admin/AddRolePage";
 import RoleWizard from "./components/common/RoleWizard";
 import ScannedOrders from "./pages/ScannedOrders";
 import ActivityLogs from "./pages/ActivityLogs";
+import { FranchiseApproval } from "./pages/FranchiseApproval";
 
 export default function App() {
   const token = Cookies.get("access_token");
@@ -428,6 +429,15 @@ export default function App() {
                 </PermissionRoute>
               }
             />
+            <Route
+              path="franchise/approval"
+              element={
+                <PermissionRoute permission="franchises:approve">
+                  <FranchiseApproval />
+                </PermissionRoute>
+              }
+            />
+            
             <Route
               path="franchise/add"
               element={

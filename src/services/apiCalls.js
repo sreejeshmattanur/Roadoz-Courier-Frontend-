@@ -505,3 +505,19 @@ export const fetchOrderDetailsApi = async (orderNumber) => {
   return res.data;
 };
   
+export const fetchFranchiseApplicationsApi = async (params) => {
+  const res = await API.get(ENDPOINTS.FRANCHISE_APPLICATIONS, { params });
+  return res.data;
+};
+
+export const approveFranchiseApi = async (data) => {
+  // data should be { application_id: "...", password: "..." }
+  const res = await API.post(ENDPOINTS.APPROVE_FRANCHISE, data);
+  return res.data;
+};
+
+export const rejectFranchiseApi = async (id, data) => {
+  // data should be { status: "rejected", admin_remarks: "..." }
+  const res = await API.post(ENDPOINTS.REJECT_FRANCHISE(id), data);
+  return res.data;
+};
