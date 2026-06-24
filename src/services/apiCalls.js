@@ -521,3 +521,23 @@ export const rejectFranchiseApi = async (id, data) => {
   const res = await API.post(ENDPOINTS.REJECT_FRANCHISE(id), data);
   return res.data;
 };
+
+export const fetchConversationsApi = async () => {
+  const res = await API.get(ENDPOINTS.CHAT_CONVERSATIONS);
+  return res.data;
+};
+
+export const fetchMessagesApi = async (receiverId, receiverType) => {
+  const res = await API.get(ENDPOINTS.CHAT_MESSAGES, {
+    params: {
+      receiver_id: receiverId,
+      receiver_type: receiverType,
+    },
+  });
+  return res.data;
+};
+
+export const sendMessageApi = async (payload) => {
+  const res = await API.post(ENDPOINTS.SEND_MESSAGE, payload);
+  return res.data;
+};

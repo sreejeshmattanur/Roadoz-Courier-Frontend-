@@ -17,6 +17,7 @@ import {
   Store,
   Warehouse,
   ClipboardCheck,
+  MessageSquare ,
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { NavLink } from "../NavLink";
@@ -213,6 +214,16 @@ export function Sidebar({ isOpen, setIsOpen }) {
         {hasPerm("consignees:view") && (
           <NavLink to={`${base}/consignees`} icon={<Users size={20} />} hideText={!isOpen}>Consignees</NavLink>
         )}
+
+        {hasPerm("orders:view") && ( // Or a specific chat permission
+  <NavLink 
+    to={`${base}/chat`} 
+    icon={<MessageSquare size={20} />} 
+    hideText={!isOpen}
+  >
+    Messages
+  </NavLink>
+)}
 
         {hasPerm("warehouse:view") && (
           <NavLink to={`${base}/warehouse`} icon={<Warehouse size={20} />} hideText={!isOpen}>Warehouse</NavLink>
