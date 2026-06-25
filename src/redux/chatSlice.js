@@ -3,25 +3,19 @@ import { fetchConversationsApi, fetchMessagesApi, sendMessageApi } from "../serv
 
 export const getConversations = createAsyncThunk("chat/getConversations", async (_, { rejectWithValue }) => {
   try {
-    return await fetchConversationsApi();
+    const response = await fetchConversationsApi();
+    return response.conversations; 
   } catch (err) {
-    return rejectWithValue(err.response.data);
+    return rejectWithValue(err.response?.data || "Failed to fetch");
   }
 });
 
 export const getMessages = createAsyncThunk("chat/getMessages", async ({ id, type }, { rejectWithValue }) => {
   try {
-    return await fetchMessagesApi(id, type);
+    const response = await fetchMessagesApi(id, type);
+    return response.messages;
   } catch (err) {
-    return rejectWithValue(err.response.data);
-  }
-});
-
-export const sendMessage = createAsyncThunk("chat/sendMessage", async (payload, { rejectWithValue }) => {
-  try {
-    return await sendMessageApi(payload);
-  } catch (err) {
-    return rejectWithValue(err.response.data);
+    return rejectWithValue(err.response?.data || "Failed to fetch messages");
   }
 });
 
@@ -31,39 +25,41 @@ const chatSlice = createSlice({
     conversations: [],
     activeMessages: [],
     loading: false,
-    sending: false,
+    fetchingMessages: false,
     error: null,
   },
   reducers: {
-    clearActiveMessages: (state) => {
+    clearMessages: (state) => {
       state.activeMessages = [];
+    },
+    // New Reducer for WebSocket updates
+    receiveSocketMessage: (state, action) => {
+      const newMessage = action.payload;
+      // Add message to active chat window if it belongs there
+      state.activeMessages.push(newMessage);
+      
+      // Update the conversation list snippet
+      const conversation = state.conversations.find(c => c.user_id === newMessage.sender_id || c.user_id === newMessage.receiver_id);
+      if (conversation) {
+        conversation.last_message = newMessage.message;
+        conversation.last_message_at = new Date().toISOString();
+      }
     }
   },
   extraReducers: (builder) => {
     builder
-      // Fetch Conversations
       .addCase(getConversations.fulfilled, (state, action) => {
-        state.conversations = action.payload.conversations;
+        state.conversations = action.payload;
       })
-      // Fetch Messages
       .addCase(getMessages.pending, (state) => {
-        state.loading = true;
+        state.fetchingMessages = true;
       })
       .addCase(getMessages.fulfilled, (state, action) => {
-        state.loading = false;
-        state.activeMessages = action.payload.messages;
-      })
-      // Send Message (Optimistic update or handled via re-fetch)
-      .addCase(sendMessage.pending, (state) => {
-        state.sending = true;
-      })
-      .addCase(sendMessage.fulfilled, (state, action) => {
-        state.sending = false;
-        // The API returns the new message object
-        state.activeMessages.push(action.payload.message || action.payload); 
+        state.fetchingMessages = false;
+        state.activeMessages = action.payload;
       });
   },
 });
 
-export const { clearActiveMessages } = chatSlice.actions;
+export const { clearMessages, receiveSocketMessage } = chatSlice.actions;
 export default chatSlice.reducer;
