@@ -125,6 +125,7 @@ export default function NewOrder() {
   const [otherDetails, setOtherDetails] = useState({
     gst_number: "",
     eway_bill_number: "",
+    
   });
 
   // --- Effects ---
@@ -482,21 +483,35 @@ export default function NewOrder() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1 uppercase">GST Number</label><input type="text" value={otherDetails.gst_number} onChange={(e) => setOtherDetails({ ...otherDetails, gst_number: e.target.value })} className={inputClass} placeholder="Enter GST Number" /></div>
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1 uppercase">E-Way Bill Number</label><input type="text" value={otherDetails.eway_bill_number} onChange={(e) => setOtherDetails({ ...otherDetails, eway_bill_number: e.target.value })} className={inputClass} placeholder="Enter E-Way Bill Number" /></div>
+                    {/* NEW: GST Exempt Toggle */}
               <div className="flex items-center justify-between bg-dashboard-bg/20 p-4 rounded-xl border border-border-subtle md:col-span-2">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary"><Ban size={18}/></div>
-                    <div><p className="text-sm font-bold">GST Exempt Order</p><p className="text-[10px] text-text-muted">Enable to omit GST from order calculations.</p></div>
+                    <div>
+                        <p className="text-sm font-bold">GST Exempt Order</p>
+                        <p className="text-[10px] text-text-muted">Enable this to omit GST from the order calculations.</p>
+                    </div>
                 </div>
-                <button onClick={() => setIsGstExempt(!isGstExempt)} className={cn("w-12 h-6 rounded-full transition-all relative border border-border-subtle", isGstExempt ? "bg-primary" : "bg-white/5")}><div className={cn("w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all shadow-md", isGstExempt ? "left-7" : "left-0.5")} /></button>
+                <button 
+                    onClick={() => setIsGstExempt(!isGstExempt)}
+                    className={cn(
+                        "w-12 h-6 rounded-full transition-all relative border border-border-subtle",
+                        isGstExempt ? "bg-primary" : "bg-white/5"
+                    )}
+                >
+                    <div className={cn(
+                        "w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all shadow-md",
+                        isGstExempt ? "left-7" : "left-0.5"
+                    )} />
+                </button>
               </div>
             </div>
           </CardContent>
         )}
       </Card>
 
-      {/* Footer Sticky Bar */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-card-bg/90 backdrop-blur-md border-t border-border-subtle flex justify-end z-30 shadow-2xl">
-        <Button disabled={orderLoading} onClick={handleSubmit} className="bg-primary hover:bg-primary/90 text-black px-12 h-12 font-bold rounded-xl shadow-lg flex gap-2 transition-all hover:scale-[1.02] active:scale-[0.98]">
+        <Button disabled={orderLoading} onClick={handleSubmit} className="bg-primary hover:bg-primary/90 text-black px-10 h-11 font-bold rounded-xl shadow-lg flex gap-2 transition-all hover:scale-[1.02] active:scale-[0.98]">
           {orderLoading ? <Loader2 className="animate-spin" size={18} /> : <><ShoppingBag size={18} /> {isEditMode ? "Update Order" : "Complete Order"}</>}
         </Button>
       </div>
