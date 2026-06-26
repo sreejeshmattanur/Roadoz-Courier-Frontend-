@@ -36,7 +36,14 @@ export function Login() {
   const [loginError, setLoginError] = useState("");
 
   const handleInputChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    
+    // We trim email and franchiseCode immediately on change to keep the state clean
+    // Password is usually NOT trimmed on change (to allow spaces if the user intended them),
+    // but we will handle it in the submit phase if needed.
+    const cleanValue = (name === "email" || name === "franchiseCode") ? value.trim() : value;
+
+    setFormData({ ...formData, [name]: cleanValue });
     setLoginError("");
   };
 
@@ -44,8 +51,17 @@ export function Login() {
     e.preventDefault();
     setLoginError("");
 
+    // Strip whitespaces before processing
+    const trimmedEmail = formData.email.trim();
+    const trimmedPassword = formData.password.trim();
+
+    if (!trimmedEmail || !trimmedPassword) {
+        setLoginError("Please enter both email and password.");
+        return;
+    }
+
     // Step 1: check role via Redux
-    const roleResult = await dispatch(checkUserRole(formData.email));
+    const roleResult = await dispatch(checkUserRole(trimmedEmail));
 
     if (checkUserRole.fulfilled.match(roleResult)) {
       const { role, requires_franchise_code } = roleResult.payload;
@@ -59,8 +75,8 @@ export function Login() {
       // Admin → login
       const loginResult = await dispatch(
         loginUser({
-          email: formData.email,
-          password: formData.password,
+          email: trimmedEmail,
+          password: trimmedPassword,
         }),
       );
 
@@ -82,12 +98,22 @@ export function Login() {
   const handleFinalStep = async (e) => {
     e.preventDefault();
 
+    // Strip whitespaces
+    const trimmedEmail = formData.email.trim();
+    const trimmedPassword = formData.password.trim();
+    const trimmedCode = formData.franchiseCode.trim();
+
+    if (!trimmedCode) {
+        setLoginError("Franchise code is required.");
+        return;
+    }
+
     try {
       const resultAction = await dispatch(
         loginUser({
-          email: formData.email,
-          password: formData.password,
-          franchise_code: formData.franchiseCode, // IMPORTANT
+          email: trimmedEmail,
+          password: trimmedPassword,
+          franchise_code: trimmedCode,
         }),
       );
 
@@ -177,7 +203,6 @@ export function Login() {
                     </label>
                     <Link
                       to="/forgot-password"
-                      size="sm"
                       className="text-primary text-xs font-bold hover:underline"
                     >
                       Forgot?
@@ -276,9 +301,10 @@ export function Login() {
 
                 <Button
                   type="submit"
+                  disabled={loading}
                   className="w-full bg-primary text-black font-bold py-7 rounded-xl shadow-lg hover:bg-primary/90 text-base uppercase tracking-widest"
                 >
-                  Verify & Enter
+                  {loading ? "Verifying..." : "Verify & Enter"}
                 </Button>
               </form>
             </motion.div>

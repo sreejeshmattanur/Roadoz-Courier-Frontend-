@@ -66,11 +66,16 @@ function calculateLabelHeight(order) {
 
   height += 5;
 
-  const productName = order.items?.[0]?.product_name || "Item";
+  const items = order.items?.length > 0 ? order.items : [{ product_name: "Item" }];
 
-  const productLines = Math.ceil(productName.length / 22);
+  let productsHeight = 0;
+  items.forEach(item => {
+    const productName = item.product_name || "Item";
+    const productLines = Math.max(1, Math.ceil(productName.length / 22));
+    productsHeight += productLines * 3 + 4;
+  });
 
-  height += productLines * 3 + 6;
+  height += productsHeight + 2;
 
   const footerText = "Roadoz pvt Ltd , 1st Floor, A..., 1st main koramangala, 1st Block Bengaluru, 560034";
 
@@ -438,52 +443,67 @@ function drawLabel(doc, order, pageHeight) {
           },
         ];
 
-  const item = items[0];
-
   doc.setFont("helvetica", "normal");
   doc.setFontSize(5.8);
 
-  const productLines = doc.splitTextToSize(
-    String(item.product_name || ""),
-    COL_RATE - LEFT - 2,
-  );
+  let totalProductsHeight = 0;
+  const itemsRenderData = [];
 
-  const productHeight = productLines.length * 3 + 4;
-
-  doc.rect(LEFT, currentY, RIGHT - LEFT, productHeight);
-
-  doc.line(
-    COL_RATE,
-    currentY - productHeaderHeight,
-    COL_RATE,
-    currentY + productHeight,
-  );
-
-  doc.line(
-    COL_QTY,
-    currentY - productHeaderHeight,
-    COL_QTY,
-    currentY + productHeight,
-  );
-
-  doc.line(
-    COL_TOTAL,
-    currentY - productHeaderHeight,
-    COL_TOTAL,
-    currentY + productHeight,
-  );
-
-  productLines.forEach((line, i) => {
-    doc.text(line, TX.left, currentY + 4 + i * 3);
+  items.forEach((item) => {
+    let nameStr = String(item.product_name || "");
+    if (!nameStr) nameStr = "Item";
+    const productLines = doc.splitTextToSize(
+      nameStr,
+      COL_RATE - LEFT - 2,
+    );
+    const productHeight = productLines.length * 3 + 4;
+    totalProductsHeight += productHeight;
+    itemsRenderData.push({ item, productLines, productHeight });
   });
 
-  doc.text(String(item.unit_price || ""), TX.rateX, currentY + 4);
+  doc.rect(LEFT, currentY, RIGHT - LEFT, totalProductsHeight);
 
-  doc.text(String(item.qty || ""), TX.qtyX, currentY + 4);
+  doc.line(
+    COL_RATE,
+    currentY - productHeaderHeight,
+    COL_RATE,
+    currentY + totalProductsHeight,
+  );
 
-  doc.text(String(item.total || ""), TX.totalX, currentY + 4);
+  doc.line(
+    COL_QTY,
+    currentY - productHeaderHeight,
+    COL_QTY,
+    currentY + totalProductsHeight,
+  );
 
-  currentY += productHeight;
+  doc.line(
+    COL_TOTAL,
+    currentY - productHeaderHeight,
+    COL_TOTAL,
+    currentY + totalProductsHeight,
+  );
+
+  let tempY = currentY;
+  itemsRenderData.forEach(({ item, productLines, productHeight }, index) => {
+    productLines.forEach((line, i) => {
+      doc.text(line, TX.left, tempY + 4 + i * 3);
+    });
+
+    doc.text(String(item.unit_price || ""), TX.rateX, tempY + 4);
+
+    doc.text(String(item.qty || ""), TX.qtyX, tempY + 4);
+
+    doc.text(String(item.total || ""), TX.totalX, tempY + 4);
+
+    if (index < itemsRenderData.length - 1) {
+      doc.line(LEFT, tempY + productHeight, RIGHT, tempY + productHeight);
+    }
+
+    tempY += productHeight;
+  });
+
+  currentY += totalProductsHeight;
 
   // ============================================================
   // FOOTER

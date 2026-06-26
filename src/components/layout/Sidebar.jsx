@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -17,6 +17,7 @@ import {
   Store,
   Warehouse,
   ClipboardCheck,
+  MessageSquare ,
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { NavLink } from "../NavLink";
@@ -41,17 +42,11 @@ export function Sidebar({ isOpen, setIsOpen }) {
     finance: false,
     settings: false,
     admin: false,
+    franchise: false, 
   });
 
-  /* =========================
-     Permission Helpers
-  ========================= */
-  // Checks if user has a specific permission or any from a list
   const hasPerm = (perm) => hasPermission(permissions, role, perm);
 
-  /* =========================
-     Sidebar Sections
-  ========================= */
   const sections = {
     orders: [
       { name: "All Orders", to: `${base}/all-orders`, perm: "orders:view" },
@@ -59,13 +54,8 @@ export function Sidebar({ isOpen, setIsOpen }) {
       { name: "Picked", to: `${base}/picked`, perm: "orders:view" },
       { name: "Dispatched", to: `${base}/dispatched`, perm: "orders:view" },
       { name: "Warehouse Orders", to: `${base}/warehouse-orders`, perm: "orders:view" },
-      {
-        name: "In Transit Orders",
-        to: `${base}/in-transit`,
-        perm: "orders:view",
-      },
-      { name: "Not Picked", to: `${base}/not-picked`, perm: "orders:view" },
       { name: "In Transit Orders", to: `${base}/in-transit`, perm: "orders:view" },
+      { name: "Not Picked", to: `${base}/not-picked`, perm: "orders:view" },
       { name: "Pending", to: `${base}/pending`, perm: "orders:view" },
       { name: "Out For Delivery", to: `${base}/out-for-delivery`, perm: "orders:view" },
       { name: "Delivered", to: `${base}/delivered`, perm: "orders:view" },
@@ -74,26 +64,27 @@ export function Sidebar({ isOpen, setIsOpen }) {
       { name: "Returned", to: `${base}/returned`, perm: "orders:view" },
       { name: "Cancelled", to: `${base}/cancelled`, perm: "orders:view" },
     ],
-
     admin: [
       { name: "User Management", to: `${base}/admin/users`, perm: "users:view" },
       { name: "Role Permissions", to: `${base}/admin/roles`, perm: "roles:view" },
       { name: "Assign Roles", to: `${base}/admin/assign-roles`, perm: "user_roles:assign" },
       { name: "Activity Logs", to: `${base}/admin/activity-logs`, perm: "activity_logs:view" },
     ],
-
+    franchise: [
+      // Added 'end: true' so Registry doesn't highlight when inside Approval
+      { name: "Franchise Registry", to: `${base}/franchise`, perm: "franchises:view", end: true },
+      { name: "Approval Franchise", to: `${base}/franchise/approval`, perm: "franchises:edit" },
+    ],
     tools: [
       { name: "Serviceable Pincode", to: `${base}/serviceable-pincode`, perm: "tools:view" },
       { name: "Rate Calculator", to: `${base}/rate-calculator`, perm: "tools:view" },
       { name: "Channel Integration", to: `${base}/channel-integration`, perm: "tools:view" },
     ],
-
     finance: [
       { name: "Wallet", to: `${base}/wallet`, perm: "wallet:view" },
       { name: "COD Remittance", to: `${base}/cod-remittance`, perm: "remittances:view" },
       { name: "Invoices", to: `${base}/invoices`, perm: "invoices:view" },
     ],
-
     settings: [
       { name: "General Details", to: `${base}/settings/general`, perm: "profile:view" },
       { name: "Change Password", to: `${base}/settings/password`, perm: "profile:view" },
@@ -104,30 +95,25 @@ export function Sidebar({ isOpen, setIsOpen }) {
     ],
   };
 
-  /* =========================
-     Auto Open Active Menu
-  ========================= */
   useEffect(() => {
     const currentPath = location.pathname;
     const activeSection = Object.keys(sections).find((key) =>
-      sections[key].some((item) => currentPath.startsWith(item.to))
+      sections[key].some((item) => 
+        item.end ? currentPath === item.to : currentPath.startsWith(item.to)
+      )
     );
 
     if (activeSection) {
-      setOpenMenus({
-        orders: false,
-        tools: false,
-        finance: false,
-        settings: false,
-        admin: false,
+      setOpenMenus((prev) => ({
+        ...Object.keys(prev).reduce((acc, k) => ({ ...acc, [k]: false }), {}),
         [activeSection]: true,
-      });
+      }));
     }
   }, [location.pathname]);
 
   const toggleMenu = (menu) => {
     setOpenMenus((prev) => ({
-      orders: false, tools: false, finance: false, settings: false, admin: false,
+      orders: false, tools: false, finance: false, settings: false, admin: false, franchise: false,
       [menu]: !prev[menu],
     }));
   };
@@ -148,6 +134,11 @@ export function Sidebar({ isOpen, setIsOpen }) {
     const allowedItems = items.filter((item) => hasPerm(item.perm));
     if (allowedItems.length === 0) return null;
 
+    // Check if any child is currently the active route
+    const isChildActive = allowedItems.some((item) => 
+      item.end ? location.pathname === item.to : location.pathname.startsWith(item.to)
+    );
+
     return (
       <div className="px-2 py-1">
         <button
@@ -156,11 +147,12 @@ export function Sidebar({ isOpen, setIsOpen }) {
           className={cn(
             "flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg transition-all",
             isOpen ? "justify-between" : "justify-center",
-            openMenus[id] ? "bg-primary/10 text-text-main" : "text-text-muted hover:bg-text-muted/5"
+            // Highlight parent if open OR if any child is active
+            (openMenus[id] || isChildActive) ? "bg-primary/10 text-text-main" : "text-text-muted hover:bg-text-muted/5"
           )}
         >
           <div className="flex items-center gap-3">
-            <Icon size={20} className={openMenus[id] ? "text-primary" : ""} />
+            <Icon size={20} className={(openMenus[id] || isChildActive) ? "text-primary" : ""} />
             {isOpen && <span>{label}</span>}
           </div>
           {isOpen && (openMenus[id] ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}
@@ -172,6 +164,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
               <NavLink
                 key={item.name}
                 to={item.to}
+                end={item.end} // Passes the end property for exact matching
                 className={({ isActive }) =>
                   cn(
                     "py-2 pl-8 pr-4 text-xs rounded-md flex items-center gap-2",
@@ -207,10 +200,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
           <NavLink to={`${base}/new-orders`} icon={<ShoppingCart size={20} />} hideText={!isOpen}>New Orders</NavLink>
         )}
 
-        {/* FRANCHISE TAB: Visible if user has ANY franchise permission */}
-        {hasPerm(["franchises:view", "franchises:create", "franchises:edit", "franchises:delete"]) && (
-          <NavLink to={`${base}/franchise`} icon={<Store size={20} />} hideText={!isOpen}>Franchise</NavLink>
-        )}
+        <NavDropdown id="franchise" label="Franchise" icon={Store} items={sections.franchise} />
 
         {hasPerm("orders:view") && (
           <NavLink to={`${base}/processing-order`} icon={<Package size={20} />} hideText={!isOpen}>Processing Order</NavLink>
@@ -225,11 +215,21 @@ export function Sidebar({ isOpen, setIsOpen }) {
           <NavLink to={`${base}/consignees`} icon={<Users size={20} />} hideText={!isOpen}>Consignees</NavLink>
         )}
 
-        {hasPerm("orders:view") && (
+        {hasPerm("orders:view") && ( // Or a specific chat permission
+  <NavLink 
+    to={`${base}/chat`} 
+    icon={<MessageSquare size={20} />} 
+    hideText={!isOpen}
+  >
+    Messages
+  </NavLink>
+)}
+
+        {hasPerm("warehouse:view") && (
           <NavLink to={`${base}/warehouse`} icon={<Warehouse size={20} />} hideText={!isOpen}>Warehouse</NavLink>
         )}
 
-        {hasPerm("orders:view") && (
+        {hasPerm("reviews:view") && (
           <NavLink to={`${base}/reviews`} icon={<ClipboardCheck size={20} />} hideText={!isOpen}>Review</NavLink>
         )}
 

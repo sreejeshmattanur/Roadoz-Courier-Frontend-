@@ -505,3 +505,43 @@ export const fetchOrderDetailsApi = async (orderNumber) => {
   return res.data;
 };
   
+export const fetchFranchiseApplicationsApi = async (params) => {
+  const res = await API.get(ENDPOINTS.FRANCHISE_APPLICATIONS, { params });
+  return res.data;
+};
+
+export const approveFranchiseApi = async (data) => {
+  // data should be { application_id: "...", password: "..." }
+  const res = await API.post(ENDPOINTS.APPROVE_FRANCHISE, data);
+  return res.data;
+};
+
+export const rejectFranchiseApi = async (id, data) => {
+  // data should be { status: "rejected", admin_remarks: "..." }
+  const res = await API.post(ENDPOINTS.REJECT_FRANCHISE(id), data);
+  return res.data;
+};
+
+export const getAdminChatWSUrl = () => {
+  const base = import.meta.env.VITE_APP_BASE_URL || "http://127.0.0.1:8000/api/v1";
+  const wsBase = base.replace(/^http/, "ws");
+  const token = Cookies.get("access_token");
+  return `${wsBase}${ENDPOINTS.CHAT.ADMIN_CHAT_WS}${token ? `?token=${token}` : ""}`;
+};
+
+export const fetchConversationsApi = async () => {
+  const res = await API.get(ENDPOINTS.CHAT.CONVERSATIONS);
+  return res.data;
+};
+
+export const fetchMessagesApi = async (receiverId, receiverType) => {
+  const res = await API.get(ENDPOINTS.CHAT.MESSAGES, {
+    params: { receiver_id: receiverId, receiver_type: receiverType },
+  });
+  return res.data;
+};
+
+export const sendMessageApi = async (data) => {
+  const res = await API.post(ENDPOINTS.CHAT.MESSAGES, data);
+  return res.data;
+};

@@ -46,6 +46,9 @@ import AddRolePage from "./pages/admin/AddRolePage";
 import RoleWizard from "./components/common/RoleWizard";
 import ScannedOrders from "./pages/ScannedOrders";
 import ActivityLogs from "./pages/ActivityLogs";
+import { FranchiseApproval } from "./pages/FranchiseApproval";
+import ChatPlatform from "./pages/ChatPlatform"; 
+
 
 export default function App() {
   const token = Cookies.get("access_token");
@@ -285,7 +288,14 @@ export default function App() {
                 </PermissionRoute>
               }
             />
-
+<Route
+  path="chat"
+  element={
+    <PermissionRoute permission="orders:view"> 
+      <ChatPlatform />
+    </PermissionRoute>
+  }
+/>
             {/* Finance */}
             <Route
               path="wallet"
@@ -428,6 +438,15 @@ export default function App() {
                 </PermissionRoute>
               }
             />
+            <Route
+              path="franchise/approval"
+              element={
+                <PermissionRoute permission="franchises:approve">
+                  <FranchiseApproval />
+                </PermissionRoute>
+              }
+            />
+            
             <Route
               path="franchise/add"
               element={

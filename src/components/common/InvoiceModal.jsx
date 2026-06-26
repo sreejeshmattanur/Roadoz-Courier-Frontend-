@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X, ChevronLeft, ChevronRight, Download } from 'lucide-react';
-import { generateInvoiceDataUri } from '../../lib/generateInvoicePDF';
+import { generateInvoiceDataUri, generateBulkInvoicesDataUri } from '../../lib/generateInvoicePDF';
 import { mapOrderToInvoice } from '../../lib/invoiceMapper';
 
-export function InvoiceModal({ invoice, pdfTitle, onClose, loading, onPrev, onNext, hasPrev, hasNext, currentIndex, totalItems, onDownloadAll }) {
+export function InvoiceModal({ invoice, bulkOrders, pdfTitle, onClose, loading, onPrev, onNext, hasPrev, hasNext, currentIndex, totalItems, onDownloadAll }) {
   const [pdfUri, setPdfUri] = useState(null);
 
   const formatDate = (dateString) => {
@@ -21,7 +21,11 @@ export function InvoiceModal({ invoice, pdfTitle, onClose, loading, onPrev, onNe
   };
 
   useEffect(() => {
-    if (invoice && invoice.invoice_orders && invoice.invoice_orders.length > 0) {
+    if (bulkOrders && bulkOrders.length > 0) {
+      const mappedOrders = bulkOrders.map(order => mapOrderToInvoice(order, formatDate));
+      const uri = generateBulkInvoicesDataUri(mappedOrders);
+      setPdfUri(uri);
+    } else if (invoice && invoice.invoice_orders && invoice.invoice_orders.length > 0) {
       const rawOrder = invoice.invoice_orders[0].order;
       if (rawOrder) {
         const mapped = mapOrderToInvoice(rawOrder, formatDate);
@@ -33,20 +37,20 @@ export function InvoiceModal({ invoice, pdfTitle, onClose, loading, onPrev, onNe
     } else {
       setPdfUri(null);
     }
-  }, [invoice]);
+  }, [invoice, bulkOrders]);
 
-  if (!invoice && !loading) return null;
+  if (!invoice && (!bulkOrders || bulkOrders.length === 0) && !loading) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="bg-card-bg border border-border-subtle w-[98%] max-w-6xl h-[95vh] flex flex-col rounded-xl shadow-2xl overflow-hidden">
         <div className="bg-card-bg border-b border-border-subtle p-4 flex justify-between items-center z-10 shrink-0">
           <h2 className="text-lg font-bold text-text-main truncate pr-4">
-            Invoice Details #{invoice?.invoice_number}
-            {totalItems > 1 && ` (${currentIndex + 1} of ${totalItems})`}
+            {bulkOrders ? "Bulk Invoices" : `Invoice Details #${invoice?.invoice_number}`}
+            {!bulkOrders && totalItems > 1 && ` (${currentIndex + 1} of ${totalItems})`}
           </h2>
           <div className="flex items-center gap-1 shrink-0">
-            {totalItems > 1 && (
+            {!bulkOrders && totalItems > 1 && (
               <div className="flex items-center bg-dashboard-bg rounded-md p-0.5 mr-2">
                 <button 
                   onClick={onPrev} 
@@ -71,7 +75,7 @@ export function InvoiceModal({ invoice, pdfTitle, onClose, loading, onPrev, onNe
             )}
 
             <button onClick={() => {
-              const filename = pdfTitle || `Invoice-${invoice?.invoice_number || 'invoice'}.pdf`;
+              const filename = pdfTitle || (bulkOrders ? "Bulk_Invoices.pdf" : `Invoice-${invoice?.invoice_number || 'invoice'}.pdf`);
               const a = document.createElement("a");
               a.href = pdfUri;
               a.download = filename;

@@ -388,7 +388,7 @@ export function ProcessingOrders() {
     setCurrentBulkInvoiceIndex(0);
     try {
       const data = await fetchBulkOrderDetailsApi(bulkOrder.id);
-      const ordersArray = data.orders || data.data?.orders || [];
+      const ordersArray = data.items || data.orders || data.data?.items || data.data?.orders || [];
       const mappedInvoices = ordersArray.map(mapSingleOrderToInvoice);
       setBulkInvoiceList(mappedInvoices);
       setBulkRawOrders(ordersArray);
@@ -408,12 +408,12 @@ export function ProcessingOrders() {
     setLabelPdfUri(null);
     try {
       const data = await fetchBulkOrderDetailsApi(bulkOrder.id);
-      const ordersArray = data.orders || data.data?.orders || [];
+      const ordersArray = data.items || data.orders || data.data?.items || data.data?.orders || [];
       const doc = generateShippingLabel(ordersArray, true);
       if (doc) {
         setLabelPdfTitle(`Bulk-Order-Label-${bulkOrder.id}.pdf`);
         doc.setProperties({ title: `Bulk-Order-Label-${bulkOrder.id}.pdf` });
-        setLabelPdfUri(doc.output('datauristring', { filename: labelPdfTitle || 'label.pdf' }));
+        setLabelPdfUri(doc.output('bloburl'));
       }
     } catch (err) {
       console.error(err);
@@ -435,7 +435,7 @@ export function ProcessingOrders() {
         const filename = `Label-${order.order_number || order.id}.pdf`;
         setLabelPdfTitle(filename);
         doc.setProperties({ title: filename });
-        setLabelPdfUri(doc.output('datauristring', { filename: labelPdfTitle || 'label.pdf' }));
+        setLabelPdfUri(doc.output('bloburl'));
       }
     } catch (err) {
       console.error(err);
@@ -820,7 +820,8 @@ export function ProcessingOrders() {
   const getFilteredBulkOrders = () => {
     if (!selectedBulkOrderData) return [];
     
-    const ordersArray = selectedBulkOrderData.orders || 
+    const ordersArray = selectedBulkOrderData.items || selectedBulkOrderData.orders || 
+                        (selectedBulkOrderData.data && selectedBulkOrderData.data.items) || 
                         (selectedBulkOrderData.data && selectedBulkOrderData.data.orders) || 
                         [];
                         
@@ -933,7 +934,7 @@ export function ProcessingOrders() {
               )}
               <h2 className="text-lg font-semibold text-text-main">
                 {activeTab} {activeStatus === "bulk" ? (selectedBulkOrderData ? "Details" : "") : "Orders"} (Showing{" "}
-                {activeStatus === "bulk" ? (selectedBulkOrderData ? selectedBulkOrderData.orders?.length || 0 : bulkOrders.length) : orders.length}{" "}
+                {activeStatus === "bulk" ? (selectedBulkOrderData ? (selectedBulkOrderData.items?.length || selectedBulkOrderData.orders?.length || 0) : bulkOrders.length) : orders.length}{" "}
                 entries)
               </h2>
             </div>
@@ -1285,15 +1286,15 @@ export function ProcessingOrders() {
                   <thead>
                     {activeStatus === "bulk" && !selectedBulkOrderData ? (
                       <tr className="bg-dashboard-bg/50 text-text-muted text-[11px] font-bold uppercase border-b border-border-subtle">
-                        <th className="px-6 py-4">Bulk Order ID</th>
-                        <th className="px-6 py-4">File Name</th>
-                        <th className="px-6 py-4">Order Type</th>
-                        <th className="px-6 py-4">Pickup Address ID</th>
-                        <th className="px-6 py-4">Status</th>
-                        <th className="px-6 py-4">Successful Orders</th>
-                        <th className="px-6 py-4">Failed Orders</th>
-                        <th className="px-6 py-4">Created At</th>
-                        <th className="px-6 py-4 text-center">Actions</th>
+                        <th className="px-3 py-3">Bulk Order ID</th>
+                        <th className="px-3 py-3">File Name</th>
+                        <th className="px-3 py-3">Order Type</th>
+                        <th className="px-3 py-3">Pickup Address ID</th>
+                        <th className="px-3 py-3">Status</th>
+                        <th className="px-3 py-3">Successful Orders</th>
+                        <th className="px-3 py-3">Failed Orders</th>
+                        <th className="px-3 py-3 whitespace-nowrap">Created At</th>
+                        <th className="px-3 py-3 text-center">Actions</th>
                       </tr>
                     ) : (
                       <tr className="bg-dashboard-bg/50 text-text-muted text-[11px] font-bold uppercase border-b border-border-subtle">
@@ -1333,21 +1334,22 @@ export function ProcessingOrders() {
                             className="hover:bg-dashboard-bg/30 transition-colors"
                           >
                             <td 
-                              className="px-6 py-6 text-sm font-bold text-primary underline hover:text-primary/80 cursor-pointer"
+                              className="px-3 py-3 text-sm font-bold text-primary underline hover:text-primary/80 cursor-pointer max-w-[120px] truncate"
                               onClick={() => handleViewBulkOrder(bulkOrder.id)}
+                              title={bulkOrder.id}
                             >
                               {bulkOrder.id}
                             </td>
-                            <td className="px-6 py-6 text-sm font-bold text-text-main">
+                            <td className="px-3 py-3 text-sm font-bold text-text-main max-w-[120px] truncate" title={bulkOrder.file_name}>
                               {bulkOrder.file_name}
                             </td>
-                            <td className="px-6 py-6 text-xs text-text-muted uppercase">
+                            <td className="px-3 py-3 text-xs text-text-muted uppercase">
                               {bulkOrder.order_type}
                             </td>
-                            <td className="px-6 py-6 text-xs text-text-muted">
+                            <td className="px-3 py-3 text-xs text-text-muted max-w-[120px] truncate" title={bulkOrder.pickup_address_id}>
                               {bulkOrder.pickup_address_id}
                             </td>
-                            <td className="px-6 py-6 text-xs">
+                            <td className="px-3 py-3 text-xs">
                               <span
                                 className={cn(
                                   "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
@@ -1362,17 +1364,29 @@ export function ProcessingOrders() {
                                 {bulkOrder.status}
                               </span>
                             </td>
-                            <td className="px-6 py-6 text-xs font-bold text-text-main">
+                            <td className="px-3 py-3 text-xs font-bold text-text-main whitespace-nowrap">
                               {bulkOrder.successful_orders} /{" "}
                               {bulkOrder.total_orders}
                             </td>
-                            <td className="px-6 py-6 text-xs font-bold text-red-500">
+                            <td className="px-3 py-3 text-xs font-bold text-red-500">
                               {bulkOrder.failed_orders}
                             </td>
-                            <td className="px-6 py-6 text-xs text-text-muted">
-                              {formatDate(bulkOrder.created_at)}
+                            <td className="px-3 py-3 text-xs text-text-muted">
+                              {(() => {
+                                const d = bulkOrder.created_at;
+                                if (!d) return "N/A";
+                                const dateObj = new Date(d);
+                                const datePart = dateObj.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" });
+                                const timePart = dateObj.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true });
+                                return (
+                                  <div className="flex flex-col">
+                                    <span>{datePart}</span>
+                                    <span>{timePart}</span>
+                                  </div>
+                                );
+                              })()}
                             </td>
-                            <td className="px-6 py-6 text-center">
+                            <td className="px-3 py-3 text-center">
                               <div className="flex justify-center items-center gap-2">
                                 <button
                                   onClick={() => handleViewBulkOrder(bulkOrder.id)}
@@ -1917,23 +1931,13 @@ export function ProcessingOrders() {
       )}
       {isBulkInvoiceViewerOpen && (
         <InvoiceModal
-          invoice={bulkInvoiceList[currentBulkInvoiceIndex]}
+          bulkOrders={bulkRawOrders}
           pdfTitle={bulkInvoicePdfTitle ? `${bulkInvoicePdfTitle}.pdf` : undefined}
           loading={bulkInvoiceLoading}
           onClose={() => {
             setIsBulkInvoiceViewerOpen(false);
             setBulkInvoiceList([]);
             setBulkRawOrders([]);
-          }}
-          onPrev={() => setCurrentBulkInvoiceIndex(prev => prev - 1)}
-          onNext={() => setCurrentBulkInvoiceIndex(prev => prev + 1)}
-          hasPrev={currentBulkInvoiceIndex > 0}
-          hasNext={currentBulkInvoiceIndex < bulkInvoiceList.length - 1}
-          currentIndex={currentBulkInvoiceIndex}
-          totalItems={bulkInvoiceList.length}
-          onDownloadAll={() => {
-            const mappedOrdersForPDF = bulkRawOrders.map(order => mapOrderToInvoice(order, formatDate));
-            generateBulkInvoicesPDF(mappedOrdersForPDF);
           }}
         />
       )}
