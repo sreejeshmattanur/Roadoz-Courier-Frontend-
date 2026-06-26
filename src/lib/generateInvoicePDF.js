@@ -160,10 +160,8 @@ const drawInvoice = (doc, order) => {
       head: [["Description", "Amount"]],
       body: [
         ["Freight Charges", order.charges?.freight ? `Rs. ${order.charges.freight}` : "-"],
-        ["Fuel Surcharge", order.charges?.fuel ? `Rs. ${order.charges.fuel}` : "-"],
-        ["Subtotal", order.charges?.subtotal ? `Rs. ${order.charges.subtotal}` : "-"],
-        ["GST @ 18%", order.charges?.gst ? `Rs. ${order.charges.gst}` : "-"],
-        ["Grand Total", order.payment?.total ? `Rs. ${order.payment.total}` : "-"],
+        ["Freight GST", order.charges?.freight_gst ? `Rs. ${order.charges.freight_gst}` : "-"],
+        ["Total Freight", order.charges?.total_freight ? `Rs. ${order.charges.total_freight}` : "-"],
       ],
       styles: { fontSize: 9, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.5 },
       headStyles: {
@@ -215,14 +213,9 @@ const drawInvoice = (doc, order) => {
     doc.text(order.payment?.method || "N/A", PAGE_LEFT + 33, barTextY);
 
     doc.setFont("helvetica", "bold");
-    doc.text("Shipment Type:", 82, barTextY);
+    doc.text("Shipment Type:", 148, barTextY);
     doc.setFont("helvetica", "normal");
-    doc.text(order.shipmentType || "N/A", 110, barTextY);
-
-    doc.setFont("helvetica", "bold");
-    doc.text("Risk Type:", 148, barTextY);
-    doc.setFont("helvetica", "normal");
-    doc.text(order.riskType || "N/A", 168, barTextY);
+    doc.text(order.shipmentType || "N/A", 175, barTextY);
 
     // Total Boxes row
     const boxesY = extraY + INFO_BAR_H + 7;

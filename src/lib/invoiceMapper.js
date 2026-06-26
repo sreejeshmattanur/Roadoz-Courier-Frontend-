@@ -1,4 +1,4 @@
-export const mapOrderToInvoice = (order, formatDate) => {
+export const mapOrderToInvoice = (order, formatDate, invoice = null) => {
   return {
     id: order.order_number,
 
@@ -58,13 +58,11 @@ export const mapOrderToInvoice = (order, formatDate) => {
     } x ${order.packages?.[0]?.height_cm || 0} cm`,
 
     charges: {
-      freight: order.shipping_charge || 0,
+      freight: order.freight_charge || invoice?.invoice_orders?.[0]?.base_freight || invoice?.invoice_orders?.[0]?.freight_charge || order.shipping_charge || 0,
 
-      fuel: 75,
+      freight_gst: order.freight_gst || invoice?.invoice_orders?.[0]?.freight_gst || invoice?.tax_amount || 0,
 
-      handling: 40,
-
-      insurance: 15,
+      total_freight: order.total_freight || invoice?.invoice_orders?.[0]?.total_freight || invoice?.total_amount || 0,
 
       subtotal: order.order_value || 0,
 

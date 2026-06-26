@@ -28,7 +28,7 @@ export function InvoiceModal({ invoice, bulkOrders, pdfTitle, onClose, loading, 
     } else if (invoice && invoice.invoice_orders && invoice.invoice_orders.length > 0) {
       const rawOrder = invoice.invoice_orders[0].order;
       if (rawOrder) {
-        const mapped = mapOrderToInvoice(rawOrder, formatDate);
+        const mapped = mapOrderToInvoice(rawOrder, formatDate, invoice);
         const uri = generateInvoiceDataUri(mapped, pdfTitle);
         setPdfUri(uri);
       } else {
