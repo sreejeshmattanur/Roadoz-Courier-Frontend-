@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { 
   Plus, Search, Edit, Trash2, MapPin, Phone, Mail, 
-  ToggleRight, ToggleLeft, Calendar, Filter, RotateCcw, 
-  Download, User, Loader2, X, Lock, Shield, Settings, AlertCircle
+  ToggleRight, ToggleLeft, Filter, RotateCcw, 
+  Download, Loader2, X, Lock, Shield, Settings, AlertCircle, ShieldAlert
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { motion, AnimatePresence } from "motion/react";
@@ -18,8 +18,13 @@ import Pagination from "../../components/ui/Pagination";
 import { usePermission } from "../../hooks/usePermission";
 
 export function Users() {
+  const navigate = useNavigate();
   const dispatch = useDispatch();
+  
+  // Permission Logic
   const { users: userPerms } = usePermission();
+  const { create: canCreate, edit: canEdit, delete: canDelete, view: canView } = userPerms;
+
   const { items, loading, pagination } = useSelector((state) => state.users);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -39,8 +44,10 @@ export function Users() {
   }, [items]);
 
   useEffect(() => {
-    fetchData();
-  }, [dispatch]);
+    if (canView) {
+      fetchData();
+    }
+  }, [canView]);
 
   const fetchData = (customParams = {}) => {
     const params = {
@@ -62,7 +69,6 @@ export function Users() {
     const phoneRegex = /^\+?[0-9]{10,14}$/;
 
     if (!formData.name.trim()) errors.name = "Full name is required";
-    
     if (!formData.email) errors.email = "Email address is required";
     else if (!emailRegex.test(formData.email)) errors.email = "Invalid email format";
 
@@ -75,15 +81,15 @@ export function Users() {
       errors.password = "Password must be at least 6 characters";
     }
 
-    if (formData.pincode && (formData.pincode.length < 4 || formData.pincode.length > 10)) {
-        errors.pincode = "Invalid pincode length";
-    }
-
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   const handleOpenModal = (user = null) => {
+    // Check permission before opening
+    if (user && !canEdit) return;
+    if (!user && !canCreate) return;
+
     setFormErrors({});
     if (user) {
       setEditingUser(user);
@@ -100,7 +106,6 @@ export function Users() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     if (!validateForm()) {
         toast.error("Please correct the errors in the form");
         return;
@@ -110,11 +115,13 @@ export function Users() {
 
     try {
       if (editingUser) {
+        if (!canEdit) throw new Error("Permission Denied");
         const updateData = { ...formData };
         if (!updateData.password) delete updateData.password;
         await dispatch(editUser({ id: editingUser.id, data: updateData })).unwrap();
         toast.success("User updated successfully", { id: toastId });
       } else {
+        if (!canCreate) throw new Error("Permission Denied");
         await dispatch(addUser(formData)).unwrap();
         toast.success("User created successfully", { id: toastId });
       }
@@ -126,6 +133,7 @@ export function Users() {
   };
 
   const handleDelete = async (id) => {
+    if (!canDelete) return;
     const res = await swalConfirmDelete("Delete User?", "Permanent revocation of access.");
     if (res.isConfirmed) {
       try {
@@ -136,6 +144,7 @@ export function Users() {
   };
 
   const toggleStatus = async (user) => {
+    if (!canEdit) return;
     try {
       await dispatch(editUser({ id: user.id, data: { is_active: !user.is_active } })).unwrap();
       toast.success(`User is now ${!user.is_active ? 'Active' : 'Inactive'}`);
@@ -162,6 +171,20 @@ export function Users() {
     fetchData({ page: 1, search: undefined, start_date: undefined, end_date: undefined });
   };
 
+  // UI GUARD: If the user doesn't have users:view, show Access Denied
+  if (!canView) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
+        <ShieldAlert size={64} className="text-red-500 mb-4" />
+        <h2 className="text-2xl font-bold text-text-main">Access Denied</h2>
+        <p className="text-text-muted mt-2">You do not have permission to view User Management.</p>
+        <Button onClick={() => navigate("/dashboard")} className="mt-6 bg-primary text-black">
+          Back to Dashboard
+        </Button>
+      </div>
+    );
+  }
+
   const filterInputClass = "bg-transparent border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-main focus:outline-none focus:border-primary transition-all w-full";
   const errorInputClass = "border-red-500 focus:border-red-500 bg-red-500/5";
 
@@ -171,7 +194,7 @@ export function Users() {
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-text-main uppercase tracking-tight">User Management</h1>
           <p className="text-xs md:text-sm text-primary mt-1 font-medium">
-            <Link to="/" className="hover:underline">Dashboard</Link>
+            <Link to="/dashboard" className="hover:underline">Dashboard</Link>
             <span className="text-text-muted mx-2">&gt;&gt;</span> Admin Settings
             <span className="text-text-muted mx-2">&gt;&gt;</span> Users
           </p>
@@ -180,7 +203,7 @@ export function Users() {
             <Button variant="outline" onClick={exportToCSV} className="flex-1 sm:flex-none border-border-subtle h-10 text-text-main text-xs">
                 <Download size={16} className="mr-2" /> Export CSV
             </Button>
-            {userPerms.create && (
+            {canCreate && (
               <Button onClick={() => handleOpenModal()} className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-black font-bold h-10 px-4 rounded-xl shadow-lg text-xs">
                 <Plus size={18} className="mr-2" /> Add New User
               </Button>
@@ -234,7 +257,7 @@ export function Users() {
                   <tr key={user.id} className="hover:bg-dashboard-bg/20 transition-colors group">
                     <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 bg-primary/20 rounded-full flex items-center justify-center text-primary font-bold text-xs uppercase">{user.name.charAt(0)}</div>
+                            <div className="w-9 h-9 bg-primary/20 rounded-full flex items-center justify-center text-primary font-bold text-xs uppercase">{user.name?.charAt(0)}</div>
                             <div>
                                 <p className="font-bold text-sm text-text-main">{user.name}</p>
                                 <div className="flex items-center gap-1 text-[10px] text-primary font-bold uppercase"><Shield size={10}/> {user.role?.name || "User"}</div>
@@ -249,7 +272,8 @@ export function Users() {
                        <div className="flex items-center gap-1 text-xs font-bold text-text-main uppercase"><MapPin size={12} className="text-primary"/> {user.pincode || "N/A"}</div>
                     </td>
                     <td className="px-6 py-4">
-                       {userPerms.edit ? (
+                       {/* Toggle status only if canEdit is true */}
+                       {canEdit ? (
                          <button onClick={() => toggleStatus(user)}>{user.is_active ? <ToggleRight className="text-green-500" size={28} /> : <ToggleLeft className="text-text-muted/50" size={28} />}</button>
                        ) : (
                          <span className={cn("text-[10px] px-2 py-1 rounded font-bold", user.is_active ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500")}>
@@ -259,11 +283,13 @@ export function Users() {
                     </td>
                     <td className="px-6 py-4">
                        <div className="flex justify-center items-center gap-2">
-                          {userPerms.edit && (
-                            <button onClick={() => handleOpenModal(user)} className="p-1.5 text-primary bg-primary/10 rounded-lg border border-primary/20 hover:bg-primary hover:text-black"><Edit size={16}/></button>
+                          {/* Edit icon only if canEdit is true */}
+                          {canEdit && (
+                            <button onClick={() => handleOpenModal(user)} className="p-1.5 text-primary bg-primary/10 rounded-lg border border-primary/20 hover:bg-primary hover:text-black" title="Edit User"><Edit size={16}/></button>
                           )}
-                          {userPerms.delete && (
-                            <button onClick={() => handleDelete(user.id)} className="p-1.5 text-red-500 bg-red-500/10 rounded-lg border border-red-500/20 hover:bg-red-500 hover:text-white"><Trash2 size={16}/></button>
+                          {/* Delete icon only if canDelete is true */}
+                          {canDelete && (
+                            <button onClick={() => handleDelete(user.id)} className="p-1.5 text-red-500 bg-red-500/10 rounded-lg border border-red-500/20 hover:bg-red-500 hover:text-white" title="Remove User"><Trash2 size={16}/></button>
                           )}
                        </div>
                     </td>
@@ -272,10 +298,11 @@ export function Users() {
               </tbody>
             </table>
           </div>
-          <Pagination currentPage={pagination.page} totalPages={pagination.pages} totalEntries={pagination.total} onPageChange={(p) => fetchData({ page: p })} />
+          <Pagination currentPage={pagination.page} totalPages={pagination.pages} totalEntries={pagination.total} limit={pagination.limit} onPageChange={(p) => fetchData({ page: p })} />
         </Card>
       )}
 
+      {/* User Form Modal */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">

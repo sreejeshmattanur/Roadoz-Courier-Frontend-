@@ -81,5 +81,15 @@ export const ENDPOINTS = {
     }
   },
   DATE_WISE_ADDRESSES: "/orders/orders/date-wise-status-address",
+  FRANCHISE_APPLICATIONS: "/franchise-applications",
+  APPROVE_FRANCHISE: "/franchise-applications/approve",
+  REJECT_FRANCHISE: (id) => `/franchise-applications/${id}/reject`,
+ CHAT: {
+    CONVERSATIONS: "/chatwithadminanduser/conversations",
+    MESSAGES: "/chatwithadminanduser/messages",
+    ADMIN_CHAT_WS: "/ws/admin/chat",
+
+
+  }
 
 };
