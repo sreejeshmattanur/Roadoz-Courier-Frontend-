@@ -212,10 +212,13 @@ const drawInvoice = (doc, order) => {
     doc.setFont("helvetica", "normal");
     doc.text(order.payment?.method || "N/A", PAGE_LEFT + 33, barTextY);
 
-    doc.setFont("helvetica", "bold");
-    doc.text("Shipment Type:", 148, barTextY);
+    const shipmentTypeStr = order.shipmentType || "N/A";
     doc.setFont("helvetica", "normal");
-    doc.text(order.shipmentType || "N/A", 175, barTextY);
+    const valWidth = doc.getTextWidth(shipmentTypeStr);
+    
+    doc.text(shipmentTypeStr, PAGE_RIGHT - 3, barTextY, { align: "right" });
+    doc.setFont("helvetica", "bold");
+    doc.text("Shipment Type:", PAGE_RIGHT - 3 - valWidth - 2, barTextY, { align: "right" });
 
     // Total Boxes row
     const boxesY = extraY + INFO_BAR_H + 7;
