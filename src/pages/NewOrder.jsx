@@ -125,7 +125,7 @@ export default function NewOrder() {
   const [otherDetails, setOtherDetails] = useState({
     gst_number: "",
     eway_bill_number: "",
-    
+
   });
 
   // --- Effects ---
@@ -509,6 +509,7 @@ export default function NewOrder() {
           </CardContent>
         )}
       </Card>
+      
 
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-card-bg/90 backdrop-blur-md border-t border-border-subtle flex justify-end z-30 shadow-2xl">
         <Button disabled={orderLoading} onClick={handleSubmit} className="bg-primary hover:bg-primary/90 text-black px-10 h-11 font-bold rounded-xl shadow-lg flex gap-2 transition-all hover:scale-[1.02] active:scale-[0.98]">
