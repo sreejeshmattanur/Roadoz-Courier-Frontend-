@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { X, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { generateInvoiceDataUri, generateBulkInvoicesDataUri } from '../../lib/generateInvoicePDF';
 import { mapOrderToInvoice } from '../../lib/invoiceMapper';
+import { usePermission } from '../../hooks/usePermission';
 
 export function InvoiceModal({ invoice, bulkOrders, pdfTitle, onClose, loading, onPrev, onNext, hasPrev, hasNext, currentIndex, totalItems, onDownloadAll }) {
+  const { isSuperAdmin } = usePermission();
   const [pdfUri, setPdfUri] = useState(null);
 
   const formatDate = (dateString) => {
@@ -23,13 +25,13 @@ export function InvoiceModal({ invoice, bulkOrders, pdfTitle, onClose, loading, 
   useEffect(() => {
     if (bulkOrders && bulkOrders.length > 0) {
       const mappedOrders = bulkOrders.map(order => mapOrderToInvoice(order, formatDate));
-      const uri = generateBulkInvoicesDataUri(mappedOrders);
+      const uri = generateBulkInvoicesDataUri(mappedOrders, isSuperAdmin);
       setPdfUri(uri);
     } else if (invoice && invoice.invoice_orders && invoice.invoice_orders.length > 0) {
       const rawOrder = invoice.invoice_orders[0].order;
       if (rawOrder) {
         const mapped = mapOrderToInvoice(rawOrder, formatDate, invoice);
-        const uri = generateInvoiceDataUri(mapped, pdfTitle);
+        const uri = generateInvoiceDataUri(mapped, pdfTitle, isSuperAdmin);
         setPdfUri(uri);
       } else {
         setPdfUri(null);

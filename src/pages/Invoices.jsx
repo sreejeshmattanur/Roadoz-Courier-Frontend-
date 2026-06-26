@@ -25,7 +25,7 @@ import { usePermission } from "../hooks/usePermission";
 
 export function Invoices() {
   const dispatch = useDispatch();
-  const { invoices: invoicePerms } = usePermission();
+  const { invoices: invoicePerms, isSuperAdmin } = usePermission();
   const { items, pagination, loading, selectedInvoice, detailLoading } =
     useSelector((state) => state.invoices);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -185,7 +185,7 @@ export function Invoices() {
       totalBoxes: 1,
     };
 
-    generateInvoicePDF(mappedOrder);
+    generateInvoicePDF(mappedOrder, isSuperAdmin);
   };
 
   const handleExportCSV = () => {

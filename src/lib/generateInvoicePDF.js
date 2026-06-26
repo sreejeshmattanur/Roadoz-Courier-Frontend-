@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-const drawInvoice = (doc, order) => {
+const drawInvoice = (doc, order, isSuperAdmin = false) => {
     // -----------------------------
     // COLORS & CONSTANTS
     // -----------------------------
@@ -149,42 +149,85 @@ const drawInvoice = (doc, order) => {
     // -----------------------------
     // CHARGES BREAKDOWN TABLE
     // -----------------------------
-    const chargeY = doc.lastAutoTable.finalY + 6;
+    if (!isSuperAdmin) {
+      const chargeY = doc.lastAutoTable.finalY + 6;
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text("Charges Breakdown", PAGE_LEFT, chargeY);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text("Charges Breakdown", PAGE_LEFT, chargeY);
 
-    autoTable(doc, {
-      startY: chargeY + 4,
-      head: [["Description", "Amount"]],
-      body: [
-        ["Freight Charges", order.charges?.freight ? `Rs. ${order.charges.freight}` : "-"],
-        ["Freight GST", order.charges?.freight_gst ? `Rs. ${order.charges.freight_gst}` : "-"],
-        ["Total Freight", order.charges?.total_freight ? `Rs. ${order.charges.total_freight}` : "-"],
-      ],
-      styles: { fontSize: 9, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.5 },
-      headStyles: {
-        fillColor: black,
-        textColor: white,
-        fontStyle: "bold",
-        lineColor: [200, 200, 200],
-        lineWidth: 0.5,
-      },
-      columnStyles: {
-        0: { cellWidth: "auto" },
-        1: { cellWidth: 60, halign: "right" },
-      },
-      // Bold the summary rows
-      didParseCell: (data) => {
-        if (data.section === "body" && data.row.index >= 2) {
-          data.cell.styles.fontStyle = "bold";
-        }
-      },
-      theme: "grid",
-      margin: { left: PAGE_LEFT, right: 0 },
-      tableWidth: PAGE_RIGHT - PAGE_LEFT,
-    });
+      autoTable(doc, {
+        startY: chargeY + 4,
+        head: [["Description", "Amount"]],
+        body: [
+          ["Freight Charges", order.charges?.freight ? `Rs. ${order.charges.freight}` : "-"],
+          ["Freight GST", order.charges?.freight_gst ? `Rs. ${order.charges.freight_gst}` : "-"],
+          ["Total Freight", order.charges?.total_freight ? `Rs. ${order.charges.total_freight}` : "-"],
+        ],
+        styles: { fontSize: 9, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.5 },
+        headStyles: {
+          fillColor: black,
+          textColor: white,
+          fontStyle: "bold",
+          lineColor: [200, 200, 200],
+          lineWidth: 0.5,
+        },
+        columnStyles: {
+          0: { cellWidth: "auto" },
+          1: { cellWidth: 60, halign: "right" },
+        },
+        // Bold the summary rows
+        didParseCell: (data) => {
+          if (data.section === "body" && data.row.index >= 2) {
+            data.cell.styles.fontStyle = "bold";
+          }
+        },
+        theme: "grid",
+        margin: { left: PAGE_LEFT, right: 0 },
+        tableWidth: PAGE_RIGHT - PAGE_LEFT,
+      });
+    } else {
+      const chargeY = doc.lastAutoTable.finalY + 6;
+
+      let totalDeclaredValue = 0;
+      if (order.items && order.items.length > 0) {
+        totalDeclaredValue = order.items.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
+      } else {
+        totalDeclaredValue = Number(order.product?.value?.toString().replace(/[^0-9.-]+/g,"") || 0);
+      }
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text("Charges Summary", PAGE_LEFT, chargeY);
+
+      autoTable(doc, {
+        startY: chargeY + 4,
+        head: [["Description", "Amount"]],
+        body: [
+          ["Total Declared Value", `Rs. ${totalDeclaredValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+        ],
+        styles: { fontSize: 9, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.5 },
+        headStyles: {
+          fillColor: black,
+          textColor: white,
+          fontStyle: "bold",
+          lineColor: [200, 200, 200],
+          lineWidth: 0.5,
+        },
+        columnStyles: {
+          0: { cellWidth: "auto" },
+          1: { cellWidth: 60, halign: "right" },
+        },
+        didParseCell: (data) => {
+          if (data.section === "body") {
+            data.cell.styles.fontStyle = "bold";
+          }
+        },
+        theme: "grid",
+        margin: { left: PAGE_LEFT, right: 0 },
+        tableWidth: PAGE_RIGHT - PAGE_LEFT,
+      });
+    }
 
     // ─────────────────────────────────────────────────────────
     // EXTRA DETAILS  — light shaded info bar
@@ -298,20 +341,20 @@ const drawInvoice = (doc, order) => {
     doc.text("Authorized Signatory", 130, finalSigY + 5);
 };
 
-export const generateInvoicePDF = (order) => {
+export const generateInvoicePDF = (order, isSuperAdmin = false) => {
   try {
     const doc = new jsPDF();
-    drawInvoice(doc, order);
+    drawInvoice(doc, order, isSuperAdmin);
     doc.save(`Invoice_${order.id || "invoice"}.pdf`);
   } catch (error) {
     console.error("PDF Generation Error:", error);
   }
 };
 
-export const generateInvoiceDataUri = (order, pdfTitle) => {
+export const generateInvoiceDataUri = (order, pdfTitle, isSuperAdmin = false) => {
   try {
     const doc = new jsPDF();
-    drawInvoice(doc, order);
+    drawInvoice(doc, order, isSuperAdmin);
     return doc.output('bloburl');
   } catch (error) {
     console.error("PDF URI Generation Error:", error);
@@ -319,13 +362,13 @@ export const generateInvoiceDataUri = (order, pdfTitle) => {
   }
 };
 
-export const generateBulkInvoicesPDF = (orders) => {
+export const generateBulkInvoicesPDF = (orders, isSuperAdmin = false) => {
   try {
     if (!orders || orders.length === 0) return;
     const doc = new jsPDF();
     orders.forEach((order, index) => {
       if (index > 0) doc.addPage();
-      drawInvoice(doc, order);
+      drawInvoice(doc, order, isSuperAdmin);
     });
     doc.save(`Bulk_Invoices_${orders.length}_Orders.pdf`);
   } catch (error) {
@@ -333,13 +376,13 @@ export const generateBulkInvoicesPDF = (orders) => {
   }
 };
 
-export const generateBulkInvoicesDataUri = (orders) => {
+export const generateBulkInvoicesDataUri = (orders, isSuperAdmin = false) => {
   try {
     if (!orders || orders.length === 0) return null;
     const doc = new jsPDF();
     orders.forEach((order, index) => {
       if (index > 0) doc.addPage();
-      drawInvoice(doc, order);
+      drawInvoice(doc, order, isSuperAdmin);
     });
     return doc.output('bloburl');
   } catch (error) {
