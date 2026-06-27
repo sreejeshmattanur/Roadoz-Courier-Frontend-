@@ -58,11 +58,11 @@ export const mapOrderToInvoice = (order, formatDate, invoice = null) => {
     } x ${order.packages?.[0]?.height_cm || 0} cm`,
 
     charges: {
-      freight: order.freight_charge || invoice?.invoice_orders?.[0]?.base_freight || invoice?.invoice_orders?.[0]?.freight_charge || order.shipping_charge || 0,
+      freight: order.freight_charge,
 
-      freight_gst: order.freight_gst || invoice?.invoice_orders?.[0]?.freight_gst || invoice?.tax_amount || 0,
+      freight_gst: order.freight_gst,
 
-      total_freight: order.total_freight || invoice?.invoice_orders?.[0]?.total_freight || invoice?.total_amount || 0,
+      total_freight: order.total_freight,
 
       subtotal: order.order_value || 0,
 

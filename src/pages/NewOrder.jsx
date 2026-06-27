@@ -130,8 +130,8 @@ export default function NewOrder() {
 
   // --- Effects ---
   useEffect(() => {
-    dispatch(fetchPickupAddresses({ limit: 100 }));
-    dispatch(fetchConsignees({ limit: 100 }));
+    dispatch(fetchPickupAddresses({ limit: 10 }));
+    dispatch(fetchConsignees({ limit: 10 }));
   }, [dispatch]);
 
   useEffect(() => {
