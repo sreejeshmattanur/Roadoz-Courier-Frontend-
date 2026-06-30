@@ -37,6 +37,8 @@ export function usePermission() {
     consignees: {
       create: can("consignees:create"),
       view: can("consignees:view"),
+      edit: can("consignees:edit"),
+      delete: can("consignees:delete"),
     },
 
     franchises: {
