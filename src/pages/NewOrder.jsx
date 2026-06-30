@@ -20,6 +20,7 @@ import {
   Truck,
   Zap,
   Ban,
+  FileText, // Added for invoice icon
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
@@ -72,7 +73,7 @@ export default function NewOrder() {
 
   const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
   const [isAddressDropdownOpen, setIsAddressDropdownOpen] = useState(false);
-  const [pickupSearch, setPickupSearch] = useState(""); // NEW: Search for Pickup
+  const [pickupSearch, setPickupSearch] = useState("");
 
   const [isConsigneeDropdownOpen, setIsConsigneeDropdownOpen] = useState(false);
   const [consigneeSearch, setConsigneeSearch] = useState("");
@@ -125,8 +126,13 @@ export default function NewOrder() {
   const [otherDetails, setOtherDetails] = useState({
     gst_number: "",
     eway_bill_number: "",
+<<<<<<< HEAD
     invoicenumber: "",
     amount: "",
+=======
+    invoice_number: "", // NEW
+    invoice_amount: "", // NEW
+>>>>>>> 3d75f129a14412878fc552104ff22716f65a41d2
   });
 
   // --- Effects ---
@@ -161,8 +167,13 @@ export default function NewOrder() {
     setOtherDetails({ 
       gst_number: editOrderData.gst_number || "", 
       eway_bill_number: editOrderData.eway_bill_number || "",
+<<<<<<< HEAD
       invoicenumber: editOrderData.invoicenumber || "",
       amount: editOrderData.amount || ""
+=======
+      invoice_number: editOrderData.invoice_number || "", // NEW
+      invoice_amount: editOrderData.invoice_amount || "", // NEW
+>>>>>>> 3d75f129a14412878fc552104ff22716f65a41d2
     });
   }, [editOrderData, dispatch]);
 
@@ -225,8 +236,13 @@ export default function NewOrder() {
       packages: packages.map(({ id, ...rest }) => ({ ...rest, count: Number(rest.count), length_cm: Number(rest.length_cm), breadth_cm: Number(rest.breadth_cm), height_cm: Number(rest.height_cm), vol_weight_kg: Number(rest.vol_weight_kg), physical_weight_kg: Number(rest.physical_weight_kg) })),
       gst_number: otherDetails.gst_number || null,
       eway_bill_number: otherDetails.eway_bill_number || null,
+<<<<<<< HEAD
       invoicenumber: otherDetails.invoicenumber || null,
       amount: Number(otherDetails.amount) || 0,
+=======
+      invoice_number: otherDetails.invoice_number || null, // INTEGRATED
+      invoice_amount: otherDetails.invoice_amount ? Number(otherDetails.invoice_amount) : null, // INTEGRATED
+>>>>>>> 3d75f129a14412878fc552104ff22716f65a41d2
     };
 
     try {
@@ -301,9 +317,8 @@ export default function NewOrder() {
         </div>
       </div>
 
-      {/* Address Management (Pickup and Consignee both with Search) */}
+      {/* Address Management */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Pickup Address Card with Search */}
         <Card className="bg-card-bg border-border-subtle overflow-visible relative">
           <CardContent className="p-6 space-y-4">
             <div className="flex justify-between items-center">
@@ -354,7 +369,6 @@ export default function NewOrder() {
           </CardContent>
         </Card>
 
-        {/* Deliver To Card with Search */}
         <Card className="bg-card-bg border-border-subtle overflow-visible relative">
           <CardContent className="p-6 space-y-4">
             <div className="flex justify-between items-center">
@@ -500,11 +514,27 @@ export default function NewOrder() {
         {isOtherDetailsOpen && (
           <CardContent className="p-6 pt-0 border-t border-border-subtle/20 animate-in slide-in-from-top-2">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+              {/* GST and E-Way Bill */}
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1 uppercase">GST Number</label><input type="text" value={otherDetails.gst_number} onChange={(e) => setOtherDetails({ ...otherDetails, gst_number: e.target.value })} className={inputClass} placeholder="Enter GST Number" /></div>
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1 uppercase">E-Way Bill Number</label><input type="text" value={otherDetails.eway_bill_number} onChange={(e) => setOtherDetails({ ...otherDetails, eway_bill_number: e.target.value })} className={inputClass} placeholder="Enter E-Way Bill Number" /></div>
+<<<<<<< HEAD
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1 uppercase">Invoice Number</label><input type="text" value={otherDetails.invoicenumber} onChange={(e) => setOtherDetails({ ...otherDetails, invoicenumber: e.target.value })} className={inputClass} placeholder="Enter Invoice Number" /></div>
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1 uppercase">Amount</label><input type="number" value={otherDetails.amount} onChange={(e) => setOtherDetails({ ...otherDetails, amount: e.target.value })} className={inputClass} placeholder="0.00" /></div>
                     {/* NEW: GST Exempt Toggle */}
+=======
+              
+              {/* NEW: Invoice Number and Amount */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-text-muted ml-1 uppercase flex items-center gap-1"><FileText size={12}/> Invoice Number </label>
+                <input type="text" value={otherDetails.invoice_number} onChange={(e) => setOtherDetails({ ...otherDetails, invoice_number: e.target.value })} className={inputClass} placeholder="e.g. INV-2024-001" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-text-muted ml-1 uppercase flex items-center gap-1"><CreditCard size={12}/> Invoice Amount</label>
+                <input type="number" value={otherDetails.invoice_amount} onChange={(e) => setOtherDetails({ ...otherDetails, invoice_amount: e.target.value })} className={inputClass} placeholder="0.00" />
+              </div>
+
+              {/* GST Exempt Toggle */}
+>>>>>>> 3d75f129a14412878fc552104ff22716f65a41d2
               <div className="flex items-center justify-between bg-dashboard-bg/20 p-4 rounded-xl border border-border-subtle md:col-span-2">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary"><Ban size={18}/></div>
@@ -531,7 +561,7 @@ export default function NewOrder() {
         )}
       </Card>
       
-
+      {/* Footer Actions */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-card-bg/90 backdrop-blur-md border-t border-border-subtle flex justify-end z-30 shadow-2xl">
         <Button disabled={orderLoading} onClick={handleSubmit} className="bg-primary hover:bg-primary/90 text-black px-10 h-11 font-bold rounded-xl shadow-lg flex gap-2 transition-all hover:scale-[1.02] active:scale-[0.98]">
           {orderLoading ? <Loader2 className="animate-spin" size={18} /> : <><ShoppingBag size={18} /> {isEditMode ? "Update Order" : "Complete Order"}</>}
