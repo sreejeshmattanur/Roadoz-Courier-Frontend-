@@ -125,7 +125,8 @@ export default function NewOrder() {
   const [otherDetails, setOtherDetails] = useState({
     gst_number: "",
     eway_bill_number: "",
-
+    invoicenumber: "",
+    amount: "",
   });
 
   // --- Effects ---
@@ -157,7 +158,12 @@ export default function NewOrder() {
     if (editOrderData.packages?.length > 0) {
       setPackages(editOrderData.packages.map((pkg) => ({ ...pkg, id: Date.now() + Math.random() })));
     }
-    setOtherDetails({ gst_number: editOrderData.gst_number || "", eway_bill_number: editOrderData.eway_bill_number || "" });
+    setOtherDetails({ 
+      gst_number: editOrderData.gst_number || "", 
+      eway_bill_number: editOrderData.eway_bill_number || "",
+      invoicenumber: editOrderData.invoicenumber || "",
+      amount: editOrderData.amount || ""
+    });
   }, [editOrderData, dispatch]);
 
   // --- Calculations ---
@@ -219,6 +225,8 @@ export default function NewOrder() {
       packages: packages.map(({ id, ...rest }) => ({ ...rest, count: Number(rest.count), length_cm: Number(rest.length_cm), breadth_cm: Number(rest.breadth_cm), height_cm: Number(rest.height_cm), vol_weight_kg: Number(rest.vol_weight_kg), physical_weight_kg: Number(rest.physical_weight_kg) })),
       gst_number: otherDetails.gst_number || null,
       eway_bill_number: otherDetails.eway_bill_number || null,
+      invoicenumber: otherDetails.invoicenumber || null,
+      amount: Number(otherDetails.amount) || 0,
     };
 
     try {
@@ -226,7 +234,18 @@ export default function NewOrder() {
       else await dispatch(createOrder(payload)).unwrap();
       toast.success("Order processed successfully!");
       navigate("/dashboard/processing-order");
-    } catch (err) { toast.error("Failed to process order."); }
+    } catch (err) {
+      if (Array.isArray(err)) {
+        err.forEach((errorItem) => {
+          const field = errorItem.loc ? errorItem.loc.slice(1).join(".") : "Field";
+          toast.error(`${field}: ${errorItem.msg}`);
+        });
+      } else if (typeof err === "string") {
+        toast.error(err);
+      } else {
+        toast.error("Failed to process order.");
+      }
+    }
   };
 
   const inputClass = "w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary transition-all";
@@ -483,6 +502,8 @@ export default function NewOrder() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1 uppercase">GST Number</label><input type="text" value={otherDetails.gst_number} onChange={(e) => setOtherDetails({ ...otherDetails, gst_number: e.target.value })} className={inputClass} placeholder="Enter GST Number" /></div>
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1 uppercase">E-Way Bill Number</label><input type="text" value={otherDetails.eway_bill_number} onChange={(e) => setOtherDetails({ ...otherDetails, eway_bill_number: e.target.value })} className={inputClass} placeholder="Enter E-Way Bill Number" /></div>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1 uppercase">Invoice Number</label><input type="text" value={otherDetails.invoicenumber} onChange={(e) => setOtherDetails({ ...otherDetails, invoicenumber: e.target.value })} className={inputClass} placeholder="Enter Invoice Number" /></div>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1 uppercase">Amount</label><input type="number" value={otherDetails.amount} onChange={(e) => setOtherDetails({ ...otherDetails, amount: e.target.value })} className={inputClass} placeholder="0.00" /></div>
                     {/* NEW: GST Exempt Toggle */}
               <div className="flex items-center justify-between bg-dashboard-bg/20 p-4 rounded-xl border border-border-subtle md:col-span-2">
                 <div className="flex items-center gap-3">

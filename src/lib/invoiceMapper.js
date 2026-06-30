@@ -2,7 +2,9 @@ export const mapOrderToInvoice = (order, formatDate, invoice = null) => {
   return {
     id: order.order_number,
 
-    invoiceNo: `INV-${order.order_number}`,
+    invoiceNo: order.invoicenumber ? `INV-${order.invoicenumber}` : `INV-${order.order_number}`,
+
+    amount: order.amount || null,
 
     awb: order.order_shipment || "AWB_PENDING",
 
@@ -42,6 +44,8 @@ export const mapOrderToInvoice = (order, formatDate, invoice = null) => {
 
     totalBoxes: order.packages?.[0]?.count || 1,
 
+    is_gst_exempt: order.is_gst_exempt || false,
+
     product: {
       name: order.items?.[0]?.product_name || "Product",
       sku: order.items?.[0]?.sku || "SKU",
@@ -63,6 +67,10 @@ export const mapOrderToInvoice = (order, formatDate, invoice = null) => {
       freight_gst: order.freight_gst,
 
       total_freight: order.total_freight,
+      
+      insurance: order.insurance || order.insurance_charge || order.insurance_charges || invoice?.invoice_orders?.[0]?.insurance_charges || 0,
+      
+      regional_area: order.regional_area || order.regional_charge || invoice?.invoice_orders?.[0]?.regional_area || 0,
 
       subtotal: order.order_value || 0,
 

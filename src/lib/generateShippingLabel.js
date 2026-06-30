@@ -229,7 +229,7 @@ function drawLabel(doc, order, pageHeight) {
   // BARCODE SECTION
   // ============================================================
 
-  const barcodeHeight = 40;
+  const barcodeHeight = 60;
 
   doc.rect(LEFT, currentY, RIGHT - LEFT, barcodeHeight);
 
@@ -261,14 +261,13 @@ function drawLabel(doc, order, pageHeight) {
 
       const barcodeImage = `data:image/png;base64,${barcodeBase64}`;
 
-      // Increased barcode image height
       doc.addImage(
         barcodeImage,
         "PNG",
         LEFT + 6,
-        currentY + 20,
+        currentY + 16,
         RIGHT - LEFT - 12,
-        16,
+        40,
       );
     } else {
       // fallback barcode generation
@@ -289,9 +288,9 @@ function drawLabel(doc, order, pageHeight) {
         generatedBarcode,
         "PNG",
         LEFT + 6,
-        currentY + 20,
+        currentY + 16,
         RIGHT - LEFT - 12,
-        16,
+        40,
       );
     }
   } catch (err) {
@@ -377,7 +376,9 @@ function drawLabel(doc, order, pageHeight) {
   });
 
   const invoiceDate = formatDate(order.created_at);
+  const displayInvoiceNo = order.invoicenumber ? `INV-${order.invoicenumber}` : `INV-${order.order_number || order.id || "N/A"}`;
 
+  doc.text(displayInvoiceNo, COL_QTY + 1, currentY + 4);
   doc.text(invoiceDate, COL_TOTAL + 1, currentY + 4);
 
   currentY += sellerHeight;
@@ -393,7 +394,7 @@ function drawLabel(doc, order, pageHeight) {
   doc.setFontSize(5.7);
 
   doc.text(
-    `Invoice No: | Invoice Date : ${invoiceDate}`,
+    `Invoice Date : ${invoiceDate}`,
     TX.left,
     currentY + 3,
   );
@@ -504,6 +505,35 @@ function drawLabel(doc, order, pageHeight) {
   });
 
   currentY += totalProductsHeight;
+
+  // ============================================================
+  // TOTAL VALUE ROW
+  // ============================================================
+  let totalValue = 0;
+  let totalDeclaredValue = 0;
+  if (order.items && order.items.length > 0) {
+    totalDeclaredValue = order.items.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
+  } else {
+    totalDeclaredValue = Number(order.order_value) || 0;
+  }
+  totalValue += totalDeclaredValue;
+
+  if (!order.is_gst_exempt) {
+    totalValue += Number(order.total_freight) || 0;
+  }
+  
+  totalValue += Number(order.insurance) || Number(order.insurance_charge) || Number(order.insurance_charges) || 0;
+  totalValue += Number(order.regional_area) || Number(order.regional_charge) || 0;
+
+  const totalRowHeight = 5;
+  doc.rect(LEFT, currentY, RIGHT - LEFT, totalRowHeight);
+  doc.line(COL_TOTAL, currentY, COL_TOTAL, currentY + totalRowHeight);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(5.8);
+  doc.text("Total Value:", TX.qtyX, currentY + 3.5);
+  doc.text(String(`Rs. ${totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`), TX.totalX, currentY + 3.5);
+  
+  currentY += totalRowHeight;
 
   // ============================================================
   // FOOTER
