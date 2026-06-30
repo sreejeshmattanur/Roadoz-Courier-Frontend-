@@ -126,8 +126,8 @@ export default function NewOrder() {
   const [otherDetails, setOtherDetails] = useState({
     gst_number: "",
     eway_bill_number: "",
-    invoice_number: "", // NEW
-    invoice_amount: "", // NEW
+    invoicenumber: "",
+    amount: "",
   });
 
   // --- Effects ---
@@ -162,8 +162,8 @@ export default function NewOrder() {
     setOtherDetails({ 
       gst_number: editOrderData.gst_number || "", 
       eway_bill_number: editOrderData.eway_bill_number || "",
-      invoice_number: editOrderData.invoice_number || "", // NEW
-      invoice_amount: editOrderData.invoice_amount || "", // NEW
+      invoicenumber: editOrderData.invoicenumber || "",
+      amount: editOrderData.amount || ""
     });
   }, [editOrderData, dispatch]);
 
@@ -226,8 +226,8 @@ export default function NewOrder() {
       packages: packages.map(({ id, ...rest }) => ({ ...rest, count: Number(rest.count), length_cm: Number(rest.length_cm), breadth_cm: Number(rest.breadth_cm), height_cm: Number(rest.height_cm), vol_weight_kg: Number(rest.vol_weight_kg), physical_weight_kg: Number(rest.physical_weight_kg) })),
       gst_number: otherDetails.gst_number || null,
       eway_bill_number: otherDetails.eway_bill_number || null,
-      invoice_number: otherDetails.invoice_number || null, // INTEGRATED
-      invoice_amount: otherDetails.invoice_amount ? Number(otherDetails.invoice_amount) : null, // INTEGRATED
+      invoicenumber: otherDetails.invoicenumber || null,
+      amount: Number(otherDetails.amount) || 0,
     };
 
     try {
@@ -235,7 +235,18 @@ export default function NewOrder() {
       else await dispatch(createOrder(payload)).unwrap();
       toast.success("Order processed successfully!");
       navigate("/dashboard/processing-order");
-    } catch (err) { toast.error("Failed to process order."); }
+    } catch (err) {
+      if (Array.isArray(err)) {
+        err.forEach((errorItem) => {
+          const field = errorItem.loc ? errorItem.loc.slice(1).join(".") : "Field";
+          toast.error(`${field}: ${errorItem.msg}`);
+        });
+      } else if (typeof err === "string") {
+        toast.error(err);
+      } else {
+        toast.error("Failed to process order.");
+      }
+    }
   };
 
   const inputClass = "w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary transition-all";
@@ -491,17 +502,8 @@ export default function NewOrder() {
               {/* GST and E-Way Bill */}
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1 uppercase">GST Number</label><input type="text" value={otherDetails.gst_number} onChange={(e) => setOtherDetails({ ...otherDetails, gst_number: e.target.value })} className={inputClass} placeholder="Enter GST Number" /></div>
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1 uppercase">E-Way Bill Number</label><input type="text" value={otherDetails.eway_bill_number} onChange={(e) => setOtherDetails({ ...otherDetails, eway_bill_number: e.target.value })} className={inputClass} placeholder="Enter E-Way Bill Number" /></div>
-              
-              {/* NEW: Invoice Number and Amount */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-text-muted ml-1 uppercase flex items-center gap-1"><FileText size={12}/> Invoice Number </label>
-                <input type="text" value={otherDetails.invoice_number} onChange={(e) => setOtherDetails({ ...otherDetails, invoice_number: e.target.value })} className={inputClass} placeholder="e.g. INV-2024-001" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-text-muted ml-1 uppercase flex items-center gap-1"><CreditCard size={12}/> Invoice Amount</label>
-                <input type="number" value={otherDetails.invoice_amount} onChange={(e) => setOtherDetails({ ...otherDetails, invoice_amount: e.target.value })} className={inputClass} placeholder="0.00" />
-              </div>
-
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1 uppercase">Invoice Number</label><input type="text" value={otherDetails.invoicenumber} onChange={(e) => setOtherDetails({ ...otherDetails, invoicenumber: e.target.value })} className={inputClass} placeholder="Enter Invoice Number" /></div>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted ml-1 uppercase">Amount</label><input type="number" value={otherDetails.amount} onChange={(e) => setOtherDetails({ ...otherDetails, amount: e.target.value })} className={inputClass} placeholder="0.00" /></div>
               {/* GST Exempt Toggle */}
               <div className="flex items-center justify-between bg-dashboard-bg/20 p-4 rounded-xl border border-border-subtle md:col-span-2">
                 <div className="flex items-center gap-3">

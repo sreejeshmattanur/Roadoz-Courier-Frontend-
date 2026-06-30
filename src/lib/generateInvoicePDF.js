@@ -34,6 +34,11 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
       ["Invoice Date", order.created || "N/A"],
       ["Order Number", order.id || "N/A"],
     ];
+    
+    if (order.amount) {
+      metaRows.push(["Invoice Amount", `Rs. ${order.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`]);
+    }
+
     metaRows.forEach(([label, value], i) => {
       const y = 27 + i * 5;
       doc.setFont("helvetica", "bold");
@@ -149,85 +154,72 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     // -----------------------------
     // CHARGES BREAKDOWN TABLE
     // -----------------------------
-    if (!isSuperAdmin) {
-      const chargeY = doc.lastAutoTable.finalY + 6;
+    const chargeY = doc.lastAutoTable.finalY + 6;
 
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.text("Charges Breakdown", PAGE_LEFT, chargeY);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text(order.is_gst_exempt ? "Charges Summary" : "Charges Breakdown", PAGE_LEFT, chargeY);
 
-      autoTable(doc, {
-        startY: chargeY + 4,
-        head: [["Description", "Amount"]],
-        body: [
-          ["Freight Charges", order.charges?.freight ? `Rs. ${order.charges.freight}` : "-"],
-          ["Freight GST", order.charges?.freight_gst ? `Rs. ${order.charges.freight_gst}` : "-"],
-          ["Total Freight", order.charges?.total_freight ? `Rs. ${order.charges.total_freight}` : "-"],
-        ],
-        styles: { fontSize: 9, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.5 },
-        headStyles: {
-          fillColor: black,
-          textColor: white,
-          fontStyle: "bold",
-          lineColor: [200, 200, 200],
-          lineWidth: 0.5,
-        },
-        columnStyles: {
-          0: { cellWidth: "auto" },
-          1: { cellWidth: 60, halign: "right" },
-        },
-        // Bold the summary rows
-        didParseCell: (data) => {
-          if (data.section === "body" && data.row.index >= 2) {
-            data.cell.styles.fontStyle = "bold";
-          }
-        },
-        theme: "grid",
-        margin: { left: PAGE_LEFT, right: 0 },
-        tableWidth: PAGE_RIGHT - PAGE_LEFT,
-      });
+    const chargesBody = [];
+
+    let totalValue = 0;
+
+    let totalDeclaredValue = 0;
+    if (order.items && order.items.length > 0) {
+      totalDeclaredValue = order.items.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
     } else {
-      const chargeY = doc.lastAutoTable.finalY + 6;
+      totalDeclaredValue = Number(order.product?.value?.toString().replace(/[^0-9.-]+/g,"") || 0);
+    }
+    totalValue += totalDeclaredValue;
 
-      let totalDeclaredValue = 0;
-      if (order.items && order.items.length > 0) {
-        totalDeclaredValue = order.items.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
-      } else {
-        totalDeclaredValue = Number(order.product?.value?.toString().replace(/[^0-9.-]+/g,"") || 0);
-      }
+    if (!order.is_gst_exempt) {
+      chargesBody.push(
+        ["Freight Charges", order.charges?.freight ? `Rs. ${order.charges.freight}` : "-"],
+        ["Freight GST", order.charges?.freight_gst ? `Rs. ${order.charges.freight_gst}` : "-"]
+      );
+      totalValue += Number(order.charges?.total_freight) || 0;
+    }
 
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.text("Charges Summary", PAGE_LEFT, chargeY);
+    if (order.charges?.insurance && Number(order.charges.insurance) > 0) {
+      chargesBody.push(["Insurance", `Rs. ${order.charges.insurance}`]);
+      totalValue += Number(order.charges.insurance);
+    }
 
-      autoTable(doc, {
-        startY: chargeY + 4,
-        head: [["Description", "Amount"]],
-        body: [
-          ["Total Declared Value", `Rs. ${totalDeclaredValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-        ],
-        styles: { fontSize: 9, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.5 },
-        headStyles: {
-          fillColor: black,
-          textColor: white,
-          fontStyle: "bold",
-          lineColor: [200, 200, 200],
-          lineWidth: 0.5,
-        },
-        columnStyles: {
-          0: { cellWidth: "auto" },
-          1: { cellWidth: 60, halign: "right" },
-        },
-        didParseCell: (data) => {
-          if (data.section === "body") {
+    if (order.charges?.regional_area && Number(order.charges.regional_area) > 0) {
+      chargesBody.push(["Regional Area", `Rs. ${order.charges.regional_area}`]);
+      totalValue += Number(order.charges.regional_area);
+    }
+
+    chargesBody.push(["Total Value", `Rs. ${totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+
+    autoTable(doc, {
+      startY: chargeY + 4,
+      head: [["Description", "Amount"]],
+      body: chargesBody,
+      styles: { fontSize: 9, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.5 },
+      headStyles: {
+        fillColor: black,
+        textColor: white,
+        fontStyle: "bold",
+        lineColor: [200, 200, 200],
+        lineWidth: 0.5,
+      },
+      columnStyles: {
+        0: { cellWidth: "auto" },
+        1: { cellWidth: 60, halign: "right" },
+      },
+      didParseCell: (data) => {
+        if (data.section === "body") {
+          const desc = data.row.raw[0];
+          if (desc === "Total Value") {
             data.cell.styles.fontStyle = "bold";
           }
-        },
-        theme: "grid",
-        margin: { left: PAGE_LEFT, right: 0 },
-        tableWidth: PAGE_RIGHT - PAGE_LEFT,
-      });
-    }
+        }
+      },
+      theme: "grid",
+      margin: { left: PAGE_LEFT, right: 0 },
+      tableWidth: PAGE_RIGHT - PAGE_LEFT,
+    });
 
     // ─────────────────────────────────────────────────────────
     // EXTRA DETAILS  — light shaded info bar

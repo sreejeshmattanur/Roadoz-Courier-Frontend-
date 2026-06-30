@@ -100,7 +100,7 @@ export const createOrder = createAsyncThunk(
       return await createOrderApi(orderData);
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.detail || "Failed to create order",
+        error.response?.data?.detail || "Order creation failed",
       );
     }
   },
