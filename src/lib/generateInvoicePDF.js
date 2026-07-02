@@ -20,7 +20,7 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     // Company name on left
     doc.setFont("helvetica", "bold");
     doc.setFontSize(20);
-    doc.text("Roadoz Logistics Pvt Ltd", PAGE_LEFT, 20);
+    doc.text("Roadoz Courier & Cargo", PAGE_LEFT, 20);
 
     // --- TAX INVOICE label — right-aligned ---
     doc.setFontSize(18);
@@ -100,34 +100,34 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     );
 
     // -----------------------------
-    // SHIPMENT DETAILS TABLE
+    // PRODUCT DETAILS TABLE
     // -----------------------------
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
-    doc.text("Shipment Details", PAGE_LEFT, 103);
+    doc.text("Product Details", PAGE_LEFT, 103);
 
     autoTable(doc, {
       startY: 107,
       head: [
-        ["Product", "SKU", "Qty", "Weight", "Dimensions", "Declared Value"],
+        ["Product Name", "SKU", "Price", "Qty", "Package Index", "Total"],
       ],
       body: order.items && order.items.length > 0 
         ? order.items.map((item, index) => [
             item.product_name || "-",
             item.sku || "-",
+            item.unit_price !== undefined ? `Rs. ${item.unit_price}` : "-",
             item.qty || "-",
-            index === 0 && order.weight ? order.weight : "-",
-            index === 0 && order.dims ? order.dims : "-",
-            item.total ? `Rs. ${item.total}` : "-",
+            `Package ${index + 1}`,
+            item.total !== undefined ? `Rs. ${item.total}` : "-",
           ])
         : [
             [
               order.product?.name || "-",
               order.product?.sku || "-",
+              order.product?.unit_price !== undefined ? `Rs. ${order.product.unit_price}` : "-",
               order.product?.qty || "-",
-              order.weight ? order.weight : "-",
-              order.dims || "-",
-              order.product?.value ? `Rs. ${order.product.value}` : "-",
+              "Package 1",
+              order.product?.value !== undefined ? `Rs. ${order.product.value}` : "-",
             ],
           ],
       styles: { fontSize: 9, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.5 },
@@ -141,10 +141,59 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
       columnStyles: {
         0: { cellWidth: "auto" },
         1: { cellWidth: 30, halign: "center" },
-        2: { cellWidth: 15, halign: "center" },
-        3: { cellWidth: 25, halign: "center" },
-        4: { cellWidth: 40, halign: "center" },
+        2: { cellWidth: 25, halign: "right" },
+        3: { cellWidth: 15, halign: "center" },
+        4: { cellWidth: 30, halign: "center" },
         5: { cellWidth: 35, halign: "right" },
+      },
+      theme: "grid",
+      margin: { left: PAGE_LEFT, right: 0 },
+      tableWidth: PAGE_RIGHT - PAGE_LEFT,
+    });
+
+    // -----------------------------
+    // PACKAGE DETAILS TABLE
+    // -----------------------------
+    const pkgY = doc.lastAutoTable.finalY + 6;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("Package Details", PAGE_LEFT, pkgY);
+
+    autoTable(doc, {
+      startY: pkgY + 4,
+      head: [
+        ["Package", "Count", "L (cm)*", "B (cm)*", "H (cm)*", "Vol (kg)", "Phys (kg)*"],
+      ],
+      body: order.packages && order.packages.length > 0
+        ? order.packages.map((pkg, index) => [
+            `Pkg ${index + 1}`,
+            pkg.count || "-",
+            pkg.length_cm || "-",
+            pkg.breadth_cm || "-",
+            pkg.height_cm || "-",
+            pkg.vol_weight_kg || pkg.volumetric_weight || "-",
+            pkg.physical_weight_kg || pkg.actual_weight || "-",
+          ])
+        : [
+            ["Pkg 1", "-", "-", "-", "-", "-", "-"],
+          ],
+      styles: { fontSize: 9, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.5 },
+      headStyles: {
+        fillColor: black,
+        textColor: white,
+        fontStyle: "bold",
+        lineColor: [200, 200, 200],
+        lineWidth: 0.5,
+      },
+      columnStyles: {
+        0: { cellWidth: "auto" },
+        1: { cellWidth: 20, halign: "center" },
+        2: { cellWidth: 20, halign: "center" },
+        3: { cellWidth: 20, halign: "center" },
+        4: { cellWidth: 20, halign: "center" },
+        5: { cellWidth: 25, halign: "center" },
+        6: { cellWidth: 25, halign: "center" },
       },
       theme: "grid",
       margin: { left: PAGE_LEFT, right: 0 },
@@ -188,6 +237,11 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     if (order.charges?.regional_area && Number(order.charges.regional_area) > 0) {
       chargesBody.push(["Regional Area", `Rs. ${order.charges.regional_area}`]);
       totalValue += Number(order.charges.regional_area);
+    }
+
+    if (order.amount) {
+      chargesBody.push(["Invoice Amount", `Rs. ${Number(order.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+      totalValue += Number(order.amount);
     }
 
     chargesBody.push(["Total Value", `Rs. ${totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
@@ -242,11 +296,19 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     const barTextY = extraY + 6.5;
     doc.setFontSize(9);
 
+    // Left Column
     doc.setFont("helvetica", "bold");
     doc.text("Payment Method:", PAGE_LEFT + 3, barTextY);
     doc.setFont("helvetica", "normal");
     doc.text(order.payment?.method || "N/A", PAGE_LEFT + 33, barTextY);
 
+    // Center Column
+    doc.setFont("helvetica", "bold");
+    doc.text("Service Type:", 95, barTextY);
+    doc.setFont("helvetica", "normal");
+    doc.text(order.serviceType || "N/A", 118, barTextY);
+
+    // Right Column
     const shipmentTypeStr = order.shipmentType || "N/A";
     doc.setFont("helvetica", "normal");
     const valWidth = doc.getTextWidth(shipmentTypeStr);
@@ -255,18 +317,11 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     doc.setFont("helvetica", "bold");
     doc.text("Shipment Type:", PAGE_RIGHT - 3 - valWidth - 2, barTextY, { align: "right" });
 
-    // Total Boxes row
-    const boxesY = extraY + INFO_BAR_H + 7;
-    doc.setFont("helvetica", "bold");
-    doc.text("Total Boxes:", PAGE_LEFT, boxesY);
-    doc.setFont("helvetica", "normal");
-    doc.text(String(order.totalBoxes || 1), PAGE_LEFT + 24, boxesY);
-
     // ─────────────────────────────────────────────────────────
     // TERMS & CONDITIONS — with dynamic page breaks
     // ─────────────────────────────────────────────────────────
     const terms = [
-      "All shipments are subject to Roadoz Logistics standard terms of carriage.",
+      "All shipments are subject to Roadoz Courier & Cargo standard terms of carriage.",
       "Misdeclaration of goods may result in penalties or shipment rejection.",
       "Prohibited items, hazardous materials, and contraband are not accepted for transport.",
       "Damaged or lost shipment claims must be reported within 48 hours of delivery.",
@@ -279,7 +334,7 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     const TERMS_TITLE_H = 6;
     const MIN_SPACE_FOR_TERMS = 40; // minimum space needed for terms section
     
-    let termsY = boxesY + 6; // at least 6mm below "Total Boxes"
+    let termsY = extraY + INFO_BAR_H + 7; // at least 7mm below the shaded info bar
     
     // Check if we need a new page for terms
     if (termsY + TERMS_TITLE_H + (terms.length * LINE_H) > SAFE_BOTTOM - 15) {
@@ -295,9 +350,12 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     doc.setFontSize(8);
     let currentY = termsY + TERMS_TITLE_H;
     
+    const isInsured = order.charges?.insurance && Number(order.charges.insurance) > 0;
+    const termsTextWidth = isInsured ? (PAGE_RIGHT - PAGE_LEFT - 40) : (PAGE_RIGHT - PAGE_LEFT - 4);
+    
     terms.forEach((line, i) => {
       const termText = `${i + 1}. ${line}`;
-      const splitText = doc.splitTextToSize(termText, PAGE_RIGHT - PAGE_LEFT - 4);
+      const splitText = doc.splitTextToSize(termText, termsTextWidth);
       const lineCount = splitText.length;
       const lineHeight = lineCount * 3.5;
       
@@ -310,6 +368,34 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
       doc.text(splitText, PAGE_LEFT + 2, currentY);
       currentY += lineHeight + 1;
     });
+
+    if (isInsured) {
+      // Circular INSURED stamp
+      const radius = 12;
+      const centerX = PAGE_RIGHT - 18;
+      const centerY = termsY + 14;
+      
+      // Background and Outer circle
+      doc.setFillColor(238, 252, 240); // Soft mint green
+      doc.setDrawColor(22, 163, 74); // Tailwind green-600
+      doc.setLineWidth(0.8);
+      doc.circle(centerX, centerY, radius, "FD");
+      
+      // Inner decorative circle
+      doc.setLineWidth(0.3);
+      doc.circle(centerX, centerY, radius - 1.5, "S");
+      
+      // Text
+      doc.setTextColor(21, 128, 61); // Tailwind green-700
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text("INSURED", centerX, centerY, { align: "center", baseline: "middle" });
+      
+      // Reset colors
+      doc.setTextColor(0, 0, 0);
+      doc.setDrawColor(200);
+      doc.setLineWidth(0.5);
+    }
 
     // -----------------------------
     // SIGNATURES  — pinned to bottom of current page or right below terms

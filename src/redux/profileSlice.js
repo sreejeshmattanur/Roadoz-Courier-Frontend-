@@ -132,7 +132,7 @@ export const changePasswordRequest = createAsyncThunk(
     try {
       return await changePasswordRequestApi(data);
     } catch (err) {
-      return rejectWithValue(err.response?.data?.message || "Request failed");
+      return rejectWithValue(err.response?.data || err.message || "Request failed");
     }
   },
 );
@@ -143,9 +143,7 @@ export const changePasswordVerify = createAsyncThunk(
     try {
       return await changePasswordVerifyApi(data);
     } catch (err) {
-      return rejectWithValue(
-        err.response?.data?.message || "Verification failed",
-      );
+      return rejectWithValue(err.response?.data || err.message || "Verification failed");
     }
   },
 );

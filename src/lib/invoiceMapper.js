@@ -42,6 +42,8 @@ export const mapOrderToInvoice = (order, formatDate, invoice = null) => {
 
     riskType: order.rov || "Owner Risk",
 
+    serviceType: order.service_type || "Surface",
+
     totalBoxes: order.packages?.[0]?.count || 1,
 
     is_gst_exempt: order.is_gst_exempt || false,
@@ -49,11 +51,15 @@ export const mapOrderToInvoice = (order, formatDate, invoice = null) => {
     product: {
       name: order.items?.[0]?.product_name || "Product",
       sku: order.items?.[0]?.sku || "SKU",
+      unit_price: order.items?.[0]?.unit_price || 0,
       qty: order.items?.[0]?.qty || 1,
+      package_index: order.items?.[0]?.package_index || 1,
       value: order.items?.[0]?.total || 0,
     },
 
     items: order.items || [],
+
+    packages: order.packages || [],
 
     weight: `${order.weight_summary?.total_weight_kg || 0} KG`,
 

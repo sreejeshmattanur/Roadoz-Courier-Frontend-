@@ -137,21 +137,13 @@ function drawLabel(doc, order, pageHeight) {
 
   doc.rect(LEFT, currentY, RIGHT - LEFT, headerHeight);
 
-  doc.line(MID, currentY, MID, currentY + headerHeight);
+  const centerX = (LEFT + RIGHT) / 2;
 
+  // Single line company name
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-
-  // black color
+  doc.setFontSize(20);
   doc.setTextColor(0, 0, 0);
-
-  doc.text("Roadoz Courier", LEFT + 2.5, currentY + 9);
-
-  // Optional subtitle
-  doc.setFontSize(5);
-  doc.setTextColor(0, 0, 0);
-
-  doc.text("LOGISTICS AND COURIER SERVICES", LEFT + 2.5, currentY + 13);
+  doc.text("Roadoz Courier & Cargo", centerX, currentY + 8, { align: "center", baseline: "middle" });
 
   currentY += headerHeight;
 
@@ -168,7 +160,6 @@ function drawLabel(doc, order, pageHeight) {
     pickup.address_line_2 || "",
     [pickup.city, pickup.state, pickup.pincode].filter(Boolean).join(", ") +
       ", India",
-    `GSTIN: ${pickup.gst_number || order.gst_number || ""}`,
   ];
 
   const toPhone = consignee.mobile || order.customer?.phone || "";
@@ -240,17 +231,6 @@ function drawLabel(doc, order, pageHeight) {
       order.id ||
       "00000000",
   );
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-
-  doc.text(`Ref No: ${awbNo}`, PW / 2, currentY + 6, {
-    align: "center",
-  });
-
-  doc.text("PCS #: 1", PW / 2, currentY + 12, {
-    align: "center",
-  });
 
   // USE BARCODE IMAGE FROM API RESPONSE
   try {
