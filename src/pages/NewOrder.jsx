@@ -37,7 +37,7 @@ export default function NewOrder() {
 
   const generateSKU = () => `SKU-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  // --- States ---
+  // --- Core States ---
   const [orderType, setOrderType] = useState("B2C");
   const [serviceType, setServiceType] = useState("Surface");
   const [deliveryType, setDeliveryType] = useState("none"); 
@@ -46,13 +46,12 @@ export default function NewOrder() {
   const [codAmount, setCodAmount] = useState("");
   const [toPayAmount, setToPayAmount] = useState("");
   const [creditAmount, setCreditAmount] = useState("");
-  
   const [isInsuranceEnabled, setIsInsuranceEnabled] = useState(false);
   const [insuranceAmount, setInsuranceAmount] = useState(0); 
   const [regionalArea, setRegionalArea] = useState(0);
   const [isGstExempt, setIsGstExempt] = useState(false);
 
-  // UI States
+  // UI Dropdowns & Modals
   const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
   const [isAddressDropdownOpen, setIsAddressDropdownOpen] = useState(false);
   const [pickupSearch, setPickupSearch] = useState("");
@@ -61,14 +60,25 @@ export default function NewOrder() {
   const [isConsigneeModalOpen, setIsConsigneeModalOpen] = useState(false);
   const [isOtherDetailsOpen, setIsOtherDetailsOpen] = useState(true);
 
+  // --- Modal Form States (Fixed: Added handlers and states) ---
+  const [pickupForm, setPickupForm] = useState({
+    nickname: "", contact_name: "", phone: "", email: "",
+    address_line_1: "", address_line_2: "", pincode: "",
+    city: "", state: "", country: "India",
+  });
+
+  const [consigneeForm, setConsigneeForm] = useState({
+    name: "", mobile: "", alternate_mobile: "", email: "",
+    address_line_1: "", address_line_2: "", pincode: "",
+    city: "", state: "",
+  });
+
   const [consigneeData, setConsigneeData] = useState({ id: null, name: "", mobile: "", city: "" });
 
-  // Initial States for Packages (Count fixed to 1)
   const [packages, setPackages] = useState([
     { id: Date.now(), count: 1, length_cm: 0, breadth_cm: 0, height_cm: 0, weight_unit: "kg", weight_value: "", row_vol_weight: 0 }
   ]);
 
-  // Initial States for Products
   const [products, setProducts] = useState([
     { id: Date.now() + 1, product_name: "", sku: generateSKU(), unit_price: "", qty: 1, total: 0, package_index: 1 }
   ]);
@@ -78,7 +88,7 @@ export default function NewOrder() {
   // --- Calculations ---
   const totalOrderValue = useMemo(() => products.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0), [products]);
 
-  // Insurance Calculation: 1.8% of Total >= 1000
+  // Insurance Calculation: 1.8% of Total if >= 1000
   useEffect(() => {
     if (isInsuranceEnabled && totalOrderValue >= 1000) {
       setInsuranceAmount((totalOrderValue * 0.018).toFixed(2));
@@ -87,11 +97,10 @@ export default function NewOrder() {
     }
   }, [totalOrderValue, isInsuranceEnabled]);
 
-  // Weight Summary (L*B*H/2700)
   const weightSummary = useMemo(() => {
     let totalPhys = 0, totalVol = 0, totalBoxes = 0;
     packages.forEach(pkg => {
-        const count = 1; // Fixed count as per requirement
+        const count = 1;
         totalBoxes += count;
         const calcVol = ((Number(pkg.length_cm) || 0) * (Number(pkg.breadth_cm) || 0) * (Number(pkg.height_cm) || 0)) / 2700;
         const manualVal = Number(pkg.weight_value) || 0;
@@ -105,11 +114,13 @@ export default function NewOrder() {
     return { total_boxes: totalBoxes, total_weight_kg: totalPhys.toFixed(2), total_vol_weight_kg: totalVol.toFixed(2), applicable_weight_kg: Math.max(totalPhys, totalVol).toFixed(2) };
   }, [packages]);
 
+  // --- Effect: Initialization ---
   useEffect(() => {
     dispatch(fetchPickupAddresses({ limit: 10 }));
     dispatch(fetchConsignees({ limit: 10 }));
   }, [dispatch]);
 
+  // --- Handlers for Main Form ---
   const handleProductChange = (id, field, value) => {
     setProducts(prev => prev.map(p => {
       if (p.id === id) {
@@ -143,6 +154,33 @@ export default function NewOrder() {
     }));
   };
 
+  // --- Handlers for Modals (Fixed) ---
+  const handlePickupFormChange = (e) => setPickupForm({ ...pickupForm, [e.target.name]: e.target.value });
+  const handleConsigneeFormChange = (e) => setConsigneeForm({ ...consigneeForm, [e.target.name]: e.target.value });
+
+  const handleSavePickup = () => {
+    dispatch(createPickupAddress(pickupForm))
+      .unwrap()
+      .then(() => {
+        toast.success("Pickup address added!");
+        setIsPickupModalOpen(false);
+        setPickupForm({ nickname: "", contact_name: "", phone: "", email: "", address_line_1: "", address_line_2: "", pincode: "", city: "", state: "", country: "India" });
+      })
+      .catch(() => toast.error("Failed to add pickup address"));
+  };
+
+  const handleSaveConsignee = () => {
+    dispatch(createConsignee(consigneeForm))
+      .unwrap()
+      .then((newConsignee) => {
+        toast.success("Consignee added!");
+        setConsigneeData(newConsignee);
+        setIsConsigneeModalOpen(false);
+        setConsigneeForm({ name: "", mobile: "", alternate_mobile: "", email: "", address_line_1: "", address_line_2: "", pincode: "", city: "", state: "" });
+      })
+      .catch(() => toast.error("Failed to add consignee"));
+  };
+
   const handleSubmit = async () => {
     if (!selectedAddress) return toast.error("Select pickup address");
     if (!consigneeData.id) return toast.error("Select consignee");
@@ -151,8 +189,6 @@ export default function NewOrder() {
       order_type: orderType,
       pickup_address_id: selectedAddress.id,
       consignee_id: consigneeData.id,
-      warehouse_addresses_ids: [],
-      franchise_addresses_ids: [],
       payment_method: paymentMethod,
       cod_amount: Number(codAmount) || 0,
       to_pay_amount: Number(toPayAmount) || 0,
@@ -168,20 +204,19 @@ export default function NewOrder() {
       eway_bill_number: otherDetails.eway_bill_number || null,
       invoicenumber: otherDetails.invoicenumber || null,
       amount: Number(otherDetails.amount) || Number(totalOrderValue),
-      regional_area: Number(regionalArea),
-      items: products.map(p => ({ product_name: p.product_name, sku: p.sku, unit_price: Number(p.unit_price), qty: Number(p.qty), total: Number(p.total), package_index: Number(p.package_index) })),
+      items: products.map(p => ({ ...p, unit_price: Number(p.unit_price), qty: Number(p.qty), total: Number(p.total), package_index: Number(p.package_index) })),
       packages: packages.map(pkg => ({
-        count: 1, // Sent as 1
+        count: 1,
         length_cm: Number(pkg.length_cm), breadth_cm: Number(pkg.breadth_cm), height_cm: Number(pkg.height_cm),
-        physical_weight: pkg.weight_unit === "kg" ? Number(pkg.weight_value) : 0,
-        vol_weight: pkg.weight_unit === "g" ? Number(pkg.weight_value) : Number(pkg.row_vol_weight)
+        physical_weight_kg: pkg.weight_unit === "kg" ? Number(pkg.weight_value) : 0,
+        vol_weight_kg: pkg.weight_unit === "g" ? Number(pkg.weight_value) : Number(pkg.row_vol_weight)
       }))
     };
 
     try {
       if (isEditMode) await dispatch(updateOrder({ orderId, data: payload })).unwrap();
       else await dispatch(createOrder(payload)).unwrap();
-      toast.success("Order Processed!");
+      toast.success(isEditMode ? "Order Updated Sucessfully!" : "Order Created Sucessfully!");
       navigate("/dashboard/processing-order");
     } catch (err) {
       toast.error("Process failed");
@@ -192,12 +227,31 @@ export default function NewOrder() {
 
   return (
     <div className="space-y-6 relative pb-24 min-h-screen">
-      <PickupAddressModal isOpen={isPickupModalOpen} onClose={() => setIsPickupModalOpen(false)} loading={pickupLoading} inputClass={inputClass} />
-      <ConsigneeModal isOpen={isConsigneeModalOpen} onClose={() => setIsConsigneeModalOpen(false)} loading={pickupLoading} inputClass={inputClass} />
+      <PickupAddressModal 
+        isOpen={isPickupModalOpen} 
+        onClose={() => setIsPickupModalOpen(false)} 
+        pickupForm={pickupForm} 
+        handlePickupChange={handlePickupFormChange} 
+        handleSavePickup={handleSavePickup} 
+        loading={pickupLoading} 
+        inputClass={inputClass} 
+      />
+      <ConsigneeModal 
+        isOpen={isConsigneeModalOpen} 
+        onClose={() => setIsConsigneeModalOpen(false)} 
+        consigneeForm={consigneeForm} 
+        handleConsigneeChange={handleConsigneeFormChange} 
+        handleSaveConsignee={handleSaveConsignee} 
+        loading={pickupLoading} 
+        inputClass={inputClass} 
+      />
 
-      <div>
-        <h1 className="text-2xl font-bold">{isEditMode ? "Edit Order" : "New Order"}</h1>
-        <p className="text-xs text-primary mt-1 font-medium">Dashboard <span className="text-text-muted mx-2">&gt;&gt;</span> Order Management</p>
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">{isEditMode ? "Edit Order" : "New Order"}</h1>
+          <p className="text-xs text-primary mt-1 font-medium">Dashboard <span className="text-text-muted mx-2">&gt;&gt;</span> Order Management</p>
+        </div>
       </div>
 
       {/* Row 1: Configurations */}
@@ -228,14 +282,14 @@ export default function NewOrder() {
                 </button>
             </div>
           </div>
-          <div className="flex gap-4">
-            {[{ id: "none", label: "None", icon: BanIcon }, { id: "home", label: "Home", icon: Home }, { id: "office", label: "Office", icon: Building2 }].map(d => (
+          <div className="flex gap-3 flex-wrap">
+            {[{ id: null, label: "None", icon: BanIcon }, { id: "home", label: "Home", icon: Home }, { id: "office", label: "Office", icon: Building2 }].map(d => (
               <label key={d.id} className="flex items-center gap-2 cursor-pointer group">
                 <input type="radio" className="sr-only" checked={deliveryType === d.id} onChange={() => setDeliveryType(d.id)} />
                 <div className={cn("w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all", deliveryType === d.id ? "border-primary" : "border-text-muted/30")}>
                   {deliveryType === d.id && <div className="w-2 h-2 rounded-full bg-primary" />}
                 </div>
-                <span className={cn("text-xs font-medium flex items-center gap-1", deliveryType === d.id ? "text-primary" : "text-text-muted")}><d.icon size={12}/> {d.label}</span>
+                <span className={cn("text-[11px] font-medium flex items-center gap-1", deliveryType === d.id ? "text-primary" : "text-text-muted")}><d.icon size={10}/> {d.label}</span>
               </label>
             ))}
           </div>
@@ -257,7 +311,7 @@ export default function NewOrder() {
         </div>
       </div>
 
-      {/* Address Block */}
+      {/* Addresses */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-card-bg border-border-subtle overflow-visible relative">
           <CardContent className="p-6 space-y-4">
@@ -304,14 +358,14 @@ export default function NewOrder() {
         </Card>
       </div>
 
-      {/* Payment & Insurance */}
+      {/* Charges & Auto-Insurance (1.8%) */}
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <h2 className="text-lg font-semibold flex items-center gap-2"><CreditCard size={20} className="text-primary" /> Payment Method & Charges</h2>
             <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-lg border border-border-subtle">
                 <ShieldCheck size={18} className={cn(isInsuranceEnabled ? "text-green-500" : "text-text-muted")} />
-                <span className="text-sm font-medium">Enable Insurance (1.8%)?</span>
+                <span className="text-sm font-medium">Add Insurance (1.8%)?</span>
                 <button onClick={() => setIsInsuranceEnabled(!isInsuranceEnabled)} className={cn("w-10 h-5 rounded-full transition-all relative", isInsuranceEnabled ? "bg-primary" : "bg-white/20")}>
                   <div className={cn("w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-all shadow-md", isInsuranceEnabled ? "left-6" : "left-0.5")} />
                 </button>
@@ -332,13 +386,13 @@ export default function NewOrder() {
                 <label className="text-[10px] font-bold text-text-muted uppercase ml-1">Insurance Amount</label>
                 <div className={cn(inputClass, "bg-white/5 opacity-80 flex items-center justify-between")}><span>₹ {insuranceAmount}</span><Lock size={12} className="opacity-40" /></div>
               </div>
-              <div className="flex-1"><label className="text-[10px] font-bold text-text-muted uppercase ml-1">Regional</label><input type="number" value={regionalArea} onChange={(e) => setRegionalArea(e.target.value)} className={inputClass} /></div>
+              <div className="flex-1"><label className="text-[10px] font-bold text-text-muted uppercase ml-1">Regional</label><input type="number" value={regionalArea} onChange={(e) => setRegionalArea(e.target.value)} className={inputClass} placeholder="0" /></div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Package Details (Locked Count to 1) */}
+      {/* Package Section (Count 1 Fixed) */}
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
           <div className="flex justify-between items-center">
@@ -351,7 +405,6 @@ export default function NewOrder() {
           </div>
           {packages.map((pkg, idx) => (
             <div key={pkg.id} className="grid grid-cols-2 md:grid-cols-7 gap-4 items-end border-b border-border-subtle pb-6 last:border-0">
-              {/* Fixed Count 1 Field */}
               <div className="space-y-1">
                   <label className="text-[10px] font-bold text-text-muted uppercase tracking-tighter">Index {idx+1} Count</label>
                   <input type="number" value={1} disabled className={cn(inputClass, "bg-white/5 opacity-70 cursor-not-allowed")} />
@@ -374,7 +427,7 @@ export default function NewOrder() {
         </CardContent>
       </Card>
 
-      {/* Product Details Section with Auto-Index Sync */}
+      {/* Product Details Section */}
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
           <div className="flex justify-between items-center"><h2 className="text-lg font-semibold">Product Details</h2><div className="bg-primary/10 px-4 py-2 rounded-lg border border-primary/20"><span className="text-lg font-bold text-primary">₹{totalOrderValue.toFixed(2)}</span></div></div>
@@ -398,7 +451,7 @@ export default function NewOrder() {
         </CardContent>
       </Card>
 
-      {/* Compliance */}
+      {/* Compliance Section */}
       <Card className="bg-card-bg border-border-subtle">
         <button onClick={() => setIsOtherDetailsOpen(!isOtherDetailsOpen)} className="w-full flex justify-between p-6 items-center hover:bg-white/5 transition-colors rounded-xl"><h2 className="text-lg font-semibold flex items-center gap-2"><FileText size={20} className="text-primary"/> Compliance Details</h2>{isOtherDetailsOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}</button>
         {isOtherDetailsOpen && (
@@ -417,10 +470,10 @@ export default function NewOrder() {
         )}
       </Card>
 
-      {/* Completion Footer */}
+      {/* Footer */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-card-bg/90 backdrop-blur-md border-t border-border-subtle flex justify-end z-30 shadow-2xl">
         <Button disabled={orderLoading} onClick={handleSubmit} className="bg-primary hover:bg-primary/90 text-black px-10 h-11 font-bold rounded-xl shadow-lg flex gap-2 transition-transform active:scale-95">
-          {orderLoading ? <Loader2 className="animate-spin" size={18} /> : <><ShoppingBag size={18} /> Complete Order</>}
+          {orderLoading ? <Loader2 className="animate-spin" size={18} /> : <><ShoppingBag size={18} /> {isEditMode ? "Update Order" : "Complete Order"}</>}
         </Button>
       </div>
     </div>
