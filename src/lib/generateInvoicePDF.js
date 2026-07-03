@@ -99,6 +99,30 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
       doc.text(line, ADDR_RIGHT_X, ADDR_Y_START + i * 5),
     );
 
+    const isInsured = order.charges?.insurance && Number(order.charges.insurance) > 0;
+    if (isInsured) {
+      const radius = 12;
+      const centerX = PAGE_RIGHT - 14; 
+      const centerY = ADDR_Y_START + 12; 
+      
+      doc.setFillColor(238, 252, 240); 
+      doc.setDrawColor(22, 163, 74); 
+      doc.setLineWidth(0.8);
+      doc.circle(centerX, centerY, radius, "FD");
+      
+      doc.setLineWidth(0.3);
+      doc.circle(centerX, centerY, radius - 1.5, "S");
+      
+      doc.setTextColor(21, 128, 61); 
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text("INSURED", centerX, centerY, { align: "center", baseline: "middle" });
+      
+      doc.setTextColor(0, 0, 0);
+      doc.setDrawColor(200);
+      doc.setLineWidth(0.5);
+    }
+
     // -----------------------------
     // PRODUCT DETAILS TABLE
     // -----------------------------
@@ -164,7 +188,7 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     autoTable(doc, {
       startY: pkgY + 4,
       head: [
-        ["Package", "Count", "L (cm)*", "B (cm)*", "H (cm)*", "Vol (kg)", "Phys (kg)*"],
+        ["Package", "Count", "L (cm)*", "B (cm)*", "H (cm)*", "Vol (kg)", "Manual Weight"],
       ],
       body: order.packages && order.packages.length > 0
         ? order.packages.map((pkg, index) => [
@@ -221,7 +245,14 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     } else {
       totalDeclaredValue = Number(order.product?.value?.toString().replace(/[^0-9.-]+/g,"") || 0);
     }
-    totalValue += totalDeclaredValue;
+
+    const paymentMethodStr = (order.payment?.method || "").toLowerCase();
+    const isCOD = paymentMethodStr === "cod" || paymentMethodStr === "cash on delivery";
+
+    if (isCOD) {
+      chargesBody.push(["Product Total", `Rs. ${totalDeclaredValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+      totalValue += totalDeclaredValue;
+    }
 
     if (!order.is_gst_exempt) {
       chargesBody.push(
@@ -241,9 +272,19 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
       totalValue += Number(order.charges.regional_area);
     }
 
-    if (order.amount) {
-      chargesBody.push(["Invoice Amount", `Rs. ${Number(order.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
-      totalValue += Number(order.amount);
+    if (order.charges?.cod_amount && Number(order.charges.cod_amount) > 0) {
+      chargesBody.push(["COD Amount", `Rs. ${order.charges.cod_amount}`]);
+      totalValue += Number(order.charges.cod_amount);
+    }
+    
+    if (order.charges?.to_pay_amount && Number(order.charges.to_pay_amount) > 0) {
+      chargesBody.push(["To Pay Amount", `Rs. ${order.charges.to_pay_amount}`]);
+      totalValue += Number(order.charges.to_pay_amount);
+    }
+    
+    if (order.charges?.credit_amount && Number(order.charges.credit_amount) > 0) {
+      chargesBody.push(["Credit Amount", `Rs. ${order.charges.credit_amount}`]);
+      totalValue += Number(order.charges.credit_amount);
     }
 
     chargesBody.push(["Total Value", `Rs. ${totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
@@ -353,8 +394,7 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     doc.setFontSize(8);
     let currentY = termsY + TERMS_TITLE_H;
     
-    const isInsured = order.charges?.insurance && Number(order.charges.insurance) > 0;
-    const termsTextWidth = isInsured ? (PAGE_RIGHT - PAGE_LEFT - 40) : (PAGE_RIGHT - PAGE_LEFT - 4);
+    const termsTextWidth = PAGE_RIGHT - PAGE_LEFT - 4;
     
     terms.forEach((line, i) => {
       const termText = `${i + 1}. ${line}`;
@@ -372,43 +412,15 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
       currentY += lineHeight + 1;
     });
 
-    if (isInsured) {
-      // Circular INSURED stamp
-      const radius = 12;
-      const centerX = PAGE_RIGHT - 18;
-      const centerY = termsY + 14;
-      
-      // Background and Outer circle
-      doc.setFillColor(238, 252, 240); // Soft mint green
-      doc.setDrawColor(22, 163, 74); // Tailwind green-600
-      doc.setLineWidth(0.8);
-      doc.circle(centerX, centerY, radius, "FD");
-      
-      // Inner decorative circle
-      doc.setLineWidth(0.3);
-      doc.circle(centerX, centerY, radius - 1.5, "S");
-      
-      // Text
-      doc.setTextColor(21, 128, 61); // Tailwind green-700
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.text("INSURED", centerX, centerY, { align: "center", baseline: "middle" });
-      
-      // Reset colors
-      doc.setTextColor(0, 0, 0);
-      doc.setDrawColor(200);
-      doc.setLineWidth(0.5);
-    }
-
     // -----------------------------
-    // SIGNATURES  — pinned to bottom of current page or right below terms
+    // SIGNATURES  — pinned to bottom of current page
     // -----------------------------
     let finalSigY = currentY + 15;
+
     if (finalSigY > SAFE_BOTTOM) {
       doc.addPage();
-      finalSigY = 20;
+      finalSigY = SAFE_BOTTOM - 8;
     } else if (finalSigY < SAFE_BOTTOM - 8) {
-      // If there's plenty of space, still pin to bottom
       finalSigY = SAFE_BOTTOM - 8;
     }
 

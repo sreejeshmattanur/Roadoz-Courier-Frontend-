@@ -78,6 +78,12 @@ export const mapOrderToInvoice = (order, formatDate, invoice = null) => {
       
       regional_area: order.regional_area || order.regional_charge || invoice?.invoice_orders?.[0]?.regional_area || 0,
 
+      cod_amount: order.cod_amount || 0,
+
+      to_pay_amount: order.to_pay_amount || 0,
+
+      credit_amount: order.credit_amount || 0,
+
       subtotal: order.order_value || 0,
 
       gst: (
