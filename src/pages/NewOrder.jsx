@@ -52,7 +52,7 @@ export default function NewOrder() {
   const [regionalArea, setRegionalArea] = useState(0);
   const [isGstExempt, setIsGstExempt] = useState(false);
 
-  // UI Dropdowns
+  // UI States
   const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
   const [isAddressDropdownOpen, setIsAddressDropdownOpen] = useState(false);
   const [pickupSearch, setPickupSearch] = useState("");
@@ -62,19 +62,23 @@ export default function NewOrder() {
   const [isOtherDetailsOpen, setIsOtherDetailsOpen] = useState(true);
 
   const [consigneeData, setConsigneeData] = useState({ id: null, name: "", mobile: "", city: "" });
-  const [products, setProducts] = useState([{ id: Date.now(), product_name: "", sku: generateSKU(), unit_price: "", qty: 1, total: 0 }]);
-  
-  // Package state now includes row_vol_weight based on divisor 2700
+
+  // Initial States for Packages (Count fixed to 1)
   const [packages, setPackages] = useState([
     { id: Date.now(), count: 1, length_cm: 0, breadth_cm: 0, height_cm: 0, weight_unit: "kg", weight_value: "", row_vol_weight: 0 }
+  ]);
+
+  // Initial States for Products
+  const [products, setProducts] = useState([
+    { id: Date.now() + 1, product_name: "", sku: generateSKU(), unit_price: "", qty: 1, total: 0, package_index: 1 }
   ]);
   
   const [otherDetails, setOtherDetails] = useState({ gst_number: "", eway_bill_number: "", invoicenumber: "", amount: "" });
 
-  // --- Logic: Calculations ---
+  // --- Calculations ---
   const totalOrderValue = useMemo(() => products.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0), [products]);
 
-  // Insurance Logic: 1.8% of Value if >= 1000
+  // Insurance Calculation: 1.8% of Total >= 1000
   useEffect(() => {
     if (isInsuranceEnabled && totalOrderValue >= 1000) {
       setInsuranceAmount((totalOrderValue * 0.018).toFixed(2));
@@ -83,36 +87,22 @@ export default function NewOrder() {
     }
   }, [totalOrderValue, isInsuranceEnabled]);
 
-  // Comprehensive Weight Summary Calculation (Using 2700)
+  // Weight Summary (L*B*H/2700)
   const weightSummary = useMemo(() => {
-    let totalPhys = 0;
-    let totalVol = 0;
-    let totalBoxes = 0;
-
+    let totalPhys = 0, totalVol = 0, totalBoxes = 0;
     packages.forEach(pkg => {
-        const count = Number(pkg.count) || 0;
+        const count = 1; // Fixed count as per requirement
         totalBoxes += count;
-        
-        // Volumetric Weight Calculation: (L * B * H) / 2700
         const calcVol = ((Number(pkg.length_cm) || 0) * (Number(pkg.breadth_cm) || 0) * (Number(pkg.height_cm) || 0)) / 2700;
-        
         const manualVal = Number(pkg.weight_value) || 0;
-
         if (pkg.weight_unit === "kg") {
             totalPhys += manualVal * count;
             totalVol += calcVol * count;
         } else {
-            // If unit is 'g', treat manual value as part of volumetric mapping
             totalVol += (manualVal + calcVol) * count;
         }
     });
-
-    return {
-        total_boxes: totalBoxes,
-        total_weight_kg: totalPhys.toFixed(2),
-        total_vol_weight_kg: totalVol.toFixed(2),
-        applicable_weight_kg: Math.max(totalPhys, totalVol).toFixed(2)
-    };
+    return { total_boxes: totalBoxes, total_weight_kg: totalPhys.toFixed(2), total_vol_weight_kg: totalVol.toFixed(2), applicable_weight_kg: Math.max(totalPhys, totalVol).toFixed(2) };
   }, [packages]);
 
   useEffect(() => {
@@ -131,11 +121,18 @@ export default function NewOrder() {
     }));
   };
 
+  const addProductRow = () => {
+    const nextIndex = products.length + 1;
+    if (nextIndex > packages.length) {
+        setPackages(prev => [...prev, { id: Date.now() + Math.random(), count: 1, length_cm: 0, breadth_cm: 0, height_cm: 0, weight_unit: "kg", weight_value: "", row_vol_weight: 0 }]);
+    }
+    setProducts([...products, { id: Date.now() + Math.random(), product_name: "", sku: generateSKU(), unit_price: "", qty: 1, total: 0, package_index: nextIndex }]);
+  };
+
   const handlePackageChange = (id, field, value) => {
     setPackages(prev => prev.map(p => {
         if (p.id === id) {
             const updated = { ...p, [field]: value };
-            // Update row volumetric display using divisor 2700
             const l = field === 'length_cm' ? value : updated.length_cm;
             const b = field === 'breadth_cm' ? value : updated.breadth_cm;
             const h = field === 'height_cm' ? value : updated.height_cm;
@@ -172,25 +169,22 @@ export default function NewOrder() {
       invoicenumber: otherDetails.invoicenumber || null,
       amount: Number(otherDetails.amount) || Number(totalOrderValue),
       regional_area: Number(regionalArea),
-      items: products.map(p => ({ product_name: p.product_name, sku: p.sku, unit_price: Number(p.unit_price), qty: Number(p.qty), total: Number(p.total) })),
+      items: products.map(p => ({ product_name: p.product_name, sku: p.sku, unit_price: Number(p.unit_price), qty: Number(p.qty), total: Number(p.total), package_index: Number(p.package_index) })),
       packages: packages.map(pkg => ({
-        count: Number(pkg.count),
+        count: 1, // Sent as 1
         length_cm: Number(pkg.length_cm), breadth_cm: Number(pkg.breadth_cm), height_cm: Number(pkg.height_cm),
-        physical_weight_kg: pkg.weight_unit === "kg" ? Number(pkg.weight_value) : 0,
-        vol_weight_kg: pkg.weight_unit === "g" ? Number(pkg.weight_value) : Number(pkg.row_vol_weight)
-      })),
-      weight_summary: weightSummary
+        physical_weight: pkg.weight_unit === "kg" ? Number(pkg.weight_value) : 0,
+        vol_weight: pkg.weight_unit === "g" ? Number(pkg.weight_value) : Number(pkg.row_vol_weight)
+      }))
     };
-if (["home", "office"].includes(deliveryType)) {
-  payload.delivery_type = deliveryType;
-}
+
     try {
       if (isEditMode) await dispatch(updateOrder({ orderId, data: payload })).unwrap();
       else await dispatch(createOrder(payload)).unwrap();
-      toast.success("Order Successfully Processed!");
+      toast.success("Order Processed!");
       navigate("/dashboard/processing-order");
     } catch (err) {
-      toast.error("Failed to process order creation.");
+      toast.error("Process failed");
     }
   };
 
@@ -201,18 +195,16 @@ if (["home", "office"].includes(deliveryType)) {
       <PickupAddressModal isOpen={isPickupModalOpen} onClose={() => setIsPickupModalOpen(false)} loading={pickupLoading} inputClass={inputClass} />
       <ConsigneeModal isOpen={isConsigneeModalOpen} onClose={() => setIsConsigneeModalOpen(false)} loading={pickupLoading} inputClass={inputClass} />
 
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold">{isEditMode ? "Edit Order" : "New Order"}</h1>
-        <p className="text-xs text-primary mt-1 font-medium">Dashboard <span className="text-text-muted mx-2">&gt;&gt;</span> Order Creation</p>
+        <p className="text-xs text-primary mt-1 font-medium">Dashboard <span className="text-text-muted mx-2">&gt;&gt;</span> Order Management</p>
       </div>
 
-      {/* Config Row */}
+      {/* Row 1: Configurations */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Order Types */}
         <div className="bg-card-bg/40 p-4 rounded-xl border border-border-subtle flex flex-col gap-3">
           <span className="text-xs font-bold text-text-muted uppercase tracking-wider">Order Type</span>
-          <div className="flex flex-wrap gap-4 mt-1">
+          <div className="flex gap-4">
             {["B2C", "B2B", "International"].map(t => (
               <label key={t} className="flex items-center gap-2 cursor-pointer">
                 <input type="radio" className="sr-only" checked={orderType === t} onChange={() => setOrderType(t)} />
@@ -225,38 +217,30 @@ if (["home", "office"].includes(deliveryType)) {
           </div>
         </div>
 
-        {/* Delivery Details with Document Button */}
         <div className="bg-card-bg/40 p-4 rounded-xl border border-border-subtle flex flex-col gap-4">
           <div className="flex justify-between items-center">
-            <span className="text-xs font-bold text-text-muted uppercase tracking-wider">Delivery Mode</span>
+            <span className="text-xs font-bold text-text-muted uppercase tracking-wider">Delivery Details</span>
             <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/5 border border-white/10">
                 <File size={12} className={isDoc ? "text-primary" : "text-text-muted"} />
                 <span className="text-[10px] font-bold text-text-muted uppercase">Doc?</span>
-                <button onClick={() => setIsDoc(!isDoc)} className={cn("w-8 h-4 rounded-full transition-all relative", isDoc ? "bg-primary" : "bg-white/20")}>
-                    <div className={cn("w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-all", isDoc ? "left-4.5" : "left-0.5")} />
+                <button onClick={() => setIsDoc(!isDoc)} className={cn("w-7 h-3.5 rounded-full transition-all relative", isDoc ? "bg-primary" : "bg-white/20")}>
+                    <div className={cn("w-2.5 h-2.5 rounded-full bg-white absolute top-0.5 transition-all", isDoc ? "left-4" : "left-0.5")} />
                 </button>
             </div>
           </div>
           <div className="flex gap-4">
-            {[
-              { id: null, label: "None", icon: BanIcon },
-              { id: "home", label: "Home", icon: Home },
-              { id: "office", label: "Office", icon: Building2 }
-            ].map(d => (
+            {[{ id: "none", label: "None", icon: BanIcon }, { id: "home", label: "Home", icon: Home }, { id: "office", label: "Office", icon: Building2 }].map(d => (
               <label key={d.id} className="flex items-center gap-2 cursor-pointer group">
                 <input type="radio" className="sr-only" checked={deliveryType === d.id} onChange={() => setDeliveryType(d.id)} />
                 <div className={cn("w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all", deliveryType === d.id ? "border-primary" : "border-text-muted/30")}>
                   {deliveryType === d.id && <div className="w-2 h-2 rounded-full bg-primary" />}
                 </div>
-                <span className={cn("text-xs font-medium flex items-center gap-1", deliveryType === d.id ? "text-primary" : "text-text-muted group-hover:text-text-main")}>
-                    <d.icon size={12}/> {d.label}
-                </span>
+                <span className={cn("text-xs font-medium flex items-center gap-1", deliveryType === d.id ? "text-primary" : "text-text-muted")}><d.icon size={12}/> {d.label}</span>
               </label>
             ))}
           </div>
         </div>
 
-        {/* Service Mode */}
         <div className="bg-card-bg/40 p-4 rounded-xl border border-border-subtle flex flex-col gap-3">
           <span className="text-xs font-bold text-text-muted uppercase tracking-wider">Service Mode</span>
           <div className="flex gap-6 mt-1">
@@ -273,7 +257,7 @@ if (["home", "office"].includes(deliveryType)) {
         </div>
       </div>
 
-      {/* Address Selection Section */}
+      {/* Address Block */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-card-bg border-border-subtle overflow-visible relative">
           <CardContent className="p-6 space-y-4">
@@ -281,7 +265,7 @@ if (["home", "office"].includes(deliveryType)) {
             <div className="relative cursor-pointer" onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)}>
                 {selectedAddress ? (
                   <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center">
-                    <div><p className="font-bold text-sm">{selectedAddress.nickname}</p><p className="text-xs text-text-muted">{selectedAddress.city} - {selectedAddress.pincode}</p></div>
+                    <div><p className="font-bold text-sm">{selectedAddress.nickname}</p><p className="text-xs text-text-muted">{selectedAddress.city}</p></div>
                     <Button variant="outline" size="sm" className="text-primary border-primary/20">Change</Button>
                   </div>
                 ) : <div className="w-full border-2 border-dashed border-border-subtle rounded-xl py-8 flex flex-col items-center text-text-muted"><MapPin size={32} className="mb-2 opacity-50" /><p className="text-sm font-medium">Select Pickup</p></div>}
@@ -289,7 +273,7 @@ if (["home", "office"].includes(deliveryType)) {
                 {isAddressDropdownOpen && (
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute z-50 mt-2 w-full bg-card-bg border border-border-subtle rounded-xl shadow-2xl max-h-60 overflow-hidden flex flex-col">
                     <div className="p-3 border-b border-border-subtle/20 bg-card-bg sticky top-0 z-10"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={14} /><input type="text" placeholder="Search Pickup..." value={pickupSearch} onClick={(e) => e.stopPropagation()} onChange={(e) => { setPickupSearch(e.target.value); dispatch(fetchPickupAddresses({ search: e.target.value })); }} className="w-full bg-white/5 border border-border-subtle rounded-lg pl-9 py-1.5 text-xs outline-none" /></div></div>
-                    <div className="overflow-y-auto">{pickupAddresses?.map(a => (<div key={a.id} onClick={() => { dispatch(setSelectedAddress(a)); setIsAddressDropdownOpen(false); }} className="p-3 hover:bg-primary/10 cursor-pointer text-sm border-b border-border-subtle/10 last:border-0">{a.nickname} <span className="text-[10px] opacity-60">({a.city})</span></div>))}</div>
+                    <div className="overflow-y-auto">{pickupAddresses?.map(a => (<div key={a.id} onClick={() => { dispatch(setSelectedAddress(a)); setIsAddressDropdownOpen(false); }} className="p-3 hover:bg-primary/10 cursor-pointer text-sm border-b border-border-subtle/10 last:border-0">{a.nickname}</div>))}</div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -303,7 +287,7 @@ if (["home", "office"].includes(deliveryType)) {
             <div className="relative cursor-pointer" onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)}>
                 {consigneeData.id ? (
                   <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center">
-                    <div><p className="font-bold text-sm">{consigneeData.name}</p><p className="text-xs text-text-muted">{consigneeData.city} - {consigneeData.mobile}</p></div>
+                    <div><p className="font-bold text-sm">{consigneeData.name}</p><p className="text-xs text-text-muted">{consigneeData.city}</p></div>
                     <Button variant="outline" size="sm" className="text-primary border-primary/20">Change</Button>
                   </div>
                 ) : <div className="w-full border-2 border-dashed border-border-subtle rounded-xl py-8 flex flex-col items-center text-text-muted"><User size={32} className="mb-2 opacity-50" /><p className="text-sm font-medium">Select Consignee</p></div>}
@@ -311,7 +295,7 @@ if (["home", "office"].includes(deliveryType)) {
                 {isConsigneeDropdownOpen && (
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute z-50 mt-2 w-full bg-card-bg border border-border-subtle rounded-xl shadow-2xl max-h-60 overflow-hidden flex flex-col">
                     <div className="p-3 border-b border-border-subtle/20 bg-card-bg sticky top-0 z-10"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={14} /><input type="text" placeholder="Search Consignee..." value={consigneeSearch} onClick={(e) => e.stopPropagation()} onChange={(e) => { setConsigneeSearch(e.target.value); dispatch(fetchConsignees({ search: e.target.value })); }} className="w-full bg-white/5 border border-border-subtle rounded-lg pl-9 py-1.5 text-xs outline-none" /></div></div>
-                    <div className="overflow-y-auto">{consignees?.map(c => (<div key={c.id} onClick={() => { setConsigneeData(c); setIsConsigneeDropdownOpen(false); }} className="p-3 hover:bg-primary/10 cursor-pointer text-sm border-b border-border-subtle/10 last:border-0">{c.name} <span className="text-[10px] opacity-60">({c.mobile})</span></div>))}</div>
+                    <div className="overflow-y-auto">{consignees?.map(c => (<div key={c.id} onClick={() => { setConsigneeData(c); setIsConsigneeDropdownOpen(false); }} className="p-3 hover:bg-primary/10 cursor-pointer text-sm border-b border-border-subtle/10 last:border-0">{c.name}</div>))}</div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -320,14 +304,14 @@ if (["home", "office"].includes(deliveryType)) {
         </Card>
       </div>
 
-      {/* Charges & Automatic Insurance (1.8%) */}
+      {/* Payment & Insurance */}
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <h2 className="text-lg font-semibold flex items-center gap-2"><CreditCard size={20} className="text-primary" /> Payment Method & Charges</h2>
             <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-lg border border-border-subtle">
                 <ShieldCheck size={18} className={cn(isInsuranceEnabled ? "text-green-500" : "text-text-muted")} />
-                <span className="text-sm font-medium">Add Insurance (1.8%)?</span>
+                <span className="text-sm font-medium">Enable Insurance (1.8%)?</span>
                 <button onClick={() => setIsInsuranceEnabled(!isInsuranceEnabled)} className={cn("w-10 h-5 rounded-full transition-all relative", isInsuranceEnabled ? "bg-primary" : "bg-white/20")}>
                   <div className={cn("w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-all shadow-md", isInsuranceEnabled ? "left-6" : "left-0.5")} />
                 </button>
@@ -348,33 +332,34 @@ if (["home", "office"].includes(deliveryType)) {
                 <label className="text-[10px] font-bold text-text-muted uppercase ml-1">Insurance Amount</label>
                 <div className={cn(inputClass, "bg-white/5 opacity-80 flex items-center justify-between")}><span>₹ {insuranceAmount}</span><Lock size={12} className="opacity-40" /></div>
               </div>
-              <div className="flex-1"><label className="text-[10px] font-bold text-text-muted uppercase ml-1">Regional</label><input type="number" value={regionalArea} onChange={(e) => setRegionalArea(e.target.value)} className={inputClass} placeholder="0" /></div>
+              <div className="flex-1"><label className="text-[10px] font-bold text-text-muted uppercase ml-1">Regional</label><input type="number" value={regionalArea} onChange={(e) => setRegionalArea(e.target.value)} className={inputClass} /></div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Package Section with divisor 2700 */}
+      {/* Package Details (Locked Count to 1) */}
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-semibold flex items-center gap-2"><Scale size={20} className="text-primary" /> Package Details</h2>
             <div className="flex gap-4 bg-primary/5 border border-primary/20 rounded-xl px-4 py-2">
-              <div className="text-center pr-4 border-r border-primary/10"><p className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Applicable</p><p className="text-sm font-bold text-primary">{weightSummary.applicable_weight_kg} kg</p></div>
-              <div className="text-center pr-4 border-r border-primary/10"><p className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Physical</p><p className="text-sm font-bold">{weightSummary.total_weight_kg} kg</p></div>
-              <div className="text-center"><p className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Vol (2700)</p><p className="text-sm font-bold text-green-500">{weightSummary.total_vol_weight_kg} kg</p></div>
+              <div className="text-center pr-4 border-r border-primary/10"><p className="text-[10px] font-bold text-text-muted uppercase">Applicable</p><p className="text-sm font-bold text-primary">{weightSummary.applicable_weight_kg} kg</p></div>
+              <div className="text-center pr-4 border-r border-primary/10"><p className="text-[10px] font-bold text-text-muted uppercase">Physical</p><p className="text-sm font-bold">{weightSummary.total_weight_kg} kg</p></div>
+              <div className="text-center"><p className="text-[10px] font-bold text-text-muted uppercase">Vol (2700)</p><p className="text-sm font-bold text-green-500">{weightSummary.total_vol_weight_kg} kg</p></div>
             </div>
           </div>
           {packages.map((pkg, idx) => (
             <div key={pkg.id} className="grid grid-cols-2 md:grid-cols-7 gap-4 items-end border-b border-border-subtle pb-6 last:border-0">
-              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase tracking-tighter">Count</label><input type="number" value={pkg.count} onChange={(e) => handlePackageChange(pkg.id, "count", e.target.value)} className={inputClass} /></div>
+              {/* Fixed Count 1 Field */}
+              <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-text-muted uppercase tracking-tighter">Index {idx+1} Count</label>
+                  <input type="number" value={1} disabled className={cn(inputClass, "bg-white/5 opacity-70 cursor-not-allowed")} />
+              </div>
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase tracking-tighter">L (cm)</label><input type="number" value={pkg.length_cm} onChange={(e) => handlePackageChange(pkg.id, "length_cm", e.target.value)} className={inputClass} /></div>
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase tracking-tighter">B (cm)</label><input type="number" value={pkg.breadth_cm} onChange={(e) => handlePackageChange(pkg.id, "breadth_cm", e.target.value)} className={inputClass} /></div>
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase tracking-tighter">H (cm)</label><input type="number" value={pkg.height_cm} onChange={(e) => handlePackageChange(pkg.id, "height_cm", e.target.value)} className={inputClass} /></div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-text-muted uppercase tracking-tighter">Vol (kg)</label>
-                <div className={cn(inputClass, "bg-white/5 opacity-80 flex items-center justify-center")}>{pkg.row_vol_weight}</div>
-              </div>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase tracking-tighter">Vol (kg)</label><div className={cn(inputClass, "bg-white/5 opacity-80 flex items-center justify-center")}>{pkg.row_vol_weight}</div></div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-text-muted uppercase tracking-tighter">Manual Weight</label>
                 <div className="flex">
@@ -385,28 +370,35 @@ if (["home", "office"].includes(deliveryType)) {
               <div className="flex justify-end"><Button variant="destructive" size="icon" onClick={() => setPackages(packages.filter(i => i.id !== pkg.id))}><Trash2 size={16} /></Button></div>
             </div>
           ))}
-          <Button variant="outline" size="sm" onClick={() => setPackages([...packages, { id: Date.now(), count: 1, length_cm: 0, breadth_cm: 0, height_cm: 0, weight_unit: "kg", weight_value: "", row_vol_weight: 0 }])} className="border-primary text-primary hover:bg-primary/10 transition-colors"><Plus size={16} className="mr-2" /> Add Package</Button>
+          <Button variant="outline" size="sm" onClick={() => setPackages([...packages, { id: Date.now() + Math.random(), count: 1, length_cm: 0, breadth_cm: 0, height_cm: 0, weight_unit: "kg", weight_value: "", row_vol_weight: 0 }])} className="border-primary text-primary hover:bg-primary/10 transition-colors"><Plus size={16} className="mr-2" /> Add Package</Button>
         </CardContent>
       </Card>
 
-      {/* Product Details Section */}
+      {/* Product Details Section with Auto-Index Sync */}
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
           <div className="flex justify-between items-center"><h2 className="text-lg font-semibold">Product Details</h2><div className="bg-primary/10 px-4 py-2 rounded-lg border border-primary/20"><span className="text-lg font-bold text-primary">₹{totalOrderValue.toFixed(2)}</span></div></div>
           {products.map(p => (
             <div key={p.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-dashboard-bg/20 p-4 rounded-xl border border-border-subtle">
-              <div className="md:col-span-4 space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">Item Name</label><input type="text" value={p.product_name} onChange={(e) => handleProductChange(p.id, "product_name", e.target.value)} className={inputClass} /></div>
-              <div className="md:col-span-3 space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">SKU</label><input type="text" value={p.sku} disabled className={cn(inputClass, "bg-white/5 opacity-70")} /></div>
+              <div className="md:col-span-4 space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase ml-1">Item Name</label><input type="text" value={p.product_name} onChange={(e) => handleProductChange(p.id, "product_name", e.target.value)} className={inputClass} /></div>
+              
+              <div className="md:col-span-3 space-y-1">
+                  <label className="text-[10px] font-bold text-text-muted uppercase ml-1">Package Assignment</label>
+                  <select value={p.package_index} onChange={(e) => handleProductChange(p.id, "package_index", e.target.value)} className={cn(inputClass, "bg-dashboard-bg cursor-pointer")}>
+                    {packages.map((_, i) => <option key={i+1} value={i+1}>Package {i+1}</option>)}
+                  </select>
+              </div>
+
               <div className="md:col-span-2 space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">Price</label><input type="number" value={p.unit_price} onChange={(e) => handleProductChange(p.id, "unit_price", e.target.value)} className={inputClass} /></div>
               <div className="md:col-span-2 space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">Qty</label><input type="number" value={p.qty} onChange={(e) => handleProductChange(p.id, "qty", e.target.value)} className={inputClass} /></div>
               <div className="md:col-span-1 flex justify-end"><Button variant="destructive" size="icon" onClick={() => setProducts(products.filter(i => i.id !== p.id))}><Trash2 size={16} /></Button></div>
             </div>
           ))}
-          <Button variant="outline" size="sm" onClick={() => setProducts([...products, { id: Date.now(), product_name: "", sku: generateSKU(), unit_price: "", qty: 1, total: 0 }])} className="border-primary text-primary hover:bg-primary/10 transition-colors"><Plus size={16} className="mr-2" /> Add Item</Button>
+          <Button variant="outline" size="sm" onClick={addProductRow} className="border-primary text-primary hover:bg-primary/10 transition-colors"><Plus size={16} className="mr-2" /> Add Item</Button>
         </CardContent>
       </Card>
 
-      {/* Compliance Section */}
+      {/* Compliance */}
       <Card className="bg-card-bg border-border-subtle">
         <button onClick={() => setIsOtherDetailsOpen(!isOtherDetailsOpen)} className="w-full flex justify-between p-6 items-center hover:bg-white/5 transition-colors rounded-xl"><h2 className="text-lg font-semibold flex items-center gap-2"><FileText size={20} className="text-primary"/> Compliance Details</h2>{isOtherDetailsOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}</button>
         {isOtherDetailsOpen && (
@@ -425,10 +417,10 @@ if (["home", "office"].includes(deliveryType)) {
         )}
       </Card>
 
-      {/* Fixed Footer */}
+      {/* Completion Footer */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-card-bg/90 backdrop-blur-md border-t border-border-subtle flex justify-end z-30 shadow-2xl">
         <Button disabled={orderLoading} onClick={handleSubmit} className="bg-primary hover:bg-primary/90 text-black px-10 h-11 font-bold rounded-xl shadow-lg flex gap-2 transition-transform active:scale-95">
-          {orderLoading ? <Loader2 className="animate-spin" size={18} /> : <><ShoppingBag size={18} /> Confirm Order</>}
+          {orderLoading ? <Loader2 className="animate-spin" size={18} /> : <><ShoppingBag size={18} /> Complete Order</>}
         </Button>
       </div>
     </div>
