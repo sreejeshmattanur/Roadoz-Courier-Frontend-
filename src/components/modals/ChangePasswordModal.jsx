@@ -17,47 +17,12 @@ export default function ChangePasswordModal({ onClose, onSuccess }) {
     confirm_password: "",
   });
 
-  // const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
-
-  const validatePassword = (password) => {
-    const errors = [];
-
-    if (!/[A-Z]/.test(password)) errors.push("Uppercase letter is missing");
-    if (!/[a-z]/.test(password)) errors.push("Lowercase letter is missing");
-    if (!/[0-9]/.test(password)) errors.push("Number is missing");
-    if (!/[@$!%*?&]/.test(password))
-      errors.push("Special character is missing");
-    if (password.length < 8) errors.push("Minimum 8 characters required");
-
-    return errors;
-  };
-
   const validate = () => {
     const newErrors = {};
 
-    // OLD PASSWORD
-    if (!form.old_password) {
-      newErrors.old_password = "Old password is required";
-    } else {
-      const passwordErrors = validatePassword(form.old_password);
-
-      if (passwordErrors.length > 0) {
-        newErrors.old_password = passwordErrors.join(", ");
-      }
-    }
-
-    // NEW PASSWORD
-    if (!form.new_password) {
-      newErrors.new_password = "New password is required";
-    } else {
-      const passwordErrors = validatePassword(form.new_password);
-
-      if (passwordErrors.length > 0) {
-        newErrors.new_password = passwordErrors.join(", ");
-      }
-    }
-
-    // CONFIRM PASSWORD
+    if (!form.old_password) newErrors.old_password = "Old password is required";
+    if (!form.new_password) newErrors.new_password = "New password is required";
+    
     if (!form.confirm_password) {
       newErrors.confirm_password = "Confirm your password";
     } else if (form.new_password !== form.confirm_password) {
@@ -78,36 +43,15 @@ export default function ChangePasswordModal({ onClose, onSuccess }) {
     setErrors((prev) => {
       const newErrors = { ...prev };
 
-      // OLD PASSWORD
       if (name === "old_password") {
-        if (!value) {
-          newErrors.old_password = "Old password is required";
-        } else {
-          const passwordErrors = validatePassword(value);
-
-          if (passwordErrors.length > 0) {
-            newErrors.old_password = passwordErrors.join(", ");
-          } else {
-            delete newErrors.old_password;
-          }
-        }
+        if (!value) newErrors.old_password = "Old password is required";
+        else delete newErrors.old_password;
       }
 
-      // NEW PASSWORD
       if (name === "new_password") {
-        if (!value) {
-          newErrors.new_password = "New password is required";
-        } else {
-          const passwordErrors = validatePassword(value);
+        if (!value) newErrors.new_password = "New password is required";
+        else delete newErrors.new_password;
 
-          if (passwordErrors.length > 0) {
-            newErrors.new_password = passwordErrors.join(", ");
-          } else {
-            delete newErrors.new_password;
-          }
-        }
-
-        // sync confirm password
         if (form.confirm_password) {
           if (value !== form.confirm_password) {
             newErrors.confirm_password = "Passwords do not match";
@@ -117,11 +61,9 @@ export default function ChangePasswordModal({ onClose, onSuccess }) {
         }
       }
 
-      // CONFIRM PASSWORD
       if (name === "confirm_password") {
-        if (!value) {
-          newErrors.confirm_password = "Confirm your password";
-        } else if (value !== form.new_password) {
+        if (!value) newErrors.confirm_password = "Confirm your password";
+        else if (value !== form.new_password) {
           newErrors.confirm_password = "Passwords do not match";
         } else {
           delete newErrors.confirm_password;
@@ -166,12 +108,24 @@ export default function ChangePasswordModal({ onClose, onSuccess }) {
 
       console.log("ERROR:", err);
 
-      toast.error(
-        err?.message ||
-          err?.detail ||
-          err?.data?.detail ||
-          "Something went wrong",
-      );
+      let errorMsg = "Something went wrong";
+      if (typeof err === "string") {
+        errorMsg = err;
+      } else if (err?.response?.data?.message) {
+        errorMsg = err.response.data.message;
+      } else if (err?.response?.data?.detail) {
+        errorMsg = err.response.data.detail;
+      } else if (err?.data?.message) {
+        errorMsg = err.data.message;
+      } else if (err?.data?.detail) {
+        errorMsg = err.data.detail;
+      } else if (err?.message) {
+        errorMsg = err.message;
+      } else if (err?.detail) {
+        errorMsg = err.detail;
+      }
+
+      toast.error(errorMsg);
     }
   };
 
