@@ -37,7 +37,7 @@ export default function NewOrder() {
 
   const generateSKU = () => `SKU-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  // --- States ---
+  // --- Core States ---
   const [orderType, setOrderType] = useState("B2C");
   const [serviceType, setServiceType] = useState("Surface");
   const [deliveryType, setDeliveryType] = useState("none"); 
@@ -51,7 +51,7 @@ export default function NewOrder() {
   const [regionalArea, setRegionalArea] = useState(0);
   const [isGstExempt, setIsGstExempt] = useState(false);
 
-  // UI Dropdowns
+  // UI Dropdowns & Modals
   const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
   const [isAddressDropdownOpen, setIsAddressDropdownOpen] = useState(false);
   const [pickupSearch, setPickupSearch] = useState("");
@@ -59,6 +59,19 @@ export default function NewOrder() {
   const [consigneeSearch, setConsigneeSearch] = useState("");
   const [isConsigneeModalOpen, setIsConsigneeModalOpen] = useState(false);
   const [isOtherDetailsOpen, setIsOtherDetailsOpen] = useState(true);
+
+  // --- Modal Form States (Fixed: Added handlers and states) ---
+  const [pickupForm, setPickupForm] = useState({
+    nickname: "", contact_name: "", phone: "", email: "",
+    address_line_1: "", address_line_2: "", pincode: "",
+    city: "", state: "", country: "India",
+  });
+
+  const [consigneeForm, setConsigneeForm] = useState({
+    name: "", mobile: "", alternate_mobile: "", email: "",
+    address_line_1: "", address_line_2: "", pincode: "",
+    city: "", state: "",
+  });
 
   const [consigneeData, setConsigneeData] = useState({ id: null, name: "", mobile: "", city: "" });
 
@@ -101,58 +114,13 @@ export default function NewOrder() {
     return { total_boxes: totalBoxes, total_weight_kg: totalPhys.toFixed(2), total_vol_weight_kg: totalVol.toFixed(2), applicable_weight_kg: Math.max(totalPhys, totalVol).toFixed(2) };
   }, [packages]);
 
-  // --- Effects ---
+  // --- Effect: Initialization ---
   useEffect(() => {
     dispatch(fetchPickupAddresses({ limit: 10 }));
     dispatch(fetchConsignees({ limit: 10 }));
   }, [dispatch]);
 
-  // Load Edit Data
-  useEffect(() => {
-    if (!editOrderData) return;
-
-    setOrderType(editOrderData.order_type || "B2C");
-    setServiceType(editOrderData.service_type || "Surface");
-    setDeliveryType(editOrderData.delivery_type || "none");
-    setIsDoc(editOrderData.is_doc || false);
-    setPaymentMethod(editOrderData.payment_method || "Prepaid");
-    setCodAmount(editOrderData.cod_amount || "");
-    setToPayAmount(editOrderData.to_pay_amount || "");
-    setCreditAmount(editOrderData.credit_amount || "");
-    setIsInsuranceEnabled(editOrderData.insurance === true); // Map bool
-    setRegionalArea(editOrderData.regional_area || 0);
-    setIsGstExempt(editOrderData.is_gst_exempt || false);
-
-    if (editOrderData.pickup_address) dispatch(setSelectedAddress(editOrderData.pickup_address));
-    if (editOrderData.consignee) setConsigneeData(editOrderData.consignee);
-
-    if (editOrderData.items?.length > 0) {
-      setProducts(editOrderData.items.map(item => ({ ...item, id: Math.random() })));
-    }
-
-    if (editOrderData.packages?.length > 0) {
-      setPackages(editOrderData.packages.map(pkg => {
-        // Logic to determine if user had selected KG or G based on saved data
-        const isGram = pkg.physical_weight_kg === 0 && pkg.vol_weight_kg > 0;
-        return {
-          ...pkg,
-          id: Math.random(),
-          count: 1,
-          weight_unit: isGram ? "g" : "kg",
-          weight_value: isGram ? pkg.vol_weight_kg : pkg.physical_weight_kg,
-          row_vol_weight: ((pkg.length_cm * pkg.breadth_cm * pkg.height_cm) / 2700).toFixed(3)
-        };
-      }));
-    }
-
-    setOtherDetails({
-      gst_number: editOrderData.gst_number || "",
-      eway_bill_number: editOrderData.eway_bill_number || "",
-      invoicenumber: editOrderData.invoicenumber || "",
-      amount: editOrderData.amount || ""
-    });
-  }, [editOrderData, dispatch]);
-
+  // --- Handlers for Main Form ---
   const handleProductChange = (id, field, value) => {
     setProducts(prev => prev.map(p => {
       if (p.id === id) {
@@ -186,6 +154,33 @@ export default function NewOrder() {
     }));
   };
 
+  // --- Handlers for Modals (Fixed) ---
+  const handlePickupFormChange = (e) => setPickupForm({ ...pickupForm, [e.target.name]: e.target.value });
+  const handleConsigneeFormChange = (e) => setConsigneeForm({ ...consigneeForm, [e.target.name]: e.target.value });
+
+  const handleSavePickup = () => {
+    dispatch(createPickupAddress(pickupForm))
+      .unwrap()
+      .then(() => {
+        toast.success("Pickup address added!");
+        setIsPickupModalOpen(false);
+        setPickupForm({ nickname: "", contact_name: "", phone: "", email: "", address_line_1: "", address_line_2: "", pincode: "", city: "", state: "", country: "India" });
+      })
+      .catch(() => toast.error("Failed to add pickup address"));
+  };
+
+  const handleSaveConsignee = () => {
+    dispatch(createConsignee(consigneeForm))
+      .unwrap()
+      .then((newConsignee) => {
+        toast.success("Consignee added!");
+        setConsigneeData(newConsignee);
+        setIsConsigneeModalOpen(false);
+        setConsigneeForm({ name: "", mobile: "", alternate_mobile: "", email: "", address_line_1: "", address_line_2: "", pincode: "", city: "", state: "" });
+      })
+      .catch(() => toast.error("Failed to add consignee"));
+  };
+
   const handleSubmit = async () => {
     if (!selectedAddress) return toast.error("Select pickup address");
     if (!consigneeData.id) return toast.error("Select consignee");
@@ -194,8 +189,6 @@ export default function NewOrder() {
       order_type: orderType,
       pickup_address_id: selectedAddress.id,
       consignee_id: consigneeData.id,
-      warehouse_addresses_ids: [],
-      franchise_addresses_ids: [],
       payment_method: paymentMethod,
       cod_amount: Number(codAmount) || 0,
       to_pay_amount: Number(toPayAmount) || 0,
@@ -211,8 +204,7 @@ export default function NewOrder() {
       eway_bill_number: otherDetails.eway_bill_number || null,
       invoicenumber: otherDetails.invoicenumber || null,
       amount: Number(otherDetails.amount) || Number(totalOrderValue),
-      regional_area: Number(regionalArea),
-      items: products.map(p => ({ product_name: p.product_name, sku: p.sku, unit_price: Number(p.unit_price), qty: Number(p.qty), total: Number(p.total), package_index: Number(p.package_index) })),
+      items: products.map(p => ({ ...p, unit_price: Number(p.unit_price), qty: Number(p.qty), total: Number(p.total), package_index: Number(p.package_index) })),
       packages: packages.map(pkg => ({
         count: 1,
         length_cm: Number(pkg.length_cm), breadth_cm: Number(pkg.breadth_cm), height_cm: Number(pkg.height_cm),
@@ -224,10 +216,10 @@ export default function NewOrder() {
     try {
       if (isEditMode) await dispatch(updateOrder({ orderId, data: payload })).unwrap();
       else await dispatch(createOrder(payload)).unwrap();
-      toast.success(isEditMode ? "Order Updated!" : "Order Created!");
+      toast.success(isEditMode ? "Order Updated Sucessfully!" : "Order Created Sucessfully!");
       navigate("/dashboard/processing-order");
     } catch (err) {
-      toast.error("Failed to process request");
+      toast.error("Process failed");
     }
   };
 
@@ -235,13 +227,31 @@ export default function NewOrder() {
 
   return (
     <div className="space-y-6 relative pb-24 min-h-screen">
-      <PickupAddressModal isOpen={isPickupModalOpen} onClose={() => setIsPickupModalOpen(false)} loading={pickupLoading} inputClass={inputClass} />
-      <ConsigneeModal isOpen={isConsigneeModalOpen} onClose={() => setIsConsigneeModalOpen(false)} loading={pickupLoading} inputClass={inputClass} />
+      <PickupAddressModal 
+        isOpen={isPickupModalOpen} 
+        onClose={() => setIsPickupModalOpen(false)} 
+        pickupForm={pickupForm} 
+        handlePickupChange={handlePickupFormChange} 
+        handleSavePickup={handleSavePickup} 
+        loading={pickupLoading} 
+        inputClass={inputClass} 
+      />
+      <ConsigneeModal 
+        isOpen={isConsigneeModalOpen} 
+        onClose={() => setIsConsigneeModalOpen(false)} 
+        consigneeForm={consigneeForm} 
+        handleConsigneeChange={handleConsigneeFormChange} 
+        handleSaveConsignee={handleSaveConsignee} 
+        loading={pickupLoading} 
+        inputClass={inputClass} 
+      />
 
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">{isEditMode ? "Edit Order" : "New Order"}</h1>
-        <p className="text-xs text-primary mt-1 font-medium">Dashboard <span className="text-text-muted mx-2">&gt;&gt;</span> Order Management</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">{isEditMode ? "Edit Order" : "New Order"}</h1>
+          <p className="text-xs text-primary mt-1 font-medium">Dashboard <span className="text-text-muted mx-2">&gt;&gt;</span> Order Management</p>
+        </div>
       </div>
 
       {/* Row 1: Configurations */}
@@ -266,14 +276,14 @@ export default function NewOrder() {
             <span className="text-xs font-bold text-text-muted uppercase tracking-wider">Delivery Details</span>
             <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/5 border border-white/10">
                 <File size={12} className={isDoc ? "text-primary" : "text-text-muted"} />
-                <span className="text-[10px] font-bold text-text-muted uppercase tracking-tighter">Doc?</span>
+                <span className="text-[10px] font-bold text-text-muted uppercase">Doc?</span>
                 <button onClick={() => setIsDoc(!isDoc)} className={cn("w-7 h-3.5 rounded-full transition-all relative", isDoc ? "bg-primary" : "bg-white/20")}>
                     <div className={cn("w-2.5 h-2.5 rounded-full bg-white absolute top-0.5 transition-all", isDoc ? "left-4" : "left-0.5")} />
                 </button>
             </div>
           </div>
           <div className="flex gap-3 flex-wrap">
-            {[{ id: "none", label: "None", icon: BanIcon }, { id: "home", label: "Home", icon: Home }, { id: "office", label: "Office", icon: Building2 }].map(d => (
+            {[{ id: null, label: "None", icon: BanIcon }, { id: "home", label: "Home", icon: Home }, { id: "office", label: "Office", icon: Building2 }].map(d => (
               <label key={d.id} className="flex items-center gap-2 cursor-pointer group">
                 <input type="radio" className="sr-only" checked={deliveryType === d.id} onChange={() => setDeliveryType(d.id)} />
                 <div className={cn("w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all", deliveryType === d.id ? "border-primary" : "border-text-muted/30")}>
@@ -301,7 +311,7 @@ export default function NewOrder() {
         </div>
       </div>
 
-      {/* Address Selection */}
+      {/* Addresses */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-card-bg border-border-subtle overflow-visible relative">
           <CardContent className="p-6 space-y-4">
@@ -309,7 +319,7 @@ export default function NewOrder() {
             <div className="relative cursor-pointer" onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)}>
                 {selectedAddress ? (
                   <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center">
-                    <div><p className="font-bold text-sm">{selectedAddress.nickname}</p><p className="text-xs text-text-muted">{selectedAddress.city} - {selectedAddress.pincode}</p></div>
+                    <div><p className="font-bold text-sm">{selectedAddress.nickname}</p><p className="text-xs text-text-muted">{selectedAddress.city}</p></div>
                     <Button variant="outline" size="sm" className="text-primary border-primary/20">Change</Button>
                   </div>
                 ) : <div className="w-full border-2 border-dashed border-border-subtle rounded-xl py-8 flex flex-col items-center text-text-muted"><MapPin size={32} className="mb-2 opacity-50" /><p className="text-sm font-medium">Select Pickup</p></div>}
@@ -331,7 +341,7 @@ export default function NewOrder() {
             <div className="relative cursor-pointer" onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)}>
                 {consigneeData.id ? (
                   <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center">
-                    <div><p className="font-bold text-sm">{consigneeData.name}</p><p className="text-xs text-text-muted">{consigneeData.city} - {consigneeData.mobile}</p></div>
+                    <div><p className="font-bold text-sm">{consigneeData.name}</p><p className="text-xs text-text-muted">{consigneeData.city}</p></div>
                     <Button variant="outline" size="sm" className="text-primary border-primary/20">Change</Button>
                   </div>
                 ) : <div className="w-full border-2 border-dashed border-border-subtle rounded-xl py-8 flex flex-col items-center text-text-muted"><User size={32} className="mb-2 opacity-50" /><p className="text-sm font-medium">Select Consignee</p></div>}
@@ -348,7 +358,7 @@ export default function NewOrder() {
         </Card>
       </div>
 
-      {/* Charges & Auto-Insurance */}
+      {/* Charges & Auto-Insurance (1.8%) */}
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -417,7 +427,7 @@ export default function NewOrder() {
         </CardContent>
       </Card>
 
-      {/* Product Details Section with Index Sync */}
+      {/* Product Details Section */}
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
           <div className="flex justify-between items-center"><h2 className="text-lg font-semibold">Product Details</h2><div className="bg-primary/10 px-4 py-2 rounded-lg border border-primary/20"><span className="text-lg font-bold text-primary">₹{totalOrderValue.toFixed(2)}</span></div></div>
