@@ -46,13 +46,12 @@ export default function NewOrder() {
   const [codAmount, setCodAmount] = useState("");
   const [toPayAmount, setToPayAmount] = useState("");
   const [creditAmount, setCreditAmount] = useState("");
-  
   const [isInsuranceEnabled, setIsInsuranceEnabled] = useState(false);
   const [insuranceAmount, setInsuranceAmount] = useState(0); 
   const [regionalArea, setRegionalArea] = useState(0);
   const [isGstExempt, setIsGstExempt] = useState(false);
 
-  // UI States
+  // UI Dropdowns
   const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
   const [isAddressDropdownOpen, setIsAddressDropdownOpen] = useState(false);
   const [pickupSearch, setPickupSearch] = useState("");
@@ -63,12 +62,10 @@ export default function NewOrder() {
 
   const [consigneeData, setConsigneeData] = useState({ id: null, name: "", mobile: "", city: "" });
 
-  // Initial States for Packages (Count fixed to 1)
   const [packages, setPackages] = useState([
     { id: Date.now(), count: 1, length_cm: 0, breadth_cm: 0, height_cm: 0, weight_unit: "kg", weight_value: "", row_vol_weight: 0 }
   ]);
 
-  // Initial States for Products
   const [products, setProducts] = useState([
     { id: Date.now() + 1, product_name: "", sku: generateSKU(), unit_price: "", qty: 1, total: 0, package_index: 1 }
   ]);
@@ -78,7 +75,7 @@ export default function NewOrder() {
   // --- Calculations ---
   const totalOrderValue = useMemo(() => products.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0), [products]);
 
-  // Insurance Calculation: 1.8% of Total >= 1000
+  // Insurance Calculation: 1.8% of Total if >= 1000
   useEffect(() => {
     if (isInsuranceEnabled && totalOrderValue >= 1000) {
       setInsuranceAmount((totalOrderValue * 0.018).toFixed(2));
@@ -87,11 +84,10 @@ export default function NewOrder() {
     }
   }, [totalOrderValue, isInsuranceEnabled]);
 
-  // Weight Summary (L*B*H/2700)
   const weightSummary = useMemo(() => {
     let totalPhys = 0, totalVol = 0, totalBoxes = 0;
     packages.forEach(pkg => {
-        const count = 1; // Fixed count as per requirement
+        const count = 1;
         totalBoxes += count;
         const calcVol = ((Number(pkg.length_cm) || 0) * (Number(pkg.breadth_cm) || 0) * (Number(pkg.height_cm) || 0)) / 2700;
         const manualVal = Number(pkg.weight_value) || 0;
@@ -105,10 +101,57 @@ export default function NewOrder() {
     return { total_boxes: totalBoxes, total_weight_kg: totalPhys.toFixed(2), total_vol_weight_kg: totalVol.toFixed(2), applicable_weight_kg: Math.max(totalPhys, totalVol).toFixed(2) };
   }, [packages]);
 
+  // --- Effects ---
   useEffect(() => {
     dispatch(fetchPickupAddresses({ limit: 10 }));
     dispatch(fetchConsignees({ limit: 10 }));
   }, [dispatch]);
+
+  // Load Edit Data
+  useEffect(() => {
+    if (!editOrderData) return;
+
+    setOrderType(editOrderData.order_type || "B2C");
+    setServiceType(editOrderData.service_type || "Surface");
+    setDeliveryType(editOrderData.delivery_type || "none");
+    setIsDoc(editOrderData.is_doc || false);
+    setPaymentMethod(editOrderData.payment_method || "Prepaid");
+    setCodAmount(editOrderData.cod_amount || "");
+    setToPayAmount(editOrderData.to_pay_amount || "");
+    setCreditAmount(editOrderData.credit_amount || "");
+    setIsInsuranceEnabled(editOrderData.insurance === true); // Map bool
+    setRegionalArea(editOrderData.regional_area || 0);
+    setIsGstExempt(editOrderData.is_gst_exempt || false);
+
+    if (editOrderData.pickup_address) dispatch(setSelectedAddress(editOrderData.pickup_address));
+    if (editOrderData.consignee) setConsigneeData(editOrderData.consignee);
+
+    if (editOrderData.items?.length > 0) {
+      setProducts(editOrderData.items.map(item => ({ ...item, id: Math.random() })));
+    }
+
+    if (editOrderData.packages?.length > 0) {
+      setPackages(editOrderData.packages.map(pkg => {
+        // Logic to determine if user had selected KG or G based on saved data
+        const isGram = pkg.physical_weight_kg === 0 && pkg.vol_weight_kg > 0;
+        return {
+          ...pkg,
+          id: Math.random(),
+          count: 1,
+          weight_unit: isGram ? "g" : "kg",
+          weight_value: isGram ? pkg.vol_weight_kg : pkg.physical_weight_kg,
+          row_vol_weight: ((pkg.length_cm * pkg.breadth_cm * pkg.height_cm) / 2700).toFixed(3)
+        };
+      }));
+    }
+
+    setOtherDetails({
+      gst_number: editOrderData.gst_number || "",
+      eway_bill_number: editOrderData.eway_bill_number || "",
+      invoicenumber: editOrderData.invoicenumber || "",
+      amount: editOrderData.amount || ""
+    });
+  }, [editOrderData, dispatch]);
 
   const handleProductChange = (id, field, value) => {
     setProducts(prev => prev.map(p => {
@@ -171,20 +214,20 @@ export default function NewOrder() {
       regional_area: Number(regionalArea),
       items: products.map(p => ({ product_name: p.product_name, sku: p.sku, unit_price: Number(p.unit_price), qty: Number(p.qty), total: Number(p.total), package_index: Number(p.package_index) })),
       packages: packages.map(pkg => ({
-        count: 1, // Sent as 1
+        count: 1,
         length_cm: Number(pkg.length_cm), breadth_cm: Number(pkg.breadth_cm), height_cm: Number(pkg.height_cm),
-        physical_weight: pkg.weight_unit === "kg" ? Number(pkg.weight_value) : 0,
-        vol_weight: pkg.weight_unit === "g" ? Number(pkg.weight_value) : Number(pkg.row_vol_weight)
+        physical_weight_kg: pkg.weight_unit === "kg" ? Number(pkg.weight_value) : 0,
+        vol_weight_kg: pkg.weight_unit === "g" ? Number(pkg.weight_value) : Number(pkg.row_vol_weight)
       }))
     };
 
     try {
       if (isEditMode) await dispatch(updateOrder({ orderId, data: payload })).unwrap();
       else await dispatch(createOrder(payload)).unwrap();
-      toast.success("Order Processed!");
+      toast.success(isEditMode ? "Order Updated!" : "Order Created!");
       navigate("/dashboard/processing-order");
     } catch (err) {
-      toast.error("Process failed");
+      toast.error("Failed to process request");
     }
   };
 
@@ -195,6 +238,7 @@ export default function NewOrder() {
       <PickupAddressModal isOpen={isPickupModalOpen} onClose={() => setIsPickupModalOpen(false)} loading={pickupLoading} inputClass={inputClass} />
       <ConsigneeModal isOpen={isConsigneeModalOpen} onClose={() => setIsConsigneeModalOpen(false)} loading={pickupLoading} inputClass={inputClass} />
 
+      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold">{isEditMode ? "Edit Order" : "New Order"}</h1>
         <p className="text-xs text-primary mt-1 font-medium">Dashboard <span className="text-text-muted mx-2">&gt;&gt;</span> Order Management</p>
@@ -222,20 +266,20 @@ export default function NewOrder() {
             <span className="text-xs font-bold text-text-muted uppercase tracking-wider">Delivery Details</span>
             <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/5 border border-white/10">
                 <File size={12} className={isDoc ? "text-primary" : "text-text-muted"} />
-                <span className="text-[10px] font-bold text-text-muted uppercase">Doc?</span>
+                <span className="text-[10px] font-bold text-text-muted uppercase tracking-tighter">Doc?</span>
                 <button onClick={() => setIsDoc(!isDoc)} className={cn("w-7 h-3.5 rounded-full transition-all relative", isDoc ? "bg-primary" : "bg-white/20")}>
                     <div className={cn("w-2.5 h-2.5 rounded-full bg-white absolute top-0.5 transition-all", isDoc ? "left-4" : "left-0.5")} />
                 </button>
             </div>
           </div>
-          <div className="flex gap-4">
+          <div className="flex gap-3 flex-wrap">
             {[{ id: "none", label: "None", icon: BanIcon }, { id: "home", label: "Home", icon: Home }, { id: "office", label: "Office", icon: Building2 }].map(d => (
               <label key={d.id} className="flex items-center gap-2 cursor-pointer group">
                 <input type="radio" className="sr-only" checked={deliveryType === d.id} onChange={() => setDeliveryType(d.id)} />
                 <div className={cn("w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all", deliveryType === d.id ? "border-primary" : "border-text-muted/30")}>
                   {deliveryType === d.id && <div className="w-2 h-2 rounded-full bg-primary" />}
                 </div>
-                <span className={cn("text-xs font-medium flex items-center gap-1", deliveryType === d.id ? "text-primary" : "text-text-muted")}><d.icon size={12}/> {d.label}</span>
+                <span className={cn("text-[11px] font-medium flex items-center gap-1", deliveryType === d.id ? "text-primary" : "text-text-muted")}><d.icon size={10}/> {d.label}</span>
               </label>
             ))}
           </div>
@@ -257,7 +301,7 @@ export default function NewOrder() {
         </div>
       </div>
 
-      {/* Address Block */}
+      {/* Address Selection */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-card-bg border-border-subtle overflow-visible relative">
           <CardContent className="p-6 space-y-4">
@@ -265,7 +309,7 @@ export default function NewOrder() {
             <div className="relative cursor-pointer" onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)}>
                 {selectedAddress ? (
                   <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center">
-                    <div><p className="font-bold text-sm">{selectedAddress.nickname}</p><p className="text-xs text-text-muted">{selectedAddress.city}</p></div>
+                    <div><p className="font-bold text-sm">{selectedAddress.nickname}</p><p className="text-xs text-text-muted">{selectedAddress.city} - {selectedAddress.pincode}</p></div>
                     <Button variant="outline" size="sm" className="text-primary border-primary/20">Change</Button>
                   </div>
                 ) : <div className="w-full border-2 border-dashed border-border-subtle rounded-xl py-8 flex flex-col items-center text-text-muted"><MapPin size={32} className="mb-2 opacity-50" /><p className="text-sm font-medium">Select Pickup</p></div>}
@@ -287,7 +331,7 @@ export default function NewOrder() {
             <div className="relative cursor-pointer" onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)}>
                 {consigneeData.id ? (
                   <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center">
-                    <div><p className="font-bold text-sm">{consigneeData.name}</p><p className="text-xs text-text-muted">{consigneeData.city}</p></div>
+                    <div><p className="font-bold text-sm">{consigneeData.name}</p><p className="text-xs text-text-muted">{consigneeData.city} - {consigneeData.mobile}</p></div>
                     <Button variant="outline" size="sm" className="text-primary border-primary/20">Change</Button>
                   </div>
                 ) : <div className="w-full border-2 border-dashed border-border-subtle rounded-xl py-8 flex flex-col items-center text-text-muted"><User size={32} className="mb-2 opacity-50" /><p className="text-sm font-medium">Select Consignee</p></div>}
@@ -304,14 +348,14 @@ export default function NewOrder() {
         </Card>
       </div>
 
-      {/* Payment & Insurance */}
+      {/* Charges & Auto-Insurance */}
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <h2 className="text-lg font-semibold flex items-center gap-2"><CreditCard size={20} className="text-primary" /> Payment Method & Charges</h2>
             <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-lg border border-border-subtle">
                 <ShieldCheck size={18} className={cn(isInsuranceEnabled ? "text-green-500" : "text-text-muted")} />
-                <span className="text-sm font-medium">Enable Insurance (1.8%)?</span>
+                <span className="text-sm font-medium">Add Insurance (1.8%)?</span>
                 <button onClick={() => setIsInsuranceEnabled(!isInsuranceEnabled)} className={cn("w-10 h-5 rounded-full transition-all relative", isInsuranceEnabled ? "bg-primary" : "bg-white/20")}>
                   <div className={cn("w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-all shadow-md", isInsuranceEnabled ? "left-6" : "left-0.5")} />
                 </button>
@@ -332,13 +376,13 @@ export default function NewOrder() {
                 <label className="text-[10px] font-bold text-text-muted uppercase ml-1">Insurance Amount</label>
                 <div className={cn(inputClass, "bg-white/5 opacity-80 flex items-center justify-between")}><span>₹ {insuranceAmount}</span><Lock size={12} className="opacity-40" /></div>
               </div>
-              <div className="flex-1"><label className="text-[10px] font-bold text-text-muted uppercase ml-1">Regional</label><input type="number" value={regionalArea} onChange={(e) => setRegionalArea(e.target.value)} className={inputClass} /></div>
+              <div className="flex-1"><label className="text-[10px] font-bold text-text-muted uppercase ml-1">Regional</label><input type="number" value={regionalArea} onChange={(e) => setRegionalArea(e.target.value)} className={inputClass} placeholder="0" /></div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Package Details (Locked Count to 1) */}
+      {/* Package Section (Count 1 Fixed) */}
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
           <div className="flex justify-between items-center">
@@ -351,7 +395,6 @@ export default function NewOrder() {
           </div>
           {packages.map((pkg, idx) => (
             <div key={pkg.id} className="grid grid-cols-2 md:grid-cols-7 gap-4 items-end border-b border-border-subtle pb-6 last:border-0">
-              {/* Fixed Count 1 Field */}
               <div className="space-y-1">
                   <label className="text-[10px] font-bold text-text-muted uppercase tracking-tighter">Index {idx+1} Count</label>
                   <input type="number" value={1} disabled className={cn(inputClass, "bg-white/5 opacity-70 cursor-not-allowed")} />
@@ -374,7 +417,7 @@ export default function NewOrder() {
         </CardContent>
       </Card>
 
-      {/* Product Details Section with Auto-Index Sync */}
+      {/* Product Details Section with Index Sync */}
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
           <div className="flex justify-between items-center"><h2 className="text-lg font-semibold">Product Details</h2><div className="bg-primary/10 px-4 py-2 rounded-lg border border-primary/20"><span className="text-lg font-bold text-primary">₹{totalOrderValue.toFixed(2)}</span></div></div>
@@ -398,7 +441,7 @@ export default function NewOrder() {
         </CardContent>
       </Card>
 
-      {/* Compliance */}
+      {/* Compliance Section */}
       <Card className="bg-card-bg border-border-subtle">
         <button onClick={() => setIsOtherDetailsOpen(!isOtherDetailsOpen)} className="w-full flex justify-between p-6 items-center hover:bg-white/5 transition-colors rounded-xl"><h2 className="text-lg font-semibold flex items-center gap-2"><FileText size={20} className="text-primary"/> Compliance Details</h2>{isOtherDetailsOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}</button>
         {isOtherDetailsOpen && (
@@ -417,10 +460,10 @@ export default function NewOrder() {
         )}
       </Card>
 
-      {/* Completion Footer */}
+      {/* Footer */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-card-bg/90 backdrop-blur-md border-t border-border-subtle flex justify-end z-30 shadow-2xl">
         <Button disabled={orderLoading} onClick={handleSubmit} className="bg-primary hover:bg-primary/90 text-black px-10 h-11 font-bold rounded-xl shadow-lg flex gap-2 transition-transform active:scale-95">
-          {orderLoading ? <Loader2 className="animate-spin" size={18} /> : <><ShoppingBag size={18} /> Complete Order</>}
+          {orderLoading ? <Loader2 className="animate-spin" size={18} /> : <><ShoppingBag size={18} /> {isEditMode ? "Update Order" : "Complete Order"}</>}
         </Button>
       </div>
     </div>
