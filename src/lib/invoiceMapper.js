@@ -84,6 +84,8 @@ export const mapOrderToInvoice = (order, formatDate, invoice = null) => {
 
       credit_amount: order.credit_amount || 0,
 
+      prepaid_amount: order.prepaid_amount || 0,
+
       subtotal: order.order_value || 0,
 
       gst: (

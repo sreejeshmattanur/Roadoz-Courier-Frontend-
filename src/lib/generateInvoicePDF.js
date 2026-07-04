@@ -263,7 +263,12 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
       totalValue += Number(order.charges.credit_amount);
     }
 
-    chargesBody.push(["Total Value", `Rs. ${totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+    if (order.charges?.prepaid_amount && Number(order.charges.prepaid_amount) > 0) {
+      chargesBody.push(["Prepaid Amount", `Rs. ${order.charges.prepaid_amount}`]);
+      totalValue += Number(order.charges.prepaid_amount);
+    }
+
+    chargesBody.push(["Grand Total", `Rs. ${totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
 
     autoTable(doc, {
       startY: chargeY + 4,
@@ -285,7 +290,7 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
       didParseCell: (data) => {
         if (data.section === "body") {
           const desc = data.row.raw[0];
-          if (desc === "Total Value") {
+          if (desc === "Grand Total") {
             data.cell.styles.fontStyle = "bold";
           }
         }
