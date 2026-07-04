@@ -109,7 +109,7 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     autoTable(doc, {
       startY: 107,
       head: [
-        ["Product Name", "SKU", "Price", "Qty", "Package Index", "Total"],
+        ["Product Name", "SKU", "Invoice Amount", "Qty", "Package Index", "Total Invoice Amount"],
       ],
       body: order.items && order.items.length > 0 
         ? order.items.map((item, index) => [
@@ -164,7 +164,7 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     autoTable(doc, {
       startY: pkgY + 4,
       head: [
-        ["Package", "Count", "L (cm)*", "B (cm)*", "H (cm)*", "Vol (kg)", "Manual Weight"],
+        ["Package", "Count", "L (cm)*", "B (cm)*", "H (cm)*", "Vol (kg)", `Manual Weight in (${order.weight_unit || 'kg'})`],
       ],
       body: order.packages && order.packages.length > 0
         ? order.packages.map((pkg, index) => [
@@ -230,13 +230,12 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
       totalValue += totalDeclaredValue;
     }
 
+    chargesBody.push(["Freight Charges", order.charges?.freight ? `Rs. ${order.charges.freight}` : "-"]);
+
     if (!order.is_gst_exempt) {
-      chargesBody.push(
-        ["Freight Charges", order.charges?.freight ? `Rs. ${order.charges.freight}` : "-"],
-        ["Freight GST", order.charges?.freight_gst ? `Rs. ${order.charges.freight_gst}` : "-"]
-      );
-      totalValue += Number(order.charges?.total_freight) || 0;
+      chargesBody.push(["Freight GST", order.charges?.freight_gst ? `Rs. ${order.charges.freight_gst}` : "-"]);
     }
+    totalValue += Number(order.charges?.total_freight) || 0;
 
     if (order.charges?.insurance && Number(order.charges.insurance) > 0) {
       chargesBody.push(["Insurance", `Rs. ${order.charges.insurance}`]);
@@ -263,7 +262,13 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
       totalValue += Number(order.charges.credit_amount);
     }
 
-    chargesBody.push(["Total Value", `Rs. ${totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+    if (order.charges?.prepaid_amount && Number(order.charges.prepaid_amount) > 0) {
+      chargesBody.push(["Prepaid Amount", `Rs. ${order.charges.prepaid_amount}`]);
+      totalValue += Number(order.charges.prepaid_amount);
+    }
+
+    const finalGrandTotal = Number(order.charges?.grand_total) || totalValue;
+    chargesBody.push(["Grand Total", `Rs. ${finalGrandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
 
     autoTable(doc, {
       startY: chargeY + 4,
@@ -285,7 +290,7 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
       didParseCell: (data) => {
         if (data.section === "body") {
           const desc = data.row.raw[0];
-          if (desc === "Total Value") {
+          if (desc === "Grand Total") {
             data.cell.styles.fontStyle = "bold";
           }
         }

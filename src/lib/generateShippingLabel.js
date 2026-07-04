@@ -510,7 +510,7 @@ function drawLabel(doc, order, pageHeight) {
   doc.line(COL_TOTAL, currentY, COL_TOTAL, currentY + totalRowHeight);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(5.8);
-  doc.text("Total Value:", TX.qtyX, currentY + 3.5);
+  doc.text("Grand Total:", TX.qtyX, currentY + 3.5);
   doc.text(String(`Rs. ${totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`), TX.totalX, currentY + 3.5);
   
   currentY += totalRowHeight;
