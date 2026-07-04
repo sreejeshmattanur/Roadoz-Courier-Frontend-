@@ -109,7 +109,7 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     autoTable(doc, {
       startY: 107,
       head: [
-        ["Product Name", "SKU", "Price", "Qty", "Package Index", "Total"],
+        ["Product Name", "SKU", "Invoice Amount", "Qty", "Package Index", "Total Invoice Amount"],
       ],
       body: order.items && order.items.length > 0 
         ? order.items.map((item, index) => [
