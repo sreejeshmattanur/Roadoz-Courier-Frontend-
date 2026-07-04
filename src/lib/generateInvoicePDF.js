@@ -230,13 +230,12 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
       totalValue += totalDeclaredValue;
     }
 
+    chargesBody.push(["Freight Charges", order.charges?.freight ? `Rs. ${order.charges.freight}` : "-"]);
+
     if (!order.is_gst_exempt) {
-      chargesBody.push(
-        ["Freight Charges", order.charges?.freight ? `Rs. ${order.charges.freight}` : "-"],
-        ["Freight GST", order.charges?.freight_gst ? `Rs. ${order.charges.freight_gst}` : "-"]
-      );
-      totalValue += Number(order.charges?.total_freight) || 0;
+      chargesBody.push(["Freight GST", order.charges?.freight_gst ? `Rs. ${order.charges.freight_gst}` : "-"]);
     }
+    totalValue += Number(order.charges?.total_freight) || 0;
 
     if (order.charges?.insurance && Number(order.charges.insurance) > 0) {
       chargesBody.push(["Insurance", `Rs. ${order.charges.insurance}`]);
@@ -268,7 +267,8 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
       totalValue += Number(order.charges.prepaid_amount);
     }
 
-    chargesBody.push(["Grand Total", `Rs. ${totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+    const finalGrandTotal = Number(order.charges?.grand_total) || totalValue;
+    chargesBody.push(["Grand Total", `Rs. ${finalGrandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
 
     autoTable(doc, {
       startY: chargeY + 4,
