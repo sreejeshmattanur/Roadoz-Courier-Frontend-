@@ -167,6 +167,15 @@ export function Dashboard() {
           iconBgColor="bg-pink-600 shadow-pink-500/20"
         />
       </div>
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <Truck className="text-primary" size={24} />
+          </div>
+          <h2 className="text-2xl font-bold text-text-main">Freight Rate Cards</h2>
+        </div>
+        
+      </div>
 
 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {/* Surface Rates Table */}
@@ -273,15 +282,7 @@ export function Dashboard() {
       </div>
 
       {/* ── Row 3: Freight Rate Cards ── */}
-      <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <Truck className="text-primary" size={24} />
-          </div>
-          <h2 className="text-2xl font-bold text-text-main">Freight Rate Cards</h2>
-        </div>
-        
-      </div>
+      
     </div>
   );
 }
