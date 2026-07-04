@@ -164,7 +164,7 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     autoTable(doc, {
       startY: pkgY + 4,
       head: [
-        ["Package", "Count", "L (cm)*", "B (cm)*", "H (cm)*", "Vol (kg)", "Manual Weight"],
+        ["Package", "Count", "L (cm)*", "B (cm)*", "H (cm)*", "Vol (kg)", `Manual Weight in (${order.weight_unit || 'kg'})`],
       ],
       body: order.packages && order.packages.length > 0
         ? order.packages.map((pkg, index) => [

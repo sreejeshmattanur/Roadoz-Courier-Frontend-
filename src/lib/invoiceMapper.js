@@ -61,6 +61,8 @@ export const mapOrderToInvoice = (order, formatDate, invoice = null) => {
 
     packages: order.packages || [],
 
+    weight_unit: order.weight_unit || "kg",
+
     weight: `${order.weight_summary?.total_weight_kg || 0} KG`,
 
     dims: `${order.packages?.[0]?.length_cm || 0} x ${
