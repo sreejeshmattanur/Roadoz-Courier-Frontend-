@@ -4,7 +4,7 @@ import {
   MapPin, Loader2, User, MapPinned, CreditCard, ShieldCheck, 
   Truck, Zap, FileText, Scale, Home, Building2, 
   Ban as BanIcon, MousePointerClick,
-  File as FileIcon // Fixed conflict with native File constructor
+  File as FileIcon 
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
@@ -45,17 +45,14 @@ export default function NewOrder() {
   const [isDoc, setIsDoc] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("Prepaid");
   
-  // Amounts (Preserved from backend in edit mode)
   const [prepaidAmount, setPrepaidAmount] = useState("");
   const [codAmount, setCodAmount] = useState("");
   const [toPayAmount, setToPayAmount] = useState("");
   const [creditAmount, setCreditAmount] = useState("");
   
-  // Manual Freight States
   const [isManualFreight, setIsManualFreight] = useState(false);
   const [freightCharge, setFreightCharge] = useState("");
   
-  // Insurance
   const [isInsuranceEnabled, setIsInsuranceEnabled] = useState(false);
   const [insuranceAmount, setInsuranceAmount] = useState(0); 
   
@@ -88,6 +85,27 @@ export default function NewOrder() {
   ]);
   const [otherDetails, setOtherDetails] = useState({ gst_number: "", eway_bill_number: "", invoicenumber: "", amount: "" });
 
+  // --- SEARCH LOGIC (Client Side Filtering) ---
+  const filteredPickupAddresses = useMemo(() => {
+    if (!pickupSearch) return pickupAddresses;
+    const query = pickupSearch.toLowerCase();
+    return pickupAddresses.filter(addr => 
+      addr.nickname?.toLowerCase().includes(query) || 
+      addr.contact_name?.toLowerCase().includes(query) ||
+      addr.city?.toLowerCase().includes(query)
+    );
+  }, [pickupAddresses, pickupSearch]);
+
+  const filteredConsignees = useMemo(() => {
+    if (!consigneeSearch) return consignees;
+    const query = consigneeSearch.toLowerCase();
+    return consignees.filter(c => 
+      c.name?.toLowerCase().includes(query) || 
+      c.mobile?.includes(query) ||
+      c.city?.toLowerCase().includes(query)
+    );
+  }, [consignees, consigneeSearch]);
+
   // --- Calculations ---
   const totalOrderValue = useMemo(() => products.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0), [products]);
 
@@ -119,8 +137,8 @@ export default function NewOrder() {
   }, [packages]);
 
   useEffect(() => {
-    dispatch(fetchPickupAddresses({ limit: 10 }));
-    dispatch(fetchConsignees({ limit: 10 }));
+    dispatch(fetchPickupAddresses({ limit: 50 })); // Fetch larger limit for better local search
+    dispatch(fetchConsignees({ limit: 50 }));
   }, [dispatch]);
 
   // --- EDIT ORDER POPULATE LOGIC ---
@@ -132,20 +150,15 @@ export default function NewOrder() {
     setDeliveryType(editOrderData.delivery_type || "none");
     setIsDoc(editOrderData.is_doc || false);
     setPaymentMethod(editOrderData.payment_method || "Prepaid");
-    
-    // Mapping specific amounts from order data
     setPrepaidAmount(editOrderData.prepaid_amount?.toString() || "");
     setCodAmount(editOrderData.cod_amount?.toString() || "");
     setToPayAmount(editOrderData.to_pay_amount?.toString() || "");
     setCreditAmount(editOrderData.credit_amount?.toString() || "");
-    
-    // FIX: Populate Manual Freight Toggle and Charge
     setIsManualFreight(editOrderData.is_manual_freight === true);
     setFreightCharge(editOrderData.freight_charge?.toString() || "");
 
     const ins = editOrderData.insurance;
     setIsInsuranceEnabled(ins === true || parseFloat(ins) > 0);
-
     setRegionalArea(editOrderData.regional_area || 0);
     setIsGstExempt(editOrderData.is_gst_exempt || false);
 
@@ -233,7 +246,7 @@ export default function NewOrder() {
       order_value: Number(totalOrderValue),
       service_type: serviceType,
       is_gst_exempt: isGstExempt,
-      insurance: isInsuranceEnabled, // Boolean payload
+      insurance: isInsuranceEnabled,
       is_doc: isDoc,
       delivery_type: deliveryType === "none" ? null : deliveryType,
       is_manual_freight: isManualFreight,
@@ -346,18 +359,43 @@ export default function NewOrder() {
         <Card className="bg-card-bg border-border-subtle overflow-visible relative">
           <CardContent className="p-6 space-y-4">
             <div className="flex justify-between items-center"><h2 className="text-lg font-semibold flex items-center gap-2"><MapPinned size={20} className="text-primary" /> Pickup Location</h2><Button variant="ghost" size="sm" onClick={() => setIsPickupModalOpen(true)} className="text-primary hover:bg-primary/10"><Plus size={16} /> Add New</Button></div>
-            <div className="relative cursor-pointer" onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)}>
+            <div className="relative cursor-pointer">
                 {selectedAddress ? (
-                  <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center">
+                  <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center" onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)}>
                     <div><p className="font-bold text-sm">{selectedAddress.nickname}</p><p className="text-xs text-text-muted">{selectedAddress.city} - {selectedAddress.pincode}</p></div>
                     <Button variant="outline" size="sm" className="text-primary border-primary/20">Change</Button>
                   </div>
-                ) : <div className="w-full border-2 border-dashed border-border-subtle rounded-xl py-8 flex flex-col items-center text-text-muted"><MapPin size={32} className="mb-2 opacity-50" /><p className="text-sm font-medium">Select Pickup</p></div>}
+                ) : <div onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)} className="w-full border-2 border-dashed border-border-subtle rounded-xl py-8 flex flex-col items-center text-text-muted"><MapPin size={32} className="mb-2 opacity-50" /><p className="text-sm font-medium">Select Pickup</p></div>}
+              
               <AnimatePresence>
                 {isAddressDropdownOpen && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute z-50 mt-2 w-full bg-card-bg border border-border-subtle rounded-xl shadow-2xl max-h-60 overflow-hidden flex flex-col">
-                    <div className="p-3 border-b border-border-subtle/20 bg-card-bg sticky top-0 z-10"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={14} /><input type="text" placeholder="Search Pickup..." value={pickupSearch} onClick={(e) => e.stopPropagation()} onChange={(e) => { setPickupSearch(e.target.value); dispatch(fetchPickupAddresses({ search: e.target.value })); }} className="w-full bg-white/5 border border-border-subtle rounded-lg pl-9 py-1.5 text-xs outline-none" /></div></div>
-                    <div className="overflow-y-auto">{pickupAddresses?.map(a => (<div key={a.id} onClick={() => { dispatch(setSelectedAddress(a)); setIsAddressDropdownOpen(false); }} className="p-3 hover:bg-primary/10 cursor-pointer text-sm border-b border-border-subtle/10 last:border-0">{a.nickname}</div>))}</div>
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute z-50 mt-2 w-full bg-card-bg border border-border-subtle rounded-xl shadow-2xl max-h-72 overflow-hidden flex flex-col">
+                    <div className="p-3 border-b border-border-subtle/20 bg-card-bg sticky top-0 z-10">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={14} />
+                        <input 
+                          type="text" 
+                          placeholder="Search Pickup by Name or City..." 
+                          value={pickupSearch} 
+                          autoFocus
+                          onClick={(e) => e.stopPropagation()} 
+                          onChange={(e) => setPickupSearch(e.target.value)} 
+                          className="w-full bg-white/5 border border-border-subtle rounded-lg pl-9 py-2 text-xs outline-none focus:border-primary" 
+                        />
+                      </div>
+                    </div>
+                    <div className="overflow-y-auto max-h-60 custom-scrollbar">
+                      {filteredPickupAddresses.length > 0 ? (
+                        filteredPickupAddresses.map(a => (
+                          <div key={a.id} onClick={() => { dispatch(setSelectedAddress(a)); setIsAddressDropdownOpen(false); setPickupSearch(""); }} className="p-4 hover:bg-primary/10 cursor-pointer text-sm border-b border-border-subtle/10 last:border-0 transition-colors">
+                            <p className="font-bold">{a.nickname}</p>
+                            <p className="text-[11px] text-text-muted">{a.contact_name} | {a.city}, {a.pincode}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-8 text-center text-text-muted text-xs">No addresses found matching "{pickupSearch}"</div>
+                      )}
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -368,18 +406,43 @@ export default function NewOrder() {
         <Card className="bg-card-bg border-border-subtle overflow-visible relative">
           <CardContent className="p-6 space-y-4">
             <div className="flex justify-between items-center"><h2 className="text-lg font-semibold flex items-center gap-2"><User size={20} className="text-primary" /> Deliver To</h2><Button variant="ghost" size="sm" onClick={() => setIsConsigneeModalOpen(true)} className="text-primary hover:bg-primary/10"><Plus size={16} /> Add New</Button></div>
-            <div className="relative cursor-pointer" onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)}>
+            <div className="relative cursor-pointer">
                 {consigneeData.id ? (
-                  <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center">
+                  <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center" onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)}>
                     <div><p className="font-bold text-sm">{consigneeData.name}</p><p className="text-xs text-text-muted">{consigneeData.city} - {consigneeData.mobile}</p></div>
                     <Button variant="outline" size="sm" className="text-primary border-primary/20">Change</Button>
                   </div>
-                ) : <div className="w-full border-2 border-dashed border-border-subtle rounded-xl py-8 flex flex-col items-center text-text-muted"><User size={32} className="mb-2 opacity-50" /><p className="text-sm font-medium">Select Consignee</p></div>}
+                ) : <div onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)} className="w-full border-2 border-dashed border-border-subtle rounded-xl py-8 flex flex-col items-center text-text-muted"><User size={32} className="mb-2 opacity-50" /><p className="text-sm font-medium">Select Consignee</p></div>}
+              
               <AnimatePresence>
                 {isConsigneeDropdownOpen && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute z-50 mt-2 w-full bg-card-bg border border-border-subtle rounded-xl shadow-2xl max-h-60 overflow-hidden flex flex-col">
-                    <div className="p-3 border-b border-border-subtle/20 bg-card-bg sticky top-0 z-10"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={14} /><input type="text" placeholder="Search Consignee..." value={consigneeSearch} onClick={(e) => e.stopPropagation()} onChange={(e) => { setConsigneeSearch(e.target.value); dispatch(fetchConsignees({ search: e.target.value })); }} className="w-full bg-white/5 border border-border-subtle rounded-lg pl-9 py-1.5 text-xs outline-none" /></div></div>
-                    <div className="overflow-y-auto">{consignees?.map(c => (<div key={c.id} onClick={() => { setConsigneeData(c); setIsConsigneeDropdownOpen(false); }} className="p-3 hover:bg-primary/10 cursor-pointer text-sm border-b border-border-subtle/10 last:border-0">{c.name}</div>))}</div>
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute z-50 mt-2 w-full bg-card-bg border border-border-subtle rounded-xl shadow-2xl max-h-72 overflow-hidden flex flex-col">
+                    <div className="p-3 border-b border-border-subtle/20 bg-card-bg sticky top-0 z-10">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={14} />
+                        <input 
+                          type="text" 
+                          placeholder="Search Consignee by Name or Mobile..." 
+                          value={consigneeSearch} 
+                          autoFocus
+                          onClick={(e) => e.stopPropagation()} 
+                          onChange={(e) => setConsigneeSearch(e.target.value)} 
+                          className="w-full bg-white/5 border border-border-subtle rounded-lg pl-9 py-2 text-xs outline-none focus:border-primary" 
+                        />
+                      </div>
+                    </div>
+                    <div className="overflow-y-auto max-h-60 custom-scrollbar">
+                      {filteredConsignees.length > 0 ? (
+                        filteredConsignees.map(c => (
+                          <div key={c.id} onClick={() => { setConsigneeData(c); setIsConsigneeDropdownOpen(false); setConsigneeSearch(""); }} className="p-4 hover:bg-primary/10 cursor-pointer text-sm border-b border-border-subtle/10 last:border-0 transition-colors">
+                            <p className="font-bold">{c.name}</p>
+                            <p className="text-[11px] text-text-muted">{c.mobile} | {c.city}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-8 text-center text-text-muted text-xs">No consignees found matching "{consigneeSearch}"</div>
+                      )}
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
