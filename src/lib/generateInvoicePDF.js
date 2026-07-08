@@ -22,6 +22,26 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     doc.setFontSize(20);
     doc.text("Roadoz Courier & Cargo", PAGE_LEFT, 20);
 
+    const creatorRole = order.creator?.role?.toLowerCase() || "";
+    if (order.creator && order.creator.name && creatorRole !== 'admin' && creatorRole !== 'superadmin' && creatorRole !== 'super_admin' && !isSuperAdmin) {
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.text("Franchise Details:", PAGE_LEFT, 26);
+      
+      doc.setFont("helvetica", "normal");
+      let currentY = 30;
+      doc.text(`Name: ${order.creator.name}`, PAGE_LEFT, currentY);
+      currentY += 4;
+      
+      if (order.creator.phone) {
+        doc.text(`Phone: ${order.creator.phone}`, PAGE_LEFT, currentY);
+        currentY += 4;
+      }
+      if (order.creator.email) {
+        doc.text(`Email: ${order.creator.email}`, PAGE_LEFT, currentY);
+      }
+    }
+
     // --- TAX INVOICE label — right-aligned ---
     doc.setFontSize(18);
     doc.text("TAX INVOICE", PAGE_RIGHT, 20, { align: "right" });
@@ -71,7 +91,6 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
 
     // Vertical separator between the two address blocks
     doc.setDrawColor(200);
-    doc.line(105, 50, 105, 97);
 
     // Address content
     doc.setFont("helvetica", "normal");
@@ -102,12 +121,19 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     // -----------------------------
     // PRODUCT DETAILS TABLE
     // -----------------------------
+    const addressBottom = ADDR_Y_START + (Math.max(pickupLines.length, deliveryLines.length) - 1) * 5;
+    
+    // Vertical separator between the two address blocks, ending just below the text
+    doc.line(105, 50, 105, addressBottom + 2);
+    
+    const prodY = addressBottom + 10;
+
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
-    doc.text("Product Details", PAGE_LEFT, 103);
+    doc.text("Product Details", PAGE_LEFT, prodY);
 
     autoTable(doc, {
-      startY: 107,
+      startY: prodY + 2,
       head: [
         ["Product Name", "SKU", "Invoice Amount", "Qty", "Package Index", "Total Invoice Amount"],
       ],
@@ -130,7 +156,7 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
               order.product?.value !== undefined ? `Rs. ${order.product.value}` : "-",
             ],
           ],
-      styles: { fontSize: 9, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.5 },
+      styles: { fontSize: 8, cellPadding: 2, lineColor: [200, 200, 200], lineWidth: 0.5 },
       headStyles: {
         fillColor: black,
         textColor: white,
@@ -162,7 +188,7 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     doc.text("Package Details", PAGE_LEFT, pkgY);
 
     autoTable(doc, {
-      startY: pkgY + 4,
+      startY: pkgY + 2,
       head: [
         ["Package", "Count", "L (cm)*", "B (cm)*", "H (cm)*", "Vol (kg)", `Manual Weight in (${order.weight_unit || 'kg'})`],
       ],
@@ -179,7 +205,7 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
         : [
             ["Pkg 1", "-", "-", "-", "-", "-", "-"],
           ],
-      styles: { fontSize: 9, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.5 },
+      styles: { fontSize: 8, cellPadding: 2, lineColor: [200, 200, 200], lineWidth: 0.5 },
       headStyles: {
         fillColor: black,
         textColor: white,
@@ -230,10 +256,12 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
       totalValue += totalDeclaredValue;
     }
 
-    chargesBody.push(["Freight Charges", order.charges?.freight ? `Rs. ${order.charges.freight}` : "-"]);
+    if (order.charges?.freight && Number(order.charges.freight) !== 0) {
+      chargesBody.push(["Freight Charges", `Rs. ${order.charges.freight}`]);
+    }
 
-    if (!order.is_gst_exempt) {
-      chargesBody.push(["Freight GST", order.charges?.freight_gst ? `Rs. ${order.charges.freight_gst}` : "-"]);
+    if (!order.is_gst_exempt && order.charges?.freight_gst && Number(order.charges.freight_gst) !== 0) {
+      chargesBody.push(["Freight GST", `Rs. ${order.charges.freight_gst}`]);
     }
     totalValue += Number(order.charges?.total_freight) || 0;
 
@@ -271,10 +299,10 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     chargesBody.push(["Grand Total", `Rs. ${finalGrandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
 
     autoTable(doc, {
-      startY: chargeY + 4,
+      startY: chargeY + 2,
       head: [["Description", "Amount"]],
       body: chargesBody,
-      styles: { fontSize: 9, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.5 },
+      styles: { fontSize: 8, cellPadding: 2, lineColor: [200, 200, 200], lineWidth: 0.5 },
       headStyles: {
         fillColor: black,
         textColor: white,
@@ -308,8 +336,8 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     const BOTTOM_MARGIN = 10;
     const SAFE_BOTTOM = PAGE_H - BOTTOM_MARGIN; // 287mm — last safe y
 
-    const extraY = doc.lastAutoTable.finalY + 6;
-    const INFO_BAR_H = 10; // compact bar height
+    const extraY = doc.lastAutoTable.finalY + 4;
+    const INFO_BAR_H = 8; // compact bar height
 
     // Shaded background
     doc.setFillColor(245, 245, 245);
@@ -318,8 +346,8 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     doc.rect(PAGE_LEFT, extraY, PAGE_RIGHT - PAGE_LEFT, INFO_BAR_H, "S");
 
     // Three columns inside the bar
-    const barTextY = extraY + 6.5;
-    doc.setFontSize(9);
+    const barTextY = extraY + 5.5;
+    doc.setFontSize(8);
 
     // Left Column
     doc.setFont("helvetica", "bold");
@@ -359,20 +387,14 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     const TERMS_TITLE_H = 6;
     const MIN_SPACE_FOR_TERMS = 40; // minimum space needed for terms section
     
-    let termsY = extraY + INFO_BAR_H + 7; // at least 7mm below the shaded info bar
+    let termsY = extraY + INFO_BAR_H + 5; // at least 5mm below the shaded info bar
     
-    // Check if we need a new page for terms
-    if (termsY + TERMS_TITLE_H + (terms.length * LINE_H) > SAFE_BOTTOM - 15) {
-      doc.addPage();
-      termsY = 20; // start near top of new page
-    }
-
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.text("Terms & Conditions:", PAGE_LEFT, termsY);
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     let currentY = termsY + TERMS_TITLE_H;
     
     const isInsured = order.charges?.insurance && Number(order.charges.insurance) > 0;
@@ -382,7 +404,7 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
       const termText = `${i + 1}. ${line}`;
       const splitText = doc.splitTextToSize(termText, termsTextWidth);
       const lineCount = splitText.length;
-      const lineHeight = lineCount * 3.5;
+      const lineHeight = lineCount * 3.2;
       
       // Check if we need a new page for this term
       if (currentY + lineHeight > SAFE_BOTTOM - 25) {
@@ -397,7 +419,7 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     // -----------------------------
     // SIGNATURES & STAMP  — pinned to bottom of current page or right below terms
     // -----------------------------
-    const sigSpaceNeeded = isInsured ? 70 : 15;
+    const sigSpaceNeeded = 15;
     let finalSigY = currentY + sigSpaceNeeded;
 
     if (finalSigY > SAFE_BOTTOM) {
@@ -412,7 +434,7 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
       // Circular INSURED stamp placed above Authorized Signatory
       const radius = 12;
       const centerX = PAGE_RIGHT - 10; // Shifted further to the right edge
-      const centerY = finalSigY - radius - 32; // Moved even further up for signature space
+      const centerY = finalSigY - radius - 20; // Moved even further up for signature space
       
       // Background and Outer circle
       doc.setFillColor(238, 252, 240); // Soft mint green

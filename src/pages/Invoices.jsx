@@ -183,6 +183,7 @@ export function Invoices() {
       shipmentType: orderData?.order_type || "N/A",
       riskType: "owner_risk",
       totalBoxes: 1,
+      creator: orderData?.creator || invoice.creator || null,
     };
 
     generateInvoicePDF(mappedOrder, isSuperAdmin);
