@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Mail, ShieldQuestion } from "lucide-react";
-import Logo from "../assets/images/Roadoz Golden hd.png";
+import Logo from "../assets/images/RO-2.png";
 import { Button } from "../components/ui/button";
 
 export function ForgotPassword() {

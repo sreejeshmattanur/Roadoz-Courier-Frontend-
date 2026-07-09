@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "motion/react";
-import logo from "../../assets/images/Roadoz Golden hd.png";
+import logo from "../../assets/images/RO-2.png";
 
 export function Loader() {
   return (

@@ -104,5 +104,6 @@ export const mapOrderToInvoice = (order, formatDate, invoice = null) => {
         Number(order.order_value || 0) * 1.18
       ).toFixed(2),
     },
+    creator: order.creator || null,
   };
 };
