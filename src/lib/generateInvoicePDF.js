@@ -35,25 +35,6 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     doc.setTextColor(0, 0, 0); // Reset to black
 
 
-    const creatorRole = order.creator?.role?.toLowerCase() || "";
-    if (order.creator && order.creator.name && creatorRole !== 'admin' && creatorRole !== 'superadmin' && creatorRole !== 'super_admin' && !isSuperAdmin) {
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "bold");
-      doc.text("Franchise Details:", PAGE_LEFT, 26);
-      
-      doc.setFont("helvetica", "normal");
-      let currentY = 30;
-      doc.text(`Name: ${order.creator.name}`, PAGE_LEFT, currentY);
-      currentY += 4;
-      
-      if (order.creator.phone) {
-        doc.text(`Phone: ${order.creator.phone}`, PAGE_LEFT, currentY);
-        currentY += 4;
-      }
-      if (order.creator.email) {
-        doc.text(`Email: ${order.creator.email}`, PAGE_LEFT, currentY);
-      }
-    }
 
     // --- TAX INVOICE label — right-aligned ---
     doc.setFontSize(18);
