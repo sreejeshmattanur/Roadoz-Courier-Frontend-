@@ -37,25 +37,6 @@ doc.text("GST: 32AAPCR1988L1ZP", PAGE_LEFT, 42)
     doc.setTextColor(0, 0, 0); // Reset to black
 
 
-    const creatorRole = order.creator?.role?.toLowerCase() || "";
-    if (order.creator && order.creator.name && creatorRole !== 'admin' && creatorRole !== 'superadmin' && creatorRole !== 'super_admin' && !isSuperAdmin) {
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "bold");
-      doc.text("Franchise Details:", PAGE_LEFT, 26);
-      
-      doc.setFont("helvetica", "normal");
-      let currentY = 30;
-      doc.text(`Name: ${order.creator.name}`, PAGE_LEFT, currentY);
-      currentY += 4;
-      
-      if (order.creator.phone) {
-        doc.text(`Phone: ${order.creator.phone}`, PAGE_LEFT, currentY);
-        currentY += 4;
-      }
-      if (order.creator.email) {
-        doc.text(`Email: ${order.creator.email}`, PAGE_LEFT, currentY);
-      }
-    }
 
     // --- TAX INVOICE label — right-aligned ---
     doc.setFontSize(18);
@@ -67,7 +48,7 @@ doc.text("GST: 32AAPCR1988L1ZP", PAGE_LEFT, 42)
     const metaRows = [
       ["Invoice No", order.invoiceNo || "N/A"],
       ["Invoice Date", order.created || "N/A"],
-      ["Order Number", order.id || "N/A"],
+      ["Air Waybill", order.id || "N/A"],
     ];
     
     if (order.amount) {
@@ -150,7 +131,7 @@ doc.text("GST: 32AAPCR1988L1ZP", PAGE_LEFT, 42)
     autoTable(doc, {
       startY: prodY + 2,
       head: [
-        ["Product Name", "SKU", "Invoice Amount", "Qty", "Package Index", "Total Invoice Amount"],
+        ["Product Name", "SKU", "Freight Charge", "Qty", "Package Index"],
       ],
       body: order.items && order.items.length > 0 
         ? order.items.map((item, index) => [
