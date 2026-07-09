@@ -16,11 +16,24 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     // HEADER  (invoice meta RIGHT only)
     // ─────────────────────────────────────────────────────────
 
-    // --- Header Section ---
-    // Company name on left
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(20);
-    doc.text("Roadoz Courier & Cargo", PAGE_LEFT, 20);
+   doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text("ROADAZ PVT. LTD.", PAGE_LEFT, 15);
+    
+    // Sub-header
+    doc.setFontSize(10);
+    doc.text("COURIER AND CARGO", PAGE_LEFT, 20);
+
+    // Company Address from Business Card
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(60, 60, 60);
+    doc.text("Room No: 122, No: 55/2055, 1st Floor DD Vyapar Bhavan,", PAGE_LEFT, 25);
+    doc.text("K.P Vallon Road, Kadavanthara, Kochi-682020", PAGE_LEFT, 29);
+    doc.text("Phone: +91 97464 30687 | Email: operations@roadozcourier.com", PAGE_LEFT, 33);
+    doc.text("Web: www.roadoz.com", PAGE_LEFT, 37);
+    doc.setTextColor(0, 0, 0); // Reset to black
+
 
     const creatorRole = order.creator?.role?.toLowerCase() || "";
     if (order.creator && order.creator.name && creatorRole !== 'admin' && creatorRole !== 'superadmin' && creatorRole !== 'super_admin' && !isSuperAdmin) {
