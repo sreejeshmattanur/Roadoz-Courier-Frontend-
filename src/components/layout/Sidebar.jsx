@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -17,8 +17,10 @@ import {
   Store,
   Warehouse,
   ClipboardCheck,
-  MessageSquare ,
-    FileBarChart,
+  MessageSquare,
+  FileBarChart,
+  MapPin, // Added for Pickup Address
+  RotateCcw, // Added for RTO Address
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { NavLink } from "../NavLink";
@@ -43,7 +45,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
     finance: false,
     settings: false,
     admin: false,
-    franchise: false, 
+    franchise: false,
   });
 
   const hasPerm = (perm) => hasPermission(permissions, role, perm);
@@ -72,7 +74,6 @@ export function Sidebar({ isOpen, setIsOpen }) {
       { name: "Activity Logs", to: `${base}/admin/activity-logs`, perm: "activity_logs:view" },
     ],
     franchise: [
-      // Added 'end: true' so Registry doesn't highlight when inside Approval
       { name: "Franchise Registry", to: `${base}/franchise`, perm: "franchises:view", end: true },
       { name: "Approval Franchise", to: `${base}/franchise/approval`, perm: "franchises:edit" },
     ],
@@ -89,8 +90,6 @@ export function Sidebar({ isOpen, setIsOpen }) {
     settings: [
       { name: "General Details", to: `${base}/settings/general`, perm: "profile:view" },
       { name: "Change Password", to: `${base}/settings/password`, perm: "profile:view" },
-      { name: "Pickup Address", to: `${base}/settings/pickup`, perm: "pickup_addresses:view" },
-      { name: "RTO Address", to: `${base}/settings/rto`, perm: "profile:edit" },
       { name: "Label Setting", to: `${base}/settings/label`, perm: "profile:edit" },
       { name: "KYC", to: `${base}/settings/kyc`, perm: "profile:edit" },
     ],
@@ -99,7 +98,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
   useEffect(() => {
     const currentPath = location.pathname;
     const activeSection = Object.keys(sections).find((key) =>
-      sections[key].some((item) => 
+      sections[key].some((item) =>
         item.end ? currentPath === item.to : currentPath.startsWith(item.to)
       )
     );
@@ -114,7 +113,12 @@ export function Sidebar({ isOpen, setIsOpen }) {
 
   const toggleMenu = (menu) => {
     setOpenMenus((prev) => ({
-      orders: false, tools: false, finance: false, settings: false, admin: false, franchise: false,
+      orders: false,
+      tools: false,
+      finance: false,
+      settings: false,
+      admin: false,
+      franchise: false,
       [menu]: !prev[menu],
     }));
   };
@@ -135,8 +139,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
     const allowedItems = items.filter((item) => hasPerm(item.perm));
     if (allowedItems.length === 0) return null;
 
-    // Check if any child is currently the active route
-    const isChildActive = allowedItems.some((item) => 
+    const isChildActive = allowedItems.some((item) =>
       item.end ? location.pathname === item.to : location.pathname.startsWith(item.to)
     );
 
@@ -148,12 +151,11 @@ export function Sidebar({ isOpen, setIsOpen }) {
           className={cn(
             "flex items-center w-full px-4 py-3 text-sm font-medium rounded-lg transition-all",
             isOpen ? "justify-between" : "justify-center",
-            // Highlight parent if open OR if any child is active
-            (openMenus[id] || isChildActive) ? "bg-primary/10 text-text-main" : "text-text-muted hover:bg-text-muted/5"
+            openMenus[id] || isChildActive ? "bg-primary/10 text-text-main" : "text-text-muted hover:bg-text-muted/5"
           )}
         >
           <div className="flex items-center gap-3">
-            <Icon size={20} className={(openMenus[id] || isChildActive) ? "text-primary" : ""} />
+            <Icon size={20} className={openMenus[id] || isChildActive ? "text-primary" : ""} />
             {isOpen && <span>{label}</span>}
           </div>
           {isOpen && (openMenus[id] ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}
@@ -165,7 +167,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
               <NavLink
                 key={item.name}
                 to={item.to}
-                end={item.end} // Passes the end property for exact matching
+                end={item.end}
                 className={({ isActive }) =>
                   cn(
                     "py-2 pl-8 pr-4 text-xs rounded-md flex items-center gap-2",
@@ -191,20 +193,28 @@ export function Sidebar({ isOpen, setIsOpen }) {
     >
       <div className="p-4 flex items-center justify-between lg:justify-center">
         <img src={logo} alt="Logo" className={cn("object-contain transition-all", isOpen ? "w-40 h-12" : "w-10 h-10")} />
-        <button onClick={() => setIsOpen(false)} className="lg:hidden p-2 text-primary"><X size={24} /></button>
+        <button onClick={() => setIsOpen(false)} className="lg:hidden p-2 text-primary">
+          <X size={24} />
+        </button>
       </div>
 
       <nav className="flex-1 overflow-y-auto py-4 space-y-1 custom-scrollbar">
-        <NavLink to={base} end icon={<LayoutDashboard size={20} />} hideText={!isOpen}>Dashboard</NavLink>
+        <NavLink to={base} end icon={<LayoutDashboard size={20} />} hideText={!isOpen}>
+          Dashboard
+        </NavLink>
 
         {hasPerm("orders:create") && (
-          <NavLink to={`${base}/new-orders`} icon={<ShoppingCart size={20} />} hideText={!isOpen}>New Orders</NavLink>
+          <NavLink to={`${base}/new-orders`} icon={<ShoppingCart size={20} />} hideText={!isOpen}>
+            New Orders
+          </NavLink>
         )}
 
         <NavDropdown id="franchise" label="Franchise" icon={Store} items={sections.franchise} />
 
         {hasPerm("orders:view") && (
-          <NavLink to={`${base}/processing-order`} icon={<Package size={20} />} hideText={!isOpen}>Processing Order</NavLink>
+          <NavLink to={`${base}/processing-order`} icon={<Package size={20} />} hideText={!isOpen}>
+            Processing Order
+          </NavLink>
         )}
 
         <NavDropdown id="orders" label="Orders" icon={ClipboardList} items={sections.orders} />
@@ -212,41 +222,67 @@ export function Sidebar({ isOpen, setIsOpen }) {
         <NavDropdown id="tools" label="Tools" icon={Wrench} items={sections.tools} />
         <NavDropdown id="finance" label="Finance" icon={CircleDollarSign} items={sections.finance} />
 
+        {/* --- Addresses & Consignees --- */}
         {hasPerm("consignees:view") && (
-          <NavLink to={`${base}/consignees`} icon={<Users size={20} />} hideText={!isOpen}>Consignees</NavLink>
+          <NavLink to={`${base}/consignees`} icon={<Users size={20} />} hideText={!isOpen}>
+            Consignees
+          </NavLink>
+        )}
+        
+        {hasPerm("pickup_addresses:view") && (
+          <NavLink to={`${base}/pickup`} icon={<MapPin size={20} />} hideText={!isOpen}>
+            Pickup Address
+          </NavLink>
         )}
 
-        {hasPerm("orders:view") && ( // Or a specific chat permission
-  <NavLink 
-    to={`${base}/chat`} 
-    icon={<MessageSquare size={20} />} 
-    hideText={!isOpen}
-  >
-    Messages
-  </NavLink>
-)}
+        {hasPerm("rto_addresses:view") && (
+          <NavLink to={`${base}/rto`} icon={<RotateCcw size={20} />} hideText={!isOpen}>
+            RTO Address
+          </NavLink>
+        )}
+
+        {/* --- Miscellaneous --- */}
+        {hasPerm("messages:view") && (
+          <NavLink to={`${base}/chat`} icon={<MessageSquare size={20} />} hideText={!isOpen}>
+            Messages
+          </NavLink>
+        )}
 
         {hasPerm("warehouse:view") && (
-          <NavLink to={`${base}/warehouse`} icon={<Warehouse size={20} />} hideText={!isOpen}>Warehouse</NavLink>
+          <NavLink to={`${base}/warehouse`} icon={<Warehouse size={20} />} hideText={!isOpen}>
+            Warehouse
+          </NavLink>
         )}
 
         {hasPerm("reviews:view") && (
-          <NavLink to={`${base}/reviews`} icon={<ClipboardCheck size={20} />} hideText={!isOpen}>Review</NavLink>
+          <NavLink to={`${base}/reviews`} icon={<ClipboardCheck size={20} />} hideText={!isOpen}>
+            Review
+          </NavLink>
         )}
 
         {hasPerm("orders:view") && (
-          <NavLink to={`${base}/scanned-orders`} icon={<Package size={20} />} hideText={!isOpen}>Scanned Orders</NavLink>
+          <NavLink to={`${base}/scanned-orders`} icon={<Package size={20} />} hideText={!isOpen}>
+            Scanned Orders
+          </NavLink>
         )}
 
-  {hasPerm("reports:view") && (
-          <NavLink to={`${base}/reports`} icon={<FileBarChart size={20} />} hideText={!isOpen}>Reports</NavLink>
+        {hasPerm("reports:view") && (
+          <NavLink to={`${base}/reports`} icon={<FileBarChart size={20} />} hideText={!isOpen}>
+            Reports
+          </NavLink>
         )}
+
         <NavDropdown id="settings" label="Settings" icon={Settings} items={sections.settings} />
 
-        <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-100 w-full rounded-lg">
-          <LogOut size={20} />
-          {isOpen && "Logout"}
-        </button>
+        <div className="mt-4 px-2">
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-500/10 w-full rounded-lg transition-colors"
+          >
+            <LogOut size={20} />
+            {isOpen && "Logout"}
+          </button>
+        </div>
       </nav>
     </aside>
   );

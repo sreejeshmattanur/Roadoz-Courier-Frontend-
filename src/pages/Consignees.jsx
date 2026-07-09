@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { 
   Download, Plus, X, RotateCcw,
-  Search, Mail, Phone, Loader2, ShieldAlert, User 
+  Mail, Phone, Loader2, ShieldAlert, Edit, Trash2 
 } from "lucide-react";
 import Pagination from "../components/ui/Pagination";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,15 +16,18 @@ import {
   createConsignee,
   fetchConsignees,
   updateConsignee,
+  deleteConsignee, // Added deleteConsignee
 } from "../redux/consigneeSlice";
-import { swalSuccess, swalError } from "../lib/swal";
+import { swalSuccess, swalError, swalConfirm } from "../lib/swal";
 import { usePermission } from "../hooks/usePermission";
 
 export function Consignees() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { consignees: consigneePerms } = usePermission();
-  const { create: canCreate, view: canView } = consigneePerms;
+  
+  // Destructuring permissions
+  const { create: canCreate, view: canView, edit: canEdit, delete: canDelete } = consigneePerms;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingConsignee, setEditingConsignee] = useState(null);
@@ -93,11 +96,19 @@ export function Consignees() {
       }
       setIsModalOpen(false);
       setEditingConsignee(null);
-      setFormData({ name: "", mobile: "", alternate_mobile: "", email: "", address_line_1: "", address_line_2: "", pincode: "", city: "", state: "" });
+      resetForm();
       dispatch(fetchConsignees({ page: filters.page, limit: 10 }));
     } catch (error) {
       swalError("Error", error || "Action failed");
     }
+  };
+
+  const resetForm = () => {
+    setFormData({ 
+      name: "", mobile: "", alternate_mobile: "", email: "", 
+      address_line_1: "", address_line_2: "", pincode: "", city: "", state: "" 
+    });
+    setEditingConsignee(null);
   };
 
   const handleEdit = (consignee) => {
@@ -114,6 +125,19 @@ export function Consignees() {
       state: consignee.state || "",
     });
     setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id) => {
+    const confirmed = await swalConfirm("Delete Consignee?", "This action cannot be undone.");
+    if (confirmed) {
+      try {
+        await dispatch(deleteConsignee(id)).unwrap();
+        swalSuccess("Deleted", "Consignee removed from registry.");
+        dispatch(fetchConsignees({ page: filters.page, limit: 10 }));
+      } catch (error) {
+        swalError("Error", error || "Delete failed");
+      }
+    }
   };
 
   const handleSelectRow = (id) => {
@@ -169,7 +193,7 @@ export function Consignees() {
           </Button>
 
           {canCreate && (
-            <Button onClick={() => { setEditingConsignee(null); setIsModalOpen(true); }} className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-black font-bold h-10 px-4 rounded-xl shadow-lg text-xs">
+            <Button onClick={() => { resetForm(); setIsModalOpen(true); }} className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-black font-bold h-10 px-4 rounded-xl shadow-lg text-xs">
               <Plus size={18} className="mr-2" /> Add Consignee
             </Button>
           )}
@@ -245,15 +269,48 @@ export function Consignees() {
                           {c.status || "Inactive"}
                         </span>
                       </td>
-                      <td className="py-4 px-6 text-center text-text-muted text-xs">—</td>
+                      <td className="py-4 px-6">
+                        <div className="flex justify-center items-center gap-2">
+                          {canEdit && (
+                            <button
+                              onClick={() => handleEdit(c)}
+                              className="w-8 h-8 flex items-center justify-center text-primary bg-primary/10 border border-primary/20 rounded-lg hover:bg-primary hover:text-black transition-all duration-200"
+                            >
+                              <Edit size={14} />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              onClick={() => handleDelete(c.id)}
+                              className="w-8 h-8 flex items-center justify-center text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-500 hover:text-white transition-all duration-200"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                          {!canEdit && !canDelete && <span className="text-text-muted">—</span>}
+                        </div>
+                      </td>
                     </tr>
                   ))
+                )}
+                {!loading && consignees.length === 0 && (
+                   <tr>
+                   <td colSpan="6" className="py-20 text-center text-text-muted text-sm">
+                     No consignees found in registry.
+                   </td>
+                 </tr>
                 )}
               </tbody>
             </table>
           </div>
           {consignees.length > 0 && (
-            <Pagination currentPage={currentPage} totalPages={totalPages} totalEntries={totalConsignees} limit={limit} onPageChange={(page) => setFilters(prev => ({ ...prev, page }))} />
+            <Pagination 
+              currentPage={currentPage} 
+              totalPages={totalPages} 
+              totalEntries={totalConsignees} 
+              limit={limit} 
+              onPageChange={(page) => setFilters(prev => ({ ...prev, page }))} 
+            />
           )}
         </CardContent>
       </Card>
@@ -264,7 +321,7 @@ export function Consignees() {
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-card-bg rounded-xl w-full max-w-2xl border border-border-subtle overflow-hidden">
               <div className="flex items-center justify-between p-5 border-b border-border-subtle">
                 <h3 className="text-lg font-bold text-text-main">{editingConsignee ? "Edit Consignee" : "Add New Consignee"}</h3>
-                <button onClick={() => { setIsModalOpen(false); setEditingConsignee(null); }} className="text-text-muted hover:text-white transition-colors"><X size={20} /></button>
+                <button onClick={() => { setIsModalOpen(false); resetForm(); }} className="text-text-muted hover:text-white transition-colors"><X size={20} /></button>
               </div>
 
               <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto custom-scrollbar bg-card-bg">
@@ -280,7 +337,7 @@ export function Consignees() {
               </div>
 
               <div className="p-5 border-t border-border-subtle flex justify-end gap-3 bg-dashboard-bg/50">
-                <button onClick={() => { setIsModalOpen(false); setEditingConsignee(null); }} className="px-6 py-2 text-sm font-bold text-text-muted hover:text-white transition-colors">Cancel</button>
+                <button onClick={() => { setIsModalOpen(false); resetForm(); }} className="px-6 py-2 text-sm font-bold text-text-muted hover:text-white transition-colors">Cancel</button>
                 <Button onClick={handleSaveConsignee} disabled={loading} className="bg-primary text-black h-10 px-10 font-bold shadow-md transition-all">
                    {loading ? "Saving..." : "Save Consignee"}
                 </Button>

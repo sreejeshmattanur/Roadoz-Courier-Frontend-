@@ -13,7 +13,7 @@ const commonConfig = {
   cancelButtonColor: '#ef4444',  
   customClass: {
     popup: 'rounded-2xl border border-border-subtle shadow-2xl',
-    confirmButton: 'rounded-lg px-8 py-2.5 font-bold uppercase tracking-widest text-xs text-black', // Black text on yellow button
+    confirmButton: 'rounded-lg px-8 py-2.5 font-bold uppercase tracking-widest text-xs text-black', 
     cancelButton: 'rounded-lg px-8 py-2.5 font-bold uppercase tracking-widest text-xs',
     title: 'text-xl font-bold tracking-tight',
     htmlContainer: 'text-sm font-medium leading-relaxed'
@@ -21,6 +21,30 @@ const commonConfig = {
   buttonsStyling: true,
 };
 
+/**
+ * Generic Confirmation Modal
+ */
+export const swalConfirm = (title = 'Are you sure?', text = "You won't be able to revert this!") => {
+  const colors = getSwalColors();
+  return Swal.fire({
+    ...commonConfig,
+    title,
+    text,
+    icon: 'question',
+    iconColor: '#ffc107',
+    showCancelButton: true,
+    confirmButtonText: 'Yes, proceed',
+    cancelButtonText: 'Cancel',
+    background: colors.background,
+    color: colors.textColor,
+  }).then((result) => {
+    return result.isConfirmed; // Returns true if confirmed, false otherwise
+  });
+};
+
+/**
+ * Specifically styled for Deletion
+ */
 export const swalConfirmDelete = (title = 'Are you sure?', text = "You won't be able to revert this!") => {
   const colors = getSwalColors();
   return Swal.fire({
@@ -28,17 +52,14 @@ export const swalConfirmDelete = (title = 'Are you sure?', text = "You won't be 
     title,
     text,
     icon: 'warning',
-    iconColor: '#ffc107',
+    iconColor: '#ef4444',
     showCancelButton: true,
     confirmButtonText: 'Yes, delete it!',
     cancelButtonText: 'Cancel',
     background: colors.background,
     color: colors.textColor,
   }).then((result) => {
-    if (result.isConfirmed || result.isDismissed) {
-       document.querySelectorAll('.swal2-title').forEach(el => el.style.color = colors.titleColor);
-    }
-    return result;
+    return result.isConfirmed;
   });
 };
 
