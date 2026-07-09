@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { useTheme } from "../../contexts/ThemeContext";
-import Logo from "../../assets/images/Roadoz Golden hd.png";
+import Logo from "../../assets/images/RO-2.png";
 import { Link } from "react-router-dom";
 import { cn } from "../../lib/utils";
 

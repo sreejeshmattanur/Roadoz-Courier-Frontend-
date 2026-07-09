@@ -18,11 +18,12 @@ import {
   Warehouse,
   ClipboardCheck,
   MessageSquare ,
+    FileBarChart,
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { NavLink } from "../NavLink";
 import { cn } from "../../lib/utils";
-import logo from "../../assets/images/Roadoz Golden hd.png";
+import logo from "../../assets/images/RO-2.png";
 import { logoutUser } from "../../redux/authSlice";
 import { toast } from "react-hot-toast";
 import { hasPermission } from "../../lib/permissions";
@@ -237,6 +238,9 @@ export function Sidebar({ isOpen, setIsOpen }) {
           <NavLink to={`${base}/scanned-orders`} icon={<Package size={20} />} hideText={!isOpen}>Scanned Orders</NavLink>
         )}
 
+  {hasPerm("reports:view") && (
+          <NavLink to={`${base}/reports`} icon={<FileBarChart size={20} />} hideText={!isOpen}>Reports</NavLink>
+        )}
         <NavDropdown id="settings" label="Settings" icon={Settings} items={sections.settings} />
 
         <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-100 w-full rounded-lg">
