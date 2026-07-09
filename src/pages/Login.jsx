@@ -11,7 +11,7 @@ import {
   ShieldCheck,
   AlertCircle,
 } from "lucide-react";
-import Logo from "../assets/images/Roadoz Golden hd.png";
+import Logo from "../assets/images/RO-2.png";
 import { Button } from "../components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { checkUserRole, loginUser } from "../redux/authSlice";
