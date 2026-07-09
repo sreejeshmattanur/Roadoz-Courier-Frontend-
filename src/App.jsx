@@ -371,7 +371,7 @@ export default function App() {
               }
             />
             <Route
-              path="settings/pickup"
+              path="pickup"
               element={
                 <PermissionRoute permission="pickup_addresses:view">
                   <PickupAddress />
@@ -379,7 +379,7 @@ export default function App() {
               }
             />
             <Route
-              path="settings/rto"
+              path="rto"
               element={
                 <PermissionRoute permission="profile:edit">
                   <RTOAddress />
