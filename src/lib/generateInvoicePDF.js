@@ -48,7 +48,7 @@ doc.text("GST: 32AAPCR1988L1ZP", PAGE_LEFT, 42)
     const metaRows = [
       ["Invoice No", order.invoiceNo || "N/A"],
       ["Invoice Date", order.created || "N/A"],
-      ["Order Number", order.id || "N/A"],
+      ["Air Waybill", order.id || "N/A"],
     ];
     
     if (order.amount) {
@@ -131,7 +131,7 @@ doc.text("GST: 32AAPCR1988L1ZP", PAGE_LEFT, 42)
     autoTable(doc, {
       startY: prodY + 2,
       head: [
-        ["Product Name", "SKU", "Invoice Amount", "Qty", "Package Index", "Total Invoice Amount"],
+        ["Product Name", "SKU", "Freight Charge", "Qty", "Package Index"],
       ],
       body: order.items && order.items.length > 0 
         ? order.items.map((item, index) => [
