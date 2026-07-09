@@ -18,7 +18,7 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
 
    doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
-    doc.text("ROADAZ PVT. LTD.", PAGE_LEFT, 15);
+    doc.text("ROADOZ PVT. LTD.", PAGE_LEFT, 15);
     
     // Sub-header
     doc.setFontSize(10);
@@ -29,9 +29,11 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     doc.setFontSize(8);
     doc.setTextColor(60, 60, 60);
     doc.text("Room No: 122, No: 55/2055, 1st Floor DD Vyapar Bhavan,", PAGE_LEFT, 25);
-    doc.text("K.P Vallon Road, Kadavanthara, Kochi-682020", PAGE_LEFT, 29);
-    doc.text("Phone: +91 97464 30687 | Email: operations@roadozcourier.com", PAGE_LEFT, 33);
+    doc.text("K.P Vallon Road, Kadavanthra, Kochi-682020", PAGE_LEFT, 29);
+    doc.text("Phone: +91 9496630687 | Email: info@roadozcourier.com", PAGE_LEFT, 33);
     doc.text("Web: www.roadoz.com", PAGE_LEFT, 37);
+doc.setFont("helvetica", "bold");
+doc.text("GST: 32AAPCR1988L1ZP", PAGE_LEFT, 42)
     doc.setTextColor(0, 0, 0); // Reset to black
 
 
@@ -171,8 +173,8 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
           ],
       styles: { fontSize: 8, cellPadding: 2, lineColor: [200, 200, 200], lineWidth: 0.5 },
       headStyles: {
-        fillColor: black,
-        textColor: white,
+        fillColor: [255, 255, 255], 
+        textColor: [0, 0, 0],
         fontStyle: "bold",
         lineColor: [200, 200, 200],
         lineWidth: 0.5,
@@ -220,8 +222,8 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
           ],
       styles: { fontSize: 8, cellPadding: 2, lineColor: [200, 200, 200], lineWidth: 0.5 },
       headStyles: {
-        fillColor: black,
-        textColor: white,
+    fillColor: [255, 255, 255],
+        textColor: [0, 0, 0],
         fontStyle: "bold",
         lineColor: [200, 200, 200],
         lineWidth: 0.5,
@@ -317,8 +319,8 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
       body: chargesBody,
       styles: { fontSize: 8, cellPadding: 2, lineColor: [200, 200, 200], lineWidth: 0.5 },
       headStyles: {
-        fillColor: black,
-        textColor: white,
+        fillColor: [255, 255, 255],
+        textColor: [0, 0, 0],
         fontStyle: "bold",
         lineColor: [200, 200, 200],
         lineWidth: 0.5,
@@ -363,25 +365,76 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     doc.setFontSize(8);
 
     // Left Column
-    doc.setFont("helvetica", "bold");
-    doc.text("Payment Method:", PAGE_LEFT + 3, barTextY);
     doc.setFont("helvetica", "normal");
+    doc.text("Payment Method:", PAGE_LEFT + 3, barTextY);
+    doc.setFont("helvetica", "bold");
     doc.text(order.payment?.method || "N/A", PAGE_LEFT + 33, barTextY);
 
     // Center Column
-    doc.setFont("helvetica", "bold");
-    doc.text("Service Type:", 95, barTextY);
     doc.setFont("helvetica", "normal");
+    doc.text("Service Type:", 95, barTextY);
+    doc.setFont("helvetica", "bold");
     doc.text(order.serviceType || "N/A", 118, barTextY);
 
     // Right Column
     const shipmentTypeStr = order.shipmentType || "N/A";
-    doc.setFont("helvetica", "normal");
+    doc.setFont("helvetica", "bold");
     const valWidth = doc.getTextWidth(shipmentTypeStr);
     
     doc.text(shipmentTypeStr, PAGE_RIGHT - 3, barTextY, { align: "right" });
-    doc.setFont("helvetica", "bold");
+    doc.setFont("helvetica", "normal");
     doc.text("Shipment Type:", PAGE_RIGHT - 3 - valWidth - 2, barTextY, { align: "right" });
+
+    // ------------------------------------------------
+// BANK DETAILS
+// ------------------------------------------------
+
+const bankY = extraY + INFO_BAR_H + 8;
+
+doc.setFont("helvetica", "bold");
+doc.setFontSize(10);
+doc.text("Bank Details", PAGE_LEFT, bankY);
+
+autoTable(doc, {
+  startY: bankY + 3,
+
+  body: [
+    ["Account Holder", "ROADOZ PRIVATE LIMITED"],
+    ["Account Number", "50200116941777"],
+    ["IFSC Code", "HDFC0002321"],
+  ],
+
+  theme: "grid",
+
+  styles: {
+    fontSize: 8,
+    cellPadding: 2.5,
+    lineColor: [180, 180, 180],
+    lineWidth: 0.4,
+  },
+
+  columnStyles: {
+    0: {
+      cellWidth: 50,
+      fontStyle: "bold",
+      fillColor: [245, 245, 245],
+    },
+    1: {
+      cellWidth: 130,
+    },
+  },
+
+  alternateRowStyles: {
+    fillColor: [252, 252, 252],
+  },
+
+  margin: {
+    left: PAGE_LEFT,
+    right: 0,
+  },
+
+  tableWidth: PAGE_RIGHT - PAGE_LEFT,
+});
 
     // ─────────────────────────────────────────────────────────
     // TERMS & CONDITIONS — with dynamic page breaks
@@ -400,7 +453,8 @@ const drawInvoice = (doc, order, isSuperAdmin = false) => {
     const TERMS_TITLE_H = 6;
     const MIN_SPACE_FOR_TERMS = 40; // minimum space needed for terms section
     
-    let termsY = extraY + INFO_BAR_H + 5; // at least 5mm below the shaded info bar
+    // let termsY = extraY + INFO_BAR_H + 5; // at least 5mm below the shaded info bar
+    let termsY = doc.lastAutoTable.finalY + 8;
     
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
