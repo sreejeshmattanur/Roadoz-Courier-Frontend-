@@ -12,7 +12,25 @@ import {
   duplicateOrderApi,
   updateOrderApi,
   deleteOrderApi,
+  fetchOrdersByEntityApi, // Ensure this is exported from your apiCalls.js
 } from "../services/apiCalls";
+
+/**
+ * Filter orders by specific entities (e.g., pickup_address)
+ * Matches API: /orders/orders/filter-by-entity?search_by=pickup_address&name=Vikram
+ */
+export const fetchOrdersByEntity = createAsyncThunk(
+  "orders/fetchOrdersByEntity",
+  async (params, { rejectWithValue }) => {
+    try {
+      return await fetchOrdersByEntityApi(params);
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.detail || "Failed to filter orders by entity"
+      );
+    }
+  }
+);
 
 export const createPickupAddress = createAsyncThunk(
   "orders/createPickupAddress",
@@ -21,10 +39,10 @@ export const createPickupAddress = createAsyncThunk(
       return await createPickupAddressApi(data);
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.detail || "Failed to create pickup address",
+        error.response?.data?.detail || "Failed to create pickup address"
       );
     }
-  },
+  }
 );
 
 export const fetchPickupAddresses = createAsyncThunk(
@@ -34,10 +52,10 @@ export const fetchPickupAddresses = createAsyncThunk(
       return await fetchPickupAddressesApi(params);
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.detail || "Failed to fetch pickup addresses",
+        error.response?.data?.detail || "Failed to fetch pickup addresses"
       );
     }
-  },
+  }
 );
 
 export const updatePickupAddress = createAsyncThunk(
@@ -47,10 +65,10 @@ export const updatePickupAddress = createAsyncThunk(
       return await updatePickupAddressApi(id, data);
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.detail || "Failed to update pickup address",
+        error.response?.data?.detail || "Failed to update pickup address"
       );
     }
-  },
+  }
 );
 
 export const deletePickupAddress = createAsyncThunk(
@@ -61,10 +79,10 @@ export const deletePickupAddress = createAsyncThunk(
       return id;
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.detail || "Failed to delete pickup address",
+        error.response?.data?.detail || "Failed to delete pickup address"
       );
     }
-  },
+  }
 );
 
 export const createConsignee = createAsyncThunk(
@@ -74,10 +92,10 @@ export const createConsignee = createAsyncThunk(
       return await createConsigneeApi(data);
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.detail || "Failed to create consignee",
+        error.response?.data?.detail || "Failed to create consignee"
       );
     }
-  },
+  }
 );
 
 export const fetchConsignees = createAsyncThunk(
@@ -87,10 +105,10 @@ export const fetchConsignees = createAsyncThunk(
       return await fetchConsigneesApi(params);
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.detail || "Failed to fetch consignees",
+        error.response?.data?.detail || "Failed to fetch consignees"
       );
     }
-  },
+  }
 );
 
 export const createOrder = createAsyncThunk(
@@ -100,10 +118,10 @@ export const createOrder = createAsyncThunk(
       return await createOrderApi(orderData);
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.detail || "Order creation failed",
+        error.response?.data?.detail || "Order creation failed"
       );
     }
-  },
+  }
 );
 
 export const fetchOrders = createAsyncThunk(
@@ -113,10 +131,10 @@ export const fetchOrders = createAsyncThunk(
       return await fetchOrdersApi(params);
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.detail || "Failed to fetch orders",
+        error.response?.data?.detail || "Failed to fetch orders"
       );
     }
-  },
+  }
 );
 
 export const fetchOrderCounts = createAsyncThunk(
@@ -126,10 +144,10 @@ export const fetchOrderCounts = createAsyncThunk(
       return await fetchOrderCountsApi();
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.detail || "Failed to fetch order counts",
+        error.response?.data?.detail || "Failed to fetch order counts"
       );
     }
-  },
+  }
 );
 
 export const duplicateOrder = createAsyncThunk(
@@ -139,10 +157,10 @@ export const duplicateOrder = createAsyncThunk(
       return await duplicateOrderApi(orderId);
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.detail || "Failed to duplicate order",
+        error.response?.data?.detail || "Failed to duplicate order"
       );
     }
-  },
+  }
 );
 
 export const updateOrder = createAsyncThunk(
@@ -152,10 +170,10 @@ export const updateOrder = createAsyncThunk(
       return await updateOrderApi(orderId, data);
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.detail || "Failed to update order",
+        error.response?.data?.detail || "Failed to update order"
       );
     }
-  },
+  }
 );
 
 export const deleteOrder = createAsyncThunk(
@@ -163,14 +181,13 @@ export const deleteOrder = createAsyncThunk(
   async (orderId, { rejectWithValue }) => {
     try {
       await deleteOrderApi(orderId);
-
       return orderId;
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.detail || "Failed to delete order",
+        error.response?.data?.detail || "Failed to delete order"
       );
     }
-  },
+  }
 );
 
 const orderSlice = createSlice({
@@ -209,6 +226,33 @@ const orderSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      // FETCH ORDERS BY ENTITY (PICKUP ADDRESS SEARCH, ETC)
+      .addCase(fetchOrdersByEntity.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchOrdersByEntity.fulfilled, (state, action) => {
+        state.loading = false;
+        // The filter-by-entity API returns a direct array in the example provided
+        const data = action.payload;
+        if (Array.isArray(data)) {
+          state.orders = data;
+          state.totalOrders = data.length;
+          state.totalPages = 1;
+          state.page = 1;
+        } else {
+          // Fallback if pagination is added later
+          state.orders = data.items || [];
+          state.totalOrders = data.pagination?.total || data.total || 0;
+          state.totalPages = data.pagination?.pages || 1;
+        }
+        state.error = null;
+      })
+      .addCase(fetchOrdersByEntity.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // PICKUP ADDRESSES
       .addCase(createPickupAddress.pending, (state) => {
         state.loading = true;
       })
@@ -243,18 +287,18 @@ const orderSlice = createSlice({
 
       .addCase(updatePickupAddress.fulfilled, (state, action) => {
         state.loading = false;
-
         state.pickupAddresses = state.pickupAddresses.map((addr) =>
-          addr.id === action.payload.id ? action.payload : addr,
+          addr.id === action.payload.id ? action.payload : addr
         );
       })
 
       .addCase(deletePickupAddress.fulfilled, (state, action) => {
         state.pickupAddresses = state.pickupAddresses.filter(
-          (addr) => addr.id !== action.payload,
+          (addr) => addr.id !== action.payload
         );
       })
 
+      // CONSIGNEES
       .addCase(fetchConsignees.pending, (state) => {
         state.loading = true;
       })
@@ -272,6 +316,7 @@ const orderSlice = createSlice({
         state.consignees.unshift(action.payload);
       })
 
+      // ORDERS
       .addCase(createOrder.pending, (state) => {
         state.orderLoading = true;
       })
@@ -284,90 +329,76 @@ const orderSlice = createSlice({
         state.orderLoading = false;
         state.error = action.payload;
       })
+
       .addCase(fetchOrders.pending, (state) => {
         state.loading = true;
       })
       .addCase(fetchOrders.fulfilled, (state, action) => {
         state.loading = false;
-
         const pagination = action.payload?.pagination || {};
-
         state.orders = action.payload?.items || [];
-
         state.totalOrders = pagination.total || 0;
         state.page = pagination.page || 1;
         state.limit = pagination.limit || 25;
         state.totalPages = pagination.pages || 1;
-
         state.error = null;
       })
       .addCase(fetchOrders.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
+
       .addCase(fetchOrderCounts.pending, (state) => {
         state.loading = true;
       })
-
       .addCase(fetchOrderCounts.fulfilled, (state, action) => {
         state.loading = false;
         state.orderCounts = action.payload;
       })
-
       .addCase(fetchOrderCounts.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
+
       .addCase(duplicateOrder.pending, (state) => {
         state.loading = true;
       })
-
       .addCase(duplicateOrder.fulfilled, (state, action) => {
         state.loading = false;
-
-        // add duplicated order at top
         state.orders.unshift(action.payload);
-
         state.totalOrders += 1;
       })
-
       .addCase(duplicateOrder.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
+
       .addCase(updateOrder.pending, (state) => {
         state.orderLoading = true;
       })
-
       .addCase(updateOrder.fulfilled, (state, action) => {
         state.orderLoading = false;
-
         state.orders = state.orders.map((order) =>
-          order.id === action.payload.id ? action.payload : order,
+          order.id === action.payload.id ? action.payload : order
         );
       })
-
       .addCase(updateOrder.rejected, (state, action) => {
         state.orderLoading = false;
         state.error = action.payload;
       })
+
       .addCase(deleteOrder.pending, (state) => {
         state.loading = true;
       })
-
       .addCase(deleteOrder.fulfilled, (state, action) => {
         state.loading = false;
-
         state.orders = state.orders.filter(
-          (order) => order.id !== action.payload,
+          (order) => order.id !== action.payload
         );
-
         state.totalOrders -= 1;
       })
-
       .addCase(deleteOrder.rejected, (state, action) => {
         state.loading = false;
-
         state.error = action.payload;
       });
   },

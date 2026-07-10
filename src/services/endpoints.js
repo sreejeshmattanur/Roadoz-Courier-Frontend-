@@ -90,6 +90,8 @@ export const ENDPOINTS = {
     ADMIN_CHAT_WS: "/ws/admin/chat",
 
 
-  }
+  },
+  FILTER_BY_ENTITY: "/orders/orders/filter-by-entity",
+
 
 };
