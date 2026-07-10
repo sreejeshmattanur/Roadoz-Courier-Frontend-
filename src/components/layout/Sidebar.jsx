@@ -21,6 +21,7 @@ import {
   FileBarChart,
   MapPin, // Added for Pickup Address
   RotateCcw, // Added for RTO Address
+  LoaderCircle
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { NavLink } from "../NavLink";
@@ -222,6 +223,12 @@ export function Sidebar({ isOpen, setIsOpen }) {
         <NavDropdown id="tools" label="Tools" icon={Wrench} items={sections.tools} />
         <NavDropdown id="finance" label="Finance" icon={CircleDollarSign} items={sections.finance} />
 
+
+        {hasPerm("pickup-orders:view") && (
+          <NavLink to={`${base}/pickup-orders`} icon={<LoaderCircle size={20} />} hideText={!isOpen}>
+            Pickup Order Listing 
+          </NavLink>
+        )}
         {/* --- Addresses & Consignees --- */}
         {hasPerm("consignees:view") && (
           <NavLink to={`${base}/consignees`} icon={<Users size={20} />} hideText={!isOpen}>
