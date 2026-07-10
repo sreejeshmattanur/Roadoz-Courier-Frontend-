@@ -48,6 +48,7 @@ import ScannedOrders from "./pages/ScannedOrders";
 import ActivityLogs from "./pages/ActivityLogs";
 import { FranchiseApproval } from "./pages/FranchiseApproval";
 import ChatPlatform from "./pages/ChatPlatform"; 
+import {PickupOrderListing} from "./pages/PickupOrderListing";
 
 
 export default function App() {
@@ -399,6 +400,15 @@ export default function App() {
               element={
                 <PermissionRoute permission="profile:edit">
                   <KYC />
+                </PermissionRoute>
+              }
+            />
+           
+           <Route 
+              path="pickup-orders"
+              element={
+                <PermissionRoute permission="pickup_orders:view">
+                  <PickupOrderListing />
                 </PermissionRoute>
               }
             />

@@ -545,3 +545,8 @@ export const sendMessageApi = async (data) => {
   const res = await API.post(ENDPOINTS.CHAT.MESSAGES, data);
   return res.data;
 };
+
+export const fetchOrdersByEntityApi = async (params) => {
+  const res = await API.get(ENDPOINTS.FILTER_BY_ENTITY, { params });
+  return res.data;
+};

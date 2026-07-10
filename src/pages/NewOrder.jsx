@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Plus, Trash2, ChevronDown, ChevronUp, Lock, ShoppingBag, Search,
   MapPin, Loader2, User, MapPinned, CreditCard, ShieldCheck, 
@@ -26,6 +26,16 @@ import {
   updateOrder,
 } from "../redux/orderSlice";
 
+// Debounce Hook to prevent excessive API calls while searching
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
+
 export default function NewOrder() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -34,11 +44,23 @@ export default function NewOrder() {
   const editOrderData = location.state?.order;
   const isEditMode = Boolean(orderId);
 
-  const { pickupAddresses, selectedAddress, consignees, orderLoading, loading: pickupLoading } = useSelector((state) => state.orders);
+  const { 
+    pickupAddresses, 
+    selectedAddress, 
+    consignees, 
+    orderLoading, 
+    loading: pickupLoading 
+  } = useSelector((state) => state.orders);
 
   const generateSKU = () => `SKU-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  // --- Core Form States ---
+  // --- Search States ---
+  const [pickupSearch, setPickupSearch] = useState("");
+  const [consigneeSearch, setConsigneeSearch] = useState("");
+  const debouncedPickupSearch = useDebounce(pickupSearch, 500);
+  const debouncedConsigneeSearch = useDebounce(consigneeSearch, 500);
+
+  // --- Form States ---
   const [orderType, setOrderType] = useState("B2C");
   const [serviceType, setServiceType] = useState("Surface");
   const [deliveryType, setDeliveryType] = useState("none"); 
@@ -56,7 +78,7 @@ export default function NewOrder() {
   const [isInsuranceEnabled, setIsInsuranceEnabled] = useState(false);
   const [insuranceAmount, setInsuranceAmount] = useState(0); 
   
-  const [regionalArea, setRegionalArea] = useState(0);
+  const [regionalArea, setRegionalArea] = useState(0); 
   const [isGstExempt, setIsGstExempt] = useState(false);
 
   const [consigneeData, setConsigneeData] = useState({ id: null, name: "", mobile: "", city: "" });
@@ -70,13 +92,11 @@ export default function NewOrder() {
 
   const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
   const [isAddressDropdownOpen, setIsAddressDropdownOpen] = useState(false);
-  const [pickupSearch, setPickupSearch] = useState("");
   const [isConsigneeDropdownOpen, setIsConsigneeDropdownOpen] = useState(false);
-  const [consigneeSearch, setConsigneeSearch] = useState("");
   const [isConsigneeModalOpen, setIsConsigneeModalOpen] = useState(false);
   const [isOtherDetailsOpen, setIsOtherDetailsOpen] = useState(true);
 
-  // --- Product & Package States ---
+  // --- Products & Packages ---
   const [packages, setPackages] = useState([
     { id: Date.now(), count: 1, length_cm: 0, breadth_cm: 0, height_cm: 0, weight_unit: "kg", weight_value: "", row_vol_weight: 0 }
   ]);
@@ -85,34 +105,21 @@ export default function NewOrder() {
   ]);
   const [otherDetails, setOtherDetails] = useState({ gst_number: "", eway_bill_number: "", invoicenumber: "", amount: "" });
 
-  // --- SEARCH LOGIC (Client Side Filtering) ---
-  const filteredPickupAddresses = useMemo(() => {
-    if (!pickupSearch) return pickupAddresses;
-    const query = pickupSearch.toLowerCase();
-    return pickupAddresses.filter(addr => 
-      addr.nickname?.toLowerCase().includes(query) || 
-      addr.contact_name?.toLowerCase().includes(query) ||
-      addr.city?.toLowerCase().includes(query)
-    );
-  }, [pickupAddresses, pickupSearch]);
+  // --- API Search Trigger ---
+  useEffect(() => {
+    dispatch(fetchPickupAddresses({ search: debouncedPickupSearch, page: 1, limit: 10 }));
+  }, [dispatch, debouncedPickupSearch]);
 
-  const filteredConsignees = useMemo(() => {
-    if (!consigneeSearch) return consignees;
-    const query = consigneeSearch.toLowerCase();
-    return consignees.filter(c => 
-      c.name?.toLowerCase().includes(query) || 
-      c.mobile?.includes(query) ||
-      c.city?.toLowerCase().includes(query)
-    );
-  }, [consignees, consigneeSearch]);
+  useEffect(() => {
+    dispatch(fetchConsignees({ search: debouncedConsigneeSearch, page: 1, limit: 10 }));
+  }, [dispatch, debouncedConsigneeSearch]);
 
   // --- Calculations ---
   const totalOrderValue = useMemo(() => products.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0), [products]);
 
   useEffect(() => {
     if (isInsuranceEnabled && totalOrderValue >= 1000) {
-      const calculated = (totalOrderValue * 0.018).toFixed(2);
-      setInsuranceAmount(parseFloat(calculated));
+      setInsuranceAmount(parseFloat((totalOrderValue * 0.018).toFixed(2)));
     } else {
       setInsuranceAmount(0);
     }
@@ -136,15 +143,9 @@ export default function NewOrder() {
     };
   }, [packages]);
 
-  useEffect(() => {
-    dispatch(fetchPickupAddresses({ limit: 50 })); // Fetch larger limit for better local search
-    dispatch(fetchConsignees({ limit: 50 }));
-  }, [dispatch]);
-
-  // --- EDIT ORDER POPULATE LOGIC ---
+  // --- Populate Edit Mode ---
   useEffect(() => {
     if (!isEditMode || !editOrderData) return;
-
     setOrderType(editOrderData.order_type || "B2C");
     setServiceType(editOrderData.service_type || "Surface");
     setDeliveryType(editOrderData.delivery_type || "none");
@@ -156,44 +157,22 @@ export default function NewOrder() {
     setCreditAmount(editOrderData.credit_amount?.toString() || "");
     setIsManualFreight(editOrderData.is_manual_freight === true);
     setFreightCharge(editOrderData.freight_charge?.toString() || "");
-
-    const ins = editOrderData.insurance;
-    setIsInsuranceEnabled(ins === true || parseFloat(ins) > 0);
     setRegionalArea(editOrderData.regional_area || 0);
-    setIsGstExempt(editOrderData.is_gst_exempt || false);
+    setIsInsuranceEnabled(editOrderData.insurance === true);
 
-    if (editOrderData.pickup_address) {
-        dispatch(setSelectedAddress(editOrderData.pickup_address));
-    }
-    if (editOrderData.consignee) {
-        setConsigneeData(editOrderData.consignee);
-    }
-
+    if (editOrderData.pickup_address) dispatch(setSelectedAddress(editOrderData.pickup_address));
+    if (editOrderData.consignee) setConsigneeData(editOrderData.consignee);
     if (editOrderData.items?.length > 0) {
-      setProducts(editOrderData.items.map(item => ({ 
-        ...item, 
-        id: Math.random(),
-        total: (Number(item.unit_price) || 0) * (Number(item.qty) || 0)
-      })));
+      setProducts(editOrderData.items.map(item => ({ ...item, id: Math.random(), total: (Number(item.unit_price) || 0) * (Number(item.qty) || 0) })));
     }
-
     if (editOrderData.packages?.length > 0) {
       setPackages(editOrderData.packages.map(pkg => ({
-        ...pkg,
-        id: Math.random(),
-        count: 1,
-        weight_unit: "kg",
-        weight_value: pkg.physical_weight !== undefined ? pkg.physical_weight.toString() : (pkg.physical_weight_kg?.toString() || ""),
+        ...pkg, id: Math.random(), weight_unit: "kg",
+        weight_value: pkg.physical_weight?.toString() || pkg.physical_weight_kg?.toString() || "",
         row_vol_weight: ((Number(pkg.length_cm) * Number(pkg.breadth_cm) * Number(pkg.height_cm)) / 2700).toFixed(3)
       })));
     }
-
-    setOtherDetails({
-      gst_number: editOrderData.gst_number || "",
-      eway_bill_number: editOrderData.eway_bill_number || "",
-      invoicenumber: editOrderData.invoicenumber || "",
-      amount: editOrderData.amount || ""
-    });
+    setOtherDetails({ gst_number: editOrderData.gst_number || "", eway_bill_number: editOrderData.eway_bill_number || "", invoicenumber: editOrderData.invoicenumber || "", amount: editOrderData.amount || "" });
   }, [isEditMode, editOrderData, dispatch]);
 
   const handleProductChange = (id, field, value) => {
@@ -229,8 +208,25 @@ export default function NewOrder() {
     }));
   };
 
+  const handleSavePickupAddress = async () => {
+    try {
+      await dispatch(createPickupAddress(pickupForm)).unwrap();
+      toast.success("Pickup address created!");
+      setIsPickupModalOpen(false);
+    } catch (err) { toast.error(err || "Failed to create address"); }
+  };
+
+  const handleSaveConsigneeAddress = async () => {
+    try {
+      const newC = await dispatch(createConsignee(consigneeForm)).unwrap();
+      setConsigneeData(newC);
+      toast.success("Consignee created!");
+      setIsConsigneeModalOpen(false);
+    } catch (err) { toast.error(err || "Failed to create consignee"); }
+  };
+
   const handleSubmit = async () => {
-    if (!selectedAddress) return toast.error("Select pickup address");
+    if (!selectedAddress) return toast.error("Select pickup location");
     if (!consigneeData.id) return toast.error("Select consignee");
 
     const payload = {
@@ -252,6 +248,7 @@ export default function NewOrder() {
       is_manual_freight: isManualFreight,
       freight_charge: isManualFreight ? Number(freightCharge) : null,
       manual_freight_reason: isManualFreight ? "Manual override" : null,
+      regional_area: Number(regionalArea),
       gst_number: otherDetails.gst_number || null,
       eway_bill_number: otherDetails.eway_bill_number || null,
       invoicenumber: otherDetails.invoicenumber || null,
@@ -273,99 +270,92 @@ export default function NewOrder() {
     try {
       if (isEditMode) {
         await dispatch(updateOrder({ orderId, data: payload })).unwrap();
-        toast.success("Order Updated Successfully");
+        toast.success("Order Updated!");
       } else {
         await dispatch(createOrder(payload)).unwrap();
-        toast.success("Order Created Successfully");
+        toast.success("Order Created!");
       }
       navigate("/dashboard/processing-order");
-    } catch (err) {
-      toast.error(err?.message || "Operation failed");
-    }
+    } catch (err) { toast.error(err || "Operation failed"); }
   };
 
   const inputClass = "w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary transition-all";
 
   return (
     <div className="space-y-6 relative pb-24 min-h-screen">
-      <PickupAddressModal isOpen={isPickupModalOpen} onClose={() => setIsPickupModalOpen(false)} pickupForm={pickupForm} handlePickupChange={(e) => setPickupForm({ ...pickupForm, [e.target.name]: e.target.value })} handleSavePickup={() => { dispatch(createPickupAddress(pickupForm)).unwrap().then(() => setIsPickupModalOpen(false)); }} loading={pickupLoading} inputClass={inputClass} />
-      <ConsigneeModal isOpen={isConsigneeModalOpen} onClose={() => setIsConsigneeModalOpen(false)} consigneeForm={consigneeForm} handleConsigneeChange={(e) => setConsigneeForm({ ...consigneeForm, [e.target.name]: e.target.value })} handleSaveConsignee={() => { dispatch(createConsignee(consigneeForm)).unwrap().then((newC) => { setConsigneeData(newC); setIsConsigneeModalOpen(false); }); }} loading={pickupLoading} inputClass={inputClass} />
+      <PickupAddressModal isOpen={isPickupModalOpen} onClose={() => setIsPickupModalOpen(false)} pickupForm={pickupForm} handlePickupChange={(e) => setPickupForm({ ...pickupForm, [e.target.name]: e.target.value })} handleSavePickup={handleSavePickupAddress} loading={pickupLoading} inputClass={inputClass} />
+      <ConsigneeModal isOpen={isConsigneeModalOpen} onClose={() => setIsConsigneeModalOpen(false)} consigneeForm={consigneeForm} handleConsigneeChange={(e) => setConsigneeForm({ ...consigneeForm, [e.target.name]: e.target.value })} handleSaveConsignee={handleSaveConsigneeAddress} loading={pickupLoading} inputClass={inputClass} />
 
-      {/* Header */}
-      <div>
+      <header>
         <h1 className="text-2xl font-bold">{isEditMode ? `Edit Order (${editOrderData?.order_number})` : "New Order"}</h1>
         <p className="text-xs text-primary mt-1 font-medium">Dashboard <span className="text-text-muted mx-2">&gt;&gt;</span> Order Management</p>
-      </div>
+      </header>
 
-      {/* Row 1: Configurations */}
+      {/* Configurations */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-card-bg/40 p-4 rounded-xl border border-border-subtle flex flex-col gap-3">
-          <span className="text-xs font-bold text-text-muted uppercase tracking-wider">Order Type</span>
-          <div className="flex gap-4">
+        <Card className="bg-card-bg/40 p-4 border-border-subtle">
+          <span className="text-xs font-bold text-text-muted uppercase">Order Type</span>
+          <div className="flex gap-4 mt-3">
             {["B2C", "B2B", "International"].map(t => (
               <label key={t} className="flex items-center gap-2 cursor-pointer">
                 <input type="radio" className="sr-only" checked={orderType === t} onChange={() => setOrderType(t)} />
-                <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", orderType === t ? "border-primary" : "border-text-muted/30")}>
+                <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center", orderType === t ? "border-primary" : "border-text-muted/30")}>
                   {orderType === t && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
                 </div>
                 <span className="text-sm font-medium">{t}</span>
               </label>
             ))}
           </div>
-        </div>
+        </Card>
 
-        <div className="bg-card-bg/40 p-4 rounded-xl border border-border-subtle flex flex-col gap-4">
-          <div className="flex justify-between items-center">
-            <span className="text-xs font-bold text-text-muted uppercase tracking-wider">Delivery Mode</span>
-            <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/5 border border-white/10">
-                <FileIcon size={12} className={isDoc ? "text-primary" : "text-text-muted"} />
-                <span className="text-[10px] font-bold text-text-muted uppercase tracking-tighter">Doc?</span>
-                <button type="button" onClick={() => setIsDoc(!isDoc)} className={cn("w-7 h-3.5 rounded-full transition-all relative", isDoc ? "bg-primary" : "bg-white/20")}>
-                    <div className={cn("w-2.5 h-2.5 rounded-full bg-white absolute top-0.5 transition-all", isDoc ? "left-4" : "left-0.5")} />
-                </button>
-            </div>
+        <Card className="bg-card-bg/40 p-4 border-border-subtle">
+          <div className="flex justify-between items-center mb-3">
+            <span className="text-xs font-bold text-text-muted uppercase">Delivery Mode</span>
+            <button type="button" onClick={() => setIsDoc(!isDoc)} className={cn("px-2 py-1 rounded text-[10px] font-bold border transition-all", isDoc ? "bg-primary/20 border-primary text-primary" : "bg-white/5 border-white/10 text-text-muted")}>
+               DOC? {isDoc ? "YES" : "NO"}
+            </button>
           </div>
-          <div className="flex gap-3 flex-wrap">
+          <div className="flex gap-3">
             {[{ id: "none", label: "None", icon: BanIcon }, { id: "home", label: "Home", icon: Home }, { id: "office", label: "Office", icon: Building2 }].map(d => (
-              <label key={d.id} className="flex items-center gap-2 cursor-pointer group">
+              <label key={d.id} className="flex items-center gap-2 cursor-pointer">
                 <input type="radio" className="sr-only" checked={deliveryType === d.id} onChange={() => setDeliveryType(d.id)} />
-                <div className={cn("w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all", deliveryType === d.id ? "border-primary" : "border-text-muted/30")}>
+                <div className={cn("w-4 h-4 rounded-full border-2 flex items-center justify-center", deliveryType === d.id ? "border-primary" : "border-text-muted/30")}>
                   {deliveryType === d.id && <div className="w-2 h-2 rounded-full bg-primary" />}
                 </div>
                 <span className={cn("text-[11px] font-medium flex items-center gap-1", deliveryType === d.id ? "text-primary" : "text-text-muted")}><d.icon size={10}/> {d.label}</span>
               </label>
             ))}
           </div>
-        </div>
+        </Card>
 
-        <div className="bg-card-bg/40 p-4 rounded-xl border border-border-subtle flex flex-col gap-3">
-          <span className="text-xs font-bold text-text-muted uppercase tracking-wider">Service Mode</span>
-          <div className="flex gap-6 mt-1">
+        <Card className="bg-card-bg/40 p-4 border-border-subtle">
+          <span className="text-xs font-bold text-text-muted uppercase">Service Mode</span>
+          <div className="flex gap-6 mt-3">
             {[{ id: "Surface", icon: Truck }, { id: "Express", icon: Zap }].map(s => (
               <label key={s.id} className="flex items-center gap-2 cursor-pointer">
                 <input type="radio" className="sr-only" checked={serviceType === s.id} onChange={() => setServiceType(s.id)} />
-                <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all", serviceType === s.id ? "border-primary" : "border-text-muted/30")}>
+                <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center", serviceType === s.id ? "border-primary" : "border-text-muted/30")}>
                   {serviceType === s.id && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
                 </div>
                 <span className="text-sm font-medium flex items-center gap-1"><s.icon size={14}/> {s.id}</span>
               </label>
             ))}
           </div>
-        </div>
+        </Card>
       </div>
 
-      {/* Addresses */}
+      {/* Address Selectors */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-card-bg border-border-subtle overflow-visible relative">
           <CardContent className="p-6 space-y-4">
             <div className="flex justify-between items-center"><h2 className="text-lg font-semibold flex items-center gap-2"><MapPinned size={20} className="text-primary" /> Pickup Location</h2><Button variant="ghost" size="sm" onClick={() => setIsPickupModalOpen(true)} className="text-primary hover:bg-primary/10"><Plus size={16} /> Add New</Button></div>
-            <div className="relative cursor-pointer">
+            <div className="relative">
                 {selectedAddress ? (
-                  <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center" onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)}>
+                  <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center cursor-pointer" onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)}>
                     <div><p className="font-bold text-sm">{selectedAddress.nickname}</p><p className="text-xs text-text-muted">{selectedAddress.city} - {selectedAddress.pincode}</p></div>
                     <Button variant="outline" size="sm" className="text-primary border-primary/20">Change</Button>
                   </div>
-                ) : <div onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)} className="w-full border-2 border-dashed border-border-subtle rounded-xl py-8 flex flex-col items-center text-text-muted"><MapPin size={32} className="mb-2 opacity-50" /><p className="text-sm font-medium">Select Pickup</p></div>}
+                ) : <div onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)} className="w-full border-2 border-dashed border-border-subtle rounded-xl py-8 flex flex-col items-center text-text-muted cursor-pointer hover:border-primary/40 transition-colors"><MapPin size={32} className="mb-2 opacity-50" /><p className="text-sm font-medium">Select Pickup</p></div>}
               
               <AnimatePresence>
                 {isAddressDropdownOpen && (
@@ -373,28 +363,16 @@ export default function NewOrder() {
                     <div className="p-3 border-b border-border-subtle/20 bg-card-bg sticky top-0 z-10">
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={14} />
-                        <input 
-                          type="text" 
-                          placeholder="Search Pickup by Name or City..." 
-                          value={pickupSearch} 
-                          autoFocus
-                          onClick={(e) => e.stopPropagation()} 
-                          onChange={(e) => setPickupSearch(e.target.value)} 
-                          className="w-full bg-white/5 border border-border-subtle rounded-lg pl-9 py-2 text-xs outline-none focus:border-primary" 
-                        />
+                        <input type="text" placeholder="Search address..." value={pickupSearch} autoFocus onChange={(e) => setPickupSearch(e.target.value)} className="w-full bg-white/5 border border-border-subtle rounded-lg pl-9 py-2 text-xs outline-none focus:border-primary" />
+                        {pickupLoading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-primary" size={14} />}
                       </div>
                     </div>
                     <div className="overflow-y-auto max-h-60 custom-scrollbar">
-                      {filteredPickupAddresses.length > 0 ? (
-                        filteredPickupAddresses.map(a => (
-                          <div key={a.id} onClick={() => { dispatch(setSelectedAddress(a)); setIsAddressDropdownOpen(false); setPickupSearch(""); }} className="p-4 hover:bg-primary/10 cursor-pointer text-sm border-b border-border-subtle/10 last:border-0 transition-colors">
-                            <p className="font-bold">{a.nickname}</p>
-                            <p className="text-[11px] text-text-muted">{a.contact_name} | {a.city}, {a.pincode}</p>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="p-8 text-center text-text-muted text-xs">No addresses found matching "{pickupSearch}"</div>
-                      )}
+                      {pickupAddresses.map(a => (
+                        <div key={a.id} onClick={() => { dispatch(setSelectedAddress(a)); setIsAddressDropdownOpen(false); setPickupSearch(""); }} className="p-4 hover:bg-primary/10 cursor-pointer text-sm border-b border-border-subtle/10 last:border-0 transition-colors">
+                          <p className="font-bold">{a.nickname}</p><p className="text-[11px] text-text-muted">{a.city}, {a.pincode}</p>
+                        </div>
+                      ))}
                     </div>
                   </motion.div>
                 )}
@@ -406,13 +384,13 @@ export default function NewOrder() {
         <Card className="bg-card-bg border-border-subtle overflow-visible relative">
           <CardContent className="p-6 space-y-4">
             <div className="flex justify-between items-center"><h2 className="text-lg font-semibold flex items-center gap-2"><User size={20} className="text-primary" /> Deliver To</h2><Button variant="ghost" size="sm" onClick={() => setIsConsigneeModalOpen(true)} className="text-primary hover:bg-primary/10"><Plus size={16} /> Add New</Button></div>
-            <div className="relative cursor-pointer">
+            <div className="relative">
                 {consigneeData.id ? (
-                  <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center" onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)}>
+                  <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center cursor-pointer" onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)}>
                     <div><p className="font-bold text-sm">{consigneeData.name}</p><p className="text-xs text-text-muted">{consigneeData.city} - {consigneeData.mobile}</p></div>
                     <Button variant="outline" size="sm" className="text-primary border-primary/20">Change</Button>
                   </div>
-                ) : <div onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)} className="w-full border-2 border-dashed border-border-subtle rounded-xl py-8 flex flex-col items-center text-text-muted"><User size={32} className="mb-2 opacity-50" /><p className="text-sm font-medium">Select Consignee</p></div>}
+                ) : <div onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)} className="w-full border-2 border-dashed border-border-subtle rounded-xl py-8 flex flex-col items-center text-text-muted cursor-pointer hover:border-primary/40 transition-colors"><User size={32} className="mb-2 opacity-50" /><p className="text-sm font-medium">Select Consignee</p></div>}
               
               <AnimatePresence>
                 {isConsigneeDropdownOpen && (
@@ -420,28 +398,16 @@ export default function NewOrder() {
                     <div className="p-3 border-b border-border-subtle/20 bg-card-bg sticky top-0 z-10">
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={14} />
-                        <input 
-                          type="text" 
-                          placeholder="Search Consignee by Name or Mobile..." 
-                          value={consigneeSearch} 
-                          autoFocus
-                          onClick={(e) => e.stopPropagation()} 
-                          onChange={(e) => setConsigneeSearch(e.target.value)} 
-                          className="w-full bg-white/5 border border-border-subtle rounded-lg pl-9 py-2 text-xs outline-none focus:border-primary" 
-                        />
+                        <input type="text" placeholder="Search consignee..." value={consigneeSearch} autoFocus onChange={(e) => setConsigneeSearch(e.target.value)} className="w-full bg-white/5 border border-border-subtle rounded-lg pl-9 py-2 text-xs outline-none focus:border-primary" />
+                        {pickupLoading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-primary" size={14} />}
                       </div>
                     </div>
                     <div className="overflow-y-auto max-h-60 custom-scrollbar">
-                      {filteredConsignees.length > 0 ? (
-                        filteredConsignees.map(c => (
-                          <div key={c.id} onClick={() => { setConsigneeData(c); setIsConsigneeDropdownOpen(false); setConsigneeSearch(""); }} className="p-4 hover:bg-primary/10 cursor-pointer text-sm border-b border-border-subtle/10 last:border-0 transition-colors">
-                            <p className="font-bold">{c.name}</p>
-                            <p className="text-[11px] text-text-muted">{c.mobile} | {c.city}</p>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="p-8 text-center text-text-muted text-xs">No consignees found matching "{consigneeSearch}"</div>
-                      )}
+                      {consignees.map(c => (
+                        <div key={c.id} onClick={() => { setConsigneeData(c); setIsConsigneeDropdownOpen(false); setConsigneeSearch(""); }} className="p-4 hover:bg-primary/10 cursor-pointer text-sm border-b border-border-subtle/10 last:border-0 transition-colors">
+                          <p className="font-bold">{c.name}</p><p className="text-[11px] text-text-muted">{c.mobile} | {c.city}</p>
+                        </div>
+                      ))}
                     </div>
                   </motion.div>
                 )}
@@ -451,7 +417,7 @@ export default function NewOrder() {
         </Card>
       </div>
 
-      {/* Payment & Insurance */}
+      {/* Payment & Regional Area */}
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -459,11 +425,7 @@ export default function NewOrder() {
             <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-lg border border-border-subtle">
                 <ShieldCheck size={18} className={cn(isInsuranceEnabled ? "text-green-500" : "text-text-muted")} />
                 <span className="text-sm font-medium">Add Insurance (1.8%)?</span>
-                <button 
-                  type="button"
-                  onClick={() => setIsInsuranceEnabled(!isInsuranceEnabled)} 
-                  className={cn("w-10 h-5 rounded-full transition-all relative", isInsuranceEnabled ? "bg-primary" : "bg-white/20")}
-                >
+                <button type="button" onClick={() => setIsInsuranceEnabled(!isInsuranceEnabled)} className={cn("w-10 h-5 rounded-full transition-all relative", isInsuranceEnabled ? "bg-primary" : "bg-white/20")}>
                   <div className={cn("w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-all shadow-md", isInsuranceEnabled ? "left-6" : "left-0.5")} />
                 </button>
             </div>
@@ -480,27 +442,25 @@ export default function NewOrder() {
             <div className="flex gap-4 flex-1">
               <div className="flex-1">
                 <label className="text-[10px] font-bold text-text-muted uppercase ml-1">Amt ({paymentMethod})</label>
-                <input 
-                    type="number" 
-                    value={paymentMethod === "Prepaid" ? prepaidAmount : paymentMethod === "COD" ? codAmount : paymentMethod === "To Pay" ? toPayAmount : creditAmount} 
+                <input type="number" value={paymentMethod === "Prepaid" ? prepaidAmount : paymentMethod === "COD" ? codAmount : paymentMethod === "To Pay" ? toPayAmount : creditAmount} 
                     onChange={(e) => {
                         const val = e.target.value;
                         if(paymentMethod === "Prepaid") setPrepaidAmount(val);
                         else if(paymentMethod === "COD") setCodAmount(val);
                         else if(paymentMethod === "To Pay") setToPayAmount(val);
                         else setCreditAmount(val);
-                    }} 
-                    className={inputClass} 
-                />
+                    }} className={inputClass} />
               </div>
               <div className="flex-1">
                 <label className="text-[10px] font-bold text-text-muted uppercase ml-1">Insurance Preview</label>
                 <div className={cn(inputClass, "bg-white/5 opacity-80 flex items-center justify-between")}>
-                  <span>₹ {insuranceAmount}</span>
-                  <Lock size={12} className="opacity-40" />
+                  <span>₹ {insuranceAmount}</span><Lock size={12} className="opacity-40" />
                 </div>
               </div>
-              <div className="flex-1"><label className="text-[10px] font-bold text-text-muted uppercase ml-1">Regional</label><input type="number" value={regionalArea} onChange={(e) => setRegionalArea(e.target.value)} className={inputClass} placeholder="0" /></div>
+              <div className="flex-1">
+                <label className="text-[10px] font-bold text-text-muted uppercase ml-1">Regional Area</label>
+                <input type="number" placeholder="0" value={regionalArea} onChange={(e) => setRegionalArea(e.target.value)} className={inputClass} />
+              </div>
             </div>
           </div>
         </CardContent>
@@ -513,18 +473,12 @@ export default function NewOrder() {
             <div className="space-y-1">
                 <h2 className="text-lg font-semibold flex items-center gap-2"><Scale size={20} className="text-primary" /> Package Details</h2>
                 <div className="flex items-center gap-2 mt-2">
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
-                        <MousePointerClick size={14} className={isManualFreight ? "text-primary" : "text-text-muted"} />
-                        <span className="text-[10px] font-bold text-text-muted uppercase">Manual Freight?</span>
-                        <button type="button" onClick={() => setIsManualFreight(!isManualFreight)} className={cn("w-8 h-4 rounded-full transition-all relative", isManualFreight ? "bg-primary" : "bg-white/20")}>
-                            <div className={cn("w-3 h-3 rounded-full bg-white absolute top-0.5 transition-all", isManualFreight ? "left-4.5" : "left-0.5")} />
-                        </button>
-                    </div>
-                    {isManualFreight && (
-                        <div className="animate-in fade-in slide-in-from-left-2">
-                             <input type="number" placeholder="Freight Charge" value={freightCharge} onChange={(e) => setFreightCharge(e.target.value)} className="bg-dashboard-bg border border-primary/30 rounded-lg px-3 py-1 text-xs text-primary focus:outline-none w-40" />
-                        </div>
-                    )}
+                    <MousePointerClick size={14} className={isManualFreight ? "text-primary" : "text-text-muted"} />
+                    <span className="text-[10px] font-bold text-text-muted uppercase">Manual Freight?</span>
+                    <button type="button" onClick={() => setIsManualFreight(!isManualFreight)} className={cn("w-8 h-4 rounded-full transition-all relative", isManualFreight ? "bg-primary" : "bg-white/20")}>
+                        <div className={cn("w-3 h-3 rounded-full bg-white absolute top-0.5 transition-all", isManualFreight ? "left-4.5" : "left-0.5")} />
+                    </button>
+                    {isManualFreight && <input type="number" placeholder="freight Charge" value={freightCharge} onChange={(e) => setFreightCharge(e.target.value)} className="bg-dashboard-bg border border-primary/30 rounded-lg px-3 py-1 text-xs text-primary focus:outline-none w-24 ml-2" />}
                 </div>
             </div>
             <div className="flex gap-4 bg-primary/5 border border-primary/20 rounded-xl px-4 py-2">
@@ -535,36 +489,19 @@ export default function NewOrder() {
           </div>
           {packages.map((pkg, idx) => (
             <div key={pkg.id} className="grid grid-cols-2 md:grid-cols-7 gap-4 items-end border-b border-border-subtle pb-6 last:border-0">
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">L (cm)</label><input type="number" value={pkg.length_cm} onChange={(e) => handlePackageChange(pkg.id, "length_cm", e.target.value)} className={inputClass} /></div>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">B (cm)</label><input type="number" value={pkg.breadth_cm} onChange={(e) => handlePackageChange(pkg.id, "breadth_cm", e.target.value)} className={inputClass} /></div>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">H (cm)</label><input type="number" value={pkg.height_cm} onChange={(e) => handlePackageChange(pkg.id, "height_cm", e.target.value)} className={inputClass} /></div>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">Vol (kg)</label><div className={cn(inputClass, "bg-white/5 flex items-center justify-center")}>{pkg.row_vol_weight}</div></div>
               <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-text-muted uppercase tracking-tighter">Index {idx+1}</label>
-                  <input type="number" value={1} disabled className={cn(inputClass, "bg-white/5 opacity-70 cursor-not-allowed")} />
-              </div>
-              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase tracking-tighter">L (cm)</label><input type="number" value={pkg.length_cm} onChange={(e) => handlePackageChange(pkg.id, "length_cm", e.target.value)} className={inputClass} /></div>
-              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase tracking-tighter">B (cm)</label><input type="number" value={pkg.breadth_cm} onChange={(e) => handlePackageChange(pkg.id, "breadth_cm", e.target.value)} className={inputClass} /></div>
-              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase tracking-tighter">H (cm)</label><input type="number" value={pkg.height_cm} onChange={(e) => handlePackageChange(pkg.id, "height_cm", e.target.value)} className={inputClass} /></div>
-              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase tracking-tighter">Vol (kg)</label><div className={cn(inputClass, "bg-white/5 opacity-80 flex items-center justify-center")}>{pkg.row_vol_weight}</div></div>
-              
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-text-muted uppercase tracking-tighter">Manual Weight</label>
+                <label className="text-[10px] font-bold text-text-muted uppercase">Manual Weight</label>
                 <div className="flex">
-                  <input 
-                    type="number" 
-                    value={pkg.weight_value} 
-                    onChange={(e) => handlePackageChange(pkg.id, "weight_value", e.target.value)} 
-                    className={cn(inputClass, "rounded-r-none")} 
-                    placeholder="0.0" 
-                  />
-                  <select 
-                    value={pkg.weight_unit} 
-                    onChange={(e) => handlePackageChange(pkg.id, "weight_unit", e.target.value)} 
-                    className="bg-dashboard-bg border border-l-0 border-border-subtle rounded-r-lg px-1 text-[10px] text-primary outline-none"
-                  >
-                    <option value="kg">kg</option>
-                    <option value="g">g</option>
+                  <input type="number" value={pkg.weight_value} onChange={(e) => handlePackageChange(pkg.id, "weight_value", e.target.value)} className={cn(inputClass, "rounded-r-none")} placeholder="0.0" />
+                  <select value={pkg.weight_unit} onChange={(e) => handlePackageChange(pkg.id, "weight_unit", e.target.value)} className="bg-dashboard-bg border border-l-0 border-border-subtle rounded-r-lg px-1 text-[10px] text-primary outline-none">
+                    <option value="kg">kg</option><option value="g">g</option>
                   </select>
                 </div>
               </div>
-
               <div className="flex justify-end"><Button variant="destructive" size="icon" onClick={() => setPackages(packages.filter(i => i.id !== pkg.id))}><Trash2 size={16} /></Button></div>
             </div>
           ))}
@@ -572,20 +509,18 @@ export default function NewOrder() {
         </CardContent>
       </Card>
 
+      {/* Product Details */}
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
           <div className="flex justify-between items-center"><h2 className="text-lg font-semibold">Product Details</h2><div className="bg-primary/10 px-4 py-2 rounded-lg border border-primary/20"><span className="text-lg font-bold text-primary">₹{totalOrderValue.toFixed(2)}</span></div></div>
           {products.map(p => (
             <div key={p.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-dashboard-bg/20 p-4 rounded-xl border border-border-subtle">
               <div className="md:col-span-4 space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase ml-1">Item Name</label><input type="text" value={p.product_name} onChange={(e) => handleProductChange(p.id, "product_name", e.target.value)} className={inputClass} /></div>
-              
-              <div className="md:col-span-3 space-y-1">
-                  <label className="text-[10px] font-bold text-text-muted uppercase ml-1">Package Assignment</label>
+              <div className="md:col-span-3 space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase ml-1">Package Assignment</label>
                   <select value={p.package_index} onChange={(e) => handleProductChange(p.id, "package_index", e.target.value)} className={cn(inputClass, "bg-dashboard-bg cursor-pointer")}>
                     {packages.map((_, i) => <option key={i+1} value={i+1}>Package {i+1}</option>)}
                   </select>
               </div>
-
               <div className="md:col-span-2 space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">Invoice Price</label><input type="number" value={p.unit_price} onChange={(e) => handleProductChange(p.id, "unit_price", e.target.value)} className={inputClass} /></div>
               <div className="md:col-span-2 space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">Qty</label><input type="number" value={p.qty} onChange={(e) => handleProductChange(p.id, "qty", e.target.value)} className={inputClass} /></div>
               <div className="md:col-span-1 flex justify-end"><Button variant="destructive" size="icon" onClick={() => setProducts(products.filter(i => i.id !== p.id))}><Trash2 size={16} /></Button></div>
