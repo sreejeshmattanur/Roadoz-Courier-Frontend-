@@ -6,18 +6,18 @@ import {
   deletePickupAddressApi,
   createConsigneeApi,
   fetchConsigneesApi,
+  updateConsigneeApi, // Added this import
   createOrderApi,
   fetchOrdersApi,
   fetchOrderCountsApi,
   duplicateOrderApi,
   updateOrderApi,
   deleteOrderApi,
-  fetchOrdersByEntityApi, // Ensure this is exported from your apiCalls.js
+  fetchOrdersByEntityApi,
 } from "../services/apiCalls";
 
 /**
- * Filter orders by specific entities (e.g., pickup_address)
- * Matches API: /orders/orders/filter-by-entity?search_by=pickup_address&name=Vikram
+ * Filter orders by specific entities
  */
 export const fetchOrdersByEntity = createAsyncThunk(
   "orders/fetchOrdersByEntity",
@@ -93,6 +93,20 @@ export const createConsignee = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(
         error.response?.data?.detail || "Failed to create consignee"
+      );
+    }
+  }
+);
+
+// --- ADDED UPDATE CONSIGNEE THUNK ---
+export const updateConsignee = createAsyncThunk(
+  "orders/updateConsignee",
+  async ({ id, data }, { rejectWithValue }) => {
+    try {
+      return await updateConsigneeApi(id, data);
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.detail || "Failed to update consignee"
       );
     }
   }
@@ -226,13 +240,11 @@ const orderSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // FETCH ORDERS BY ENTITY (PICKUP ADDRESS SEARCH, ETC)
       .addCase(fetchOrdersByEntity.pending, (state) => {
         state.loading = true;
       })
       .addCase(fetchOrdersByEntity.fulfilled, (state, action) => {
         state.loading = false;
-        // The filter-by-entity API returns a direct array in the example provided
         const data = action.payload;
         if (Array.isArray(data)) {
           state.orders = data;
@@ -240,7 +252,6 @@ const orderSlice = createSlice({
           state.totalPages = 1;
           state.page = 1;
         } else {
-          // Fallback if pagination is added later
           state.orders = data.items || [];
           state.totalOrders = data.pagination?.total || data.total || 0;
           state.totalPages = data.pagination?.pages || 1;
@@ -275,7 +286,6 @@ const orderSlice = createSlice({
         state.pickupAddresses = action.payload.items || [];
         state.totalPickupAddresses = action.payload.total || 0;
         state.error = null;
-
         if (!state.selectedAddress && action.payload.items?.length > 0) {
           state.selectedAddress = action.payload.items[0];
         }
@@ -290,6 +300,10 @@ const orderSlice = createSlice({
         state.pickupAddresses = state.pickupAddresses.map((addr) =>
           addr.id === action.payload.id ? action.payload : addr
         );
+        // If the current selected address was updated, sync it
+        if(state.selectedAddress?.id === action.payload.id) {
+            state.selectedAddress = action.payload;
+        }
       })
 
       .addCase(deletePickupAddress.fulfilled, (state, action) => {
@@ -314,6 +328,14 @@ const orderSlice = createSlice({
 
       .addCase(createConsignee.fulfilled, (state, action) => {
         state.consignees.unshift(action.payload);
+      })
+
+      // --- ADDED UPDATE CONSIGNEE REDUCER ---
+      .addCase(updateConsignee.fulfilled, (state, action) => {
+        state.loading = false;
+        state.consignees = state.consignees.map((c) =>
+          c.id === action.payload.id ? action.payload : c
+        );
       })
 
       // ORDERS

@@ -1,567 +1,305 @@
 import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import JsBarcode from "jsbarcode";
+import roadozLogo from "../assets/images/RO-2.png";
 
-const drawInvoice = (doc, order, isSuperAdmin = false) => {
-    // -----------------------------
-    // COLORS & CONSTANTS
-    // -----------------------------
-    const primary = [0, 0, 0];
-    const lightGray = [240, 240, 240];
-    const black = [0, 0, 0];
-    const white = [255, 255, 255];
-    const PAGE_LEFT = 14;
-    const PAGE_RIGHT = 196; // 210mm - 14mm margin
-
-    // ─────────────────────────────────────────────────────────
-    // HEADER  (invoice meta RIGHT only)
-    // ─────────────────────────────────────────────────────────
-
-   doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.text("ROADOZ PVT. LTD.", PAGE_LEFT, 15);
-    
-    // Sub-header
-    doc.setFontSize(10);
-    doc.text("COURIER AND CARGO", PAGE_LEFT, 20);
-
-    // Company Address from Business Card
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(60, 60, 60);
-    doc.text("Room No: 122, No: 55/2055, 1st Floor DD Vyapar Bhavan,", PAGE_LEFT, 25);
-    doc.text("K.P Vallon Road, Kadavanthra, Kochi-682020", PAGE_LEFT, 29);
-    doc.text("Phone: +91 9496630687 | Email: info@roadozcourier.com", PAGE_LEFT, 33);
-    doc.text("Web: www.roadoz.com", PAGE_LEFT, 37);
-doc.setFont("helvetica", "bold");
-doc.text("GST: 32AAPCR1988L1ZP", PAGE_LEFT, 42)
-    doc.setTextColor(0, 0, 0); // Reset to black
-
-
-
-    // --- TAX INVOICE label — right-aligned ---
-    doc.setFontSize(18);
-    doc.text("TAX INVOICE", PAGE_RIGHT, 20, { align: "right" });
-
-    // --- Invoice meta (right column) ---
-    // Render label left-of-center and value right-aligned for clean layout
-    const META_LABEL_X = 125;
-    const metaRows = [
-      ["Invoice No", order.invoiceNo || "N/A"],
-      ["Invoice Date", order.created || "N/A"],
-      ["Air Waybill", order.id || "N/A"],
-    ];
-    
-    if (order.amount) {
-      metaRows.push(["Invoice Amount", `Rs. ${order.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`]);
-    }
-
-    metaRows.forEach(([label, value], i) => {
-      const y = 27 + i * 5;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.text(`${label}:`, META_LABEL_X, y);
-      doc.setFont("helvetica", "normal");
-      doc.text(value, PAGE_RIGHT, y, { align: "right" });
-    });
-
-    // -----------------------------
-    // DIVIDER
-    // -----------------------------
-    doc.setDrawColor(180);
-    doc.line(PAGE_LEFT, 47, PAGE_RIGHT, 47);
-
-    // ─────────────────────────────────────────────────────────
-    // PICKUP  &  DELIVERY  ADDRESSES
-    // Split at midpoint (x = 105); right column starts at 108
-    // ─────────────────────────────────────────────────────────
-    const ADDR_Y_TITLE = 56;
-    const ADDR_Y_START = 62;
-    const ADDR_LEFT_X = PAGE_LEFT;
-    const ADDR_RIGHT_X = 108;
-
-    // Section titles
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text("Pickup Address", ADDR_LEFT_X, ADDR_Y_TITLE);
-    doc.text("Delivery Address", ADDR_RIGHT_X, ADDR_Y_TITLE);
-
-    // Vertical separator between the two address blocks
-    doc.setDrawColor(200);
-
-    // Address content
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-
-    const pickupLines = [
-      order.pickup?.name || "",
-      order.pickup?.address1 || "",
-      order.pickup?.address2 || "",
-      order.pickup?.city || "",
-      `Phone: ${order.pickup?.phone || ""}`,
-    ];
-    const deliveryLines = [
-      order.customer?.name || "",
-      order.customer?.address1 || "",
-      order.customer?.address2 || "",
-      order.customer?.city || "",
-      `Phone: ${order.customer?.phone || ""}`,
-    ];
-
-    pickupLines.forEach((line, i) =>
-      doc.text(line, ADDR_LEFT_X, ADDR_Y_START + i * 5),
-    );
-    deliveryLines.forEach((line, i) =>
-      doc.text(line, ADDR_RIGHT_X, ADDR_Y_START + i * 5),
-    );
-
-    // -----------------------------
-    // PRODUCT DETAILS TABLE
-    // -----------------------------
-    const addressBottom = ADDR_Y_START + (Math.max(pickupLines.length, deliveryLines.length) - 1) * 5;
-    
-    // Vertical separator between the two address blocks, ending just below the text
-    doc.line(105, 50, 105, addressBottom + 2);
-    
-    const prodY = addressBottom + 10;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text("Product Details", PAGE_LEFT, prodY);
-
-    autoTable(doc, {
-      startY: prodY + 2,
-      head: [
-        ["Product Name", "SKU", "Freight Charge", "Qty", "Package Index"],
-      ],
-      body: order.items && order.items.length > 0 
-        ? order.items.map((item, index) => [
-            item.product_name || "-",
-            item.sku || "-",
-            item.unit_price !== undefined ? `Rs. ${item.unit_price}` : "-",
-            item.qty || "-",
-            `Package ${index + 1}`,
-            item.total !== undefined ? `Rs. ${item.total}` : "-",
-          ])
-        : [
-            [
-              order.product?.name || "-",
-              order.product?.sku || "-",
-              order.product?.unit_price !== undefined ? `Rs. ${order.product.unit_price}` : "-",
-              order.product?.qty || "-",
-              "Package 1",
-              order.product?.value !== undefined ? `Rs. ${order.product.value}` : "-",
-            ],
-          ],
-      styles: { fontSize: 8, cellPadding: 2, lineColor: [200, 200, 200], lineWidth: 0.5 },
-      headStyles: {
-        fillColor: [255, 255, 255], 
-        textColor: [0, 0, 0],
-        fontStyle: "bold",
-        lineColor: [200, 200, 200],
-        lineWidth: 0.5,
-        halign: "left",
-      },
-      columnStyles: {
-        0: { cellWidth: "auto", halign: "left" },
-        1: { cellWidth: 30, halign: "left" },
-        2: { cellWidth: 25, halign: "left" },
-        3: { cellWidth: 15, halign: "left" },
-        4: { cellWidth: 30, halign: "left" },
-        5: { cellWidth: 35, halign: "left" },
-      },
-      theme: "grid",
-      margin: { left: PAGE_LEFT, right: 0 },
-      tableWidth: PAGE_RIGHT - PAGE_LEFT,
-    });
-
-    // -----------------------------
-    // PACKAGE DETAILS TABLE
-    // -----------------------------
-    const pkgY = doc.lastAutoTable.finalY + 6;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text("Package Details", PAGE_LEFT, pkgY);
-
-    autoTable(doc, {
-      startY: pkgY + 2,
-      head: [
-        ["Package", "Count", "L (cm)*", "B (cm)*", "H (cm)*", "Vol (kg)", `Manual Weight in (${order.weight_unit || 'kg'})`],
-      ],
-      body: order.packages && order.packages.length > 0
-        ? order.packages.map((pkg, index) => [
-            `Pkg ${index + 1}`,
-            pkg.count || "-",
-            pkg.length_cm || "-",
-            pkg.breadth_cm || "-",
-            pkg.height_cm || "-",
-            pkg.vol_weight_kg || pkg.volumetric_weight || "-",
-            pkg.physical_weight_kg || pkg.actual_weight || "-",
-          ])
-        : [
-            ["Pkg 1", "-", "-", "-", "-", "-", "-"],
-          ],
-      styles: { fontSize: 8, cellPadding: 2, lineColor: [200, 200, 200], lineWidth: 0.5 },
-      headStyles: {
-    fillColor: [255, 255, 255],
-        textColor: [0, 0, 0],
-        fontStyle: "bold",
-        lineColor: [200, 200, 200],
-        lineWidth: 0.5,
-        halign: "left",
-      },
-      columnStyles: {
-        0: { cellWidth: "auto", halign: "left" },
-        1: { cellWidth: 20, halign: "left" },
-        2: { cellWidth: 20, halign: "left" },
-        3: { cellWidth: 20, halign: "left" },
-        4: { cellWidth: 20, halign: "left" },
-        5: { cellWidth: 25, halign: "left" },
-        6: { cellWidth: 25, halign: "left" },
-      },
-      theme: "grid",
-      margin: { left: PAGE_LEFT, right: 0 },
-      tableWidth: PAGE_RIGHT - PAGE_LEFT,
-    });
-
-    // -----------------------------
-    // CHARGES BREAKDOWN TABLE
-    // -----------------------------
-    const chargeY = doc.lastAutoTable.finalY + 6;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text(order.is_gst_exempt ? "Charges Summary" : "Charges Breakdown", PAGE_LEFT, chargeY);
-
-    const chargesBody = [];
-
-    let totalValue = 0;
-
-    let totalDeclaredValue = 0;
-    if (order.items && order.items.length > 0) {
-      totalDeclaredValue = order.items.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
-    } else {
-      totalDeclaredValue = Number(order.product?.value?.toString().replace(/[^0-9.-]+/g,"") || 0);
-    }
-
-    const paymentMethodStr = (order.payment?.method || "").toLowerCase();
-    const isCOD = paymentMethodStr === "cod" || paymentMethodStr === "cash on delivery";
-
-    if (isCOD) {
-      chargesBody.push(["Product Total", `Rs. ${totalDeclaredValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
-      totalValue += totalDeclaredValue;
-    }
-
-    if (order.charges?.freight && Number(order.charges.freight) !== 0) {
-      chargesBody.push(["Freight Charges", `Rs. ${order.charges.freight}`]);
-    }
-
-    if (!order.is_gst_exempt && order.charges?.freight_gst && Number(order.charges.freight_gst) !== 0) {
-      chargesBody.push(["Freight GST", `Rs. ${order.charges.freight_gst}`]);
-    }
-    totalValue += Number(order.charges?.total_freight) || 0;
-
-    if (order.charges?.insurance && Number(order.charges.insurance) > 0) {
-      chargesBody.push(["Insurance", `Rs. ${order.charges.insurance}`]);
-      totalValue += Number(order.charges.insurance);
-    }
-
-    if (order.charges?.regional_area && Number(order.charges.regional_area) > 0) {
-      chargesBody.push(["Regional Area", `Rs. ${order.charges.regional_area}`]);
-      totalValue += Number(order.charges.regional_area);
-    }
-
-    if (order.charges?.cod_amount && Number(order.charges.cod_amount) > 0) {
-      chargesBody.push(["COD Amount", `Rs. ${order.charges.cod_amount}`]);
-      totalValue += Number(order.charges.cod_amount);
-    }
-    
-    if (order.charges?.to_pay_amount && Number(order.charges.to_pay_amount) > 0) {
-      chargesBody.push(["To Pay Amount", `Rs. ${order.charges.to_pay_amount}`]);
-      totalValue += Number(order.charges.to_pay_amount);
-    }
-    
-    if (order.charges?.credit_amount && Number(order.charges.credit_amount) > 0) {
-      chargesBody.push(["Credit Amount", `Rs. ${order.charges.credit_amount}`]);
-      totalValue += Number(order.charges.credit_amount);
-    }
-
-    if (order.charges?.prepaid_amount && Number(order.charges.prepaid_amount) > 0) {
-      chargesBody.push(["Prepaid Amount", `Rs. ${order.charges.prepaid_amount}`]);
-      totalValue += Number(order.charges.prepaid_amount);
-    }
-
-    const finalGrandTotal = Number(order.charges?.grand_total) || totalValue;
-    chargesBody.push(["Grand Total", `Rs. ${finalGrandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
-
-    autoTable(doc, {
-      startY: chargeY + 2,
-      head: [["Description", "Amount"]],
-      body: chargesBody,
-      styles: { fontSize: 8, cellPadding: 2, lineColor: [200, 200, 200], lineWidth: 0.5 },
-      headStyles: {
-        fillColor: [255, 255, 255],
-        textColor: [0, 0, 0],
-        fontStyle: "bold",
-        lineColor: [200, 200, 200],
-        lineWidth: 0.5,
-        halign: "left",
-      },
-      columnStyles: {
-        0: { cellWidth: "auto", halign: "left" },
-        1: { cellWidth: 60, halign: "left" },
-      },
-      didParseCell: (data) => {
-        if (data.section === "body") {
-          const desc = data.row.raw[0];
-          if (desc === "Grand Total") {
-            data.cell.styles.fontStyle = "bold";
-          }
-        }
-      },
-      theme: "grid",
-      margin: { left: PAGE_LEFT, right: 0 },
-      tableWidth: PAGE_RIGHT - PAGE_LEFT,
-    });
-
-    // ─────────────────────────────────────────────────────────
-    // EXTRA DETAILS  — light shaded info bar
-    // ─────────────────────────────────────────────────────────
-    const PAGE_H = 297; // A4 height in mm
-    const SIG_H = 16; // space needed for sig line + label
-    const BOTTOM_MARGIN = 10;
-    const SAFE_BOTTOM = PAGE_H - BOTTOM_MARGIN; // 287mm — last safe y
-
-    const extraY = doc.lastAutoTable.finalY + 4;
-    const INFO_BAR_H = 8; // compact bar height
-
-    // Shaded background
-    doc.setFillColor(245, 245, 245);
-    doc.rect(PAGE_LEFT, extraY, PAGE_RIGHT - PAGE_LEFT, INFO_BAR_H, "F");
-    doc.setDrawColor(200);
-    doc.rect(PAGE_LEFT, extraY, PAGE_RIGHT - PAGE_LEFT, INFO_BAR_H, "S");
-
-    // Three columns inside the bar
-    const barTextY = extraY + 5.5;
-    doc.setFontSize(8);
-
-    // Left Column
-    doc.setFont("helvetica", "normal");
-    doc.text("Payment Method:", PAGE_LEFT + 3, barTextY);
-    doc.setFont("helvetica", "bold");
-    doc.text(order.payment?.method || "N/A", PAGE_LEFT + 33, barTextY);
-
-    // Center Column
-    doc.setFont("helvetica", "normal");
-    doc.text("Service Type:", 95, barTextY);
-    doc.setFont("helvetica", "bold");
-    doc.text(order.serviceType || "N/A", 118, barTextY);
-
-    // Right Column
+const drawInvoice = (doc, order) => {
+    const PAGE_W = 210; // A4 Width
+    const HALF_H = 148.5; // Half of A4 Height
+    const LEFT = 10;
+    const RIGHT = 200;
+    const WIDTH = RIGHT - LEFT;
     const shipmentTypeStr = order.shipmentType || "N/A";
-    doc.setFont("helvetica", "bold");
-    const valWidth = doc.getTextWidth(shipmentTypeStr);
+
+    let currY = 10;
+
+    // Helper to safely parse strings/numbers and remove currency symbols
+    const safeParse = (val) => {
+        if (val === null || val === undefined) return 0;
+        const sanitized = String(val).replace(/[^0-9.-]+/g, "");
+        return parseFloat(sanitized) || 0;
+    };
+
+    // Helper to draw the grid lines
+    const drawGrid = (x, y, w, h) => doc.rect(x, y, w, h);
+
+    // ---------------------------------------------------------
+    // 1. HEADER
+    // ---------------------------------------------------------
+    drawGrid(LEFT, currY, WIDTH, 22);
     
-    doc.text(shipmentTypeStr, PAGE_RIGHT - 3, barTextY, { align: "right" });
-    doc.setFont("helvetica", "normal");
-    doc.text("Shipment Type:", PAGE_RIGHT - 3 - valWidth - 2, barTextY, { align: "right" });
-
-    // ------------------------------------------------
-// BANK DETAILS
-// ------------------------------------------------
-
-const bankY = extraY + INFO_BAR_H + 8;
-
-doc.setFont("helvetica", "bold");
-doc.setFontSize(10);
-doc.text("Bank Details", PAGE_LEFT, bankY);
-
-autoTable(doc, {
-  startY: bankY + 3,
-
-  body: [
-    ["Account Holder", "ROADOZ PRIVATE LIMITED"],
-    ["Account Number", "50200116941777"],
-    ["IFSC Code", "HDFC0002321"],
-  ],
-
-  theme: "grid",
-
-  styles: {
-    fontSize: 8,
-    cellPadding: 2.5,
-    lineColor: [180, 180, 180],
-    lineWidth: 0.4,
-  },
-
-  columnStyles: {
-    0: {
-      cellWidth: 50,
-      fontStyle: "bold",
-      fillColor: [245, 245, 245],
-    },
-    1: {
-      cellWidth: 130,
-    },
-  },
-
-  alternateRowStyles: {
-    fillColor: [252, 252, 252],
-  },
-
-  margin: {
-    left: PAGE_LEFT,
-    right: 0,
-  },
-
-  tableWidth: PAGE_RIGHT - PAGE_LEFT,
-});
-
-    // ─────────────────────────────────────────────────────────
-    // TERMS & CONDITIONS — with dynamic page breaks
-    // ─────────────────────────────────────────────────────────
-    const terms = [
-      "All shipments are subject to Roadoz Courier & Cargo standard terms of carriage.",
-      "Misdeclaration of goods may result in penalties or shipment rejection.",
-      "Prohibited items, hazardous materials, and contraband are not accepted for transport.",
-      "Damaged or lost shipment claims must be reported within 48 hours of delivery.",
-      "Undelivered shipments will be held for 30 days before disposal.",
-      "Freight charges are non-refundable once shipment is dispatched.",
-      "GST is applicable as per Indian taxation laws and will be charged extra.",
-    ];
-    
-    const LINE_H = 4.5;
-    const TERMS_TITLE_H = 6;
-    const MIN_SPACE_FOR_TERMS = 40; // minimum space needed for terms section
-    
-    // let termsY = extraY + INFO_BAR_H + 5; // at least 5mm below the shaded info bar
-    let termsY = doc.lastAutoTable.finalY + 8;
-    
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.text("Terms & Conditions:", PAGE_LEFT, termsY);
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
-    let currentY = termsY + TERMS_TITLE_H;
-    
-    const isInsured = order.charges?.insurance && Number(order.charges.insurance) > 0;
-    const termsTextWidth = isInsured ? (PAGE_RIGHT - PAGE_LEFT - 40) : (PAGE_RIGHT - PAGE_LEFT - 4);
-    
-    terms.forEach((line, i) => {
-      const termText = `${i + 1}. ${line}`;
-      const splitText = doc.splitTextToSize(termText, termsTextWidth);
-      const lineCount = splitText.length;
-      const lineHeight = lineCount * 3.2;
-      
-      // Check if we need a new page for this term
-      if (currentY + lineHeight > SAFE_BOTTOM - 25) {
-        doc.addPage();
-        currentY = 20;
-      }
-      
-      doc.text(splitText, PAGE_LEFT + 2, currentY);
-      currentY += lineHeight + 1;
-    });
-
-    // -----------------------------
-    // SIGNATURES & STAMP  — pinned to bottom of current page or right below terms
-    // -----------------------------
-    const sigSpaceNeeded = 15;
-    let finalSigY = currentY + sigSpaceNeeded;
-
-    if (finalSigY > SAFE_BOTTOM) {
-      doc.addPage();
-      finalSigY = SAFE_BOTTOM - 8; // Pin to bottom on new page
-    } else if (finalSigY < SAFE_BOTTOM - 8) {
-      // If there's plenty of space, still pin to bottom
-      finalSigY = SAFE_BOTTOM - 8;
+    try {
+        doc.addImage(roadozLogo, "PNG", LEFT + 4, currY + 3, 40, 16);
+    } catch (e) {
+        doc.setFontSize(18);
+        doc.text("ROADOZ", LEFT + 5, currY + 12);
     }
 
-    if (isInsured) {
-      // Circular INSURED stamp placed above Authorized Signatory
-      const radius = 12;
-      const centerX = PAGE_RIGHT - 10; // Shifted further to the right edge
-      const centerY = finalSigY - radius - 20; // Moved even further up for signature space
-      
-      // Background and Outer circle
-      doc.setFillColor(238, 252, 240); // Soft mint green
-      doc.setDrawColor(22, 163, 74); // Tailwind green-600
-      doc.setLineWidth(0.8);
-      doc.circle(centerX, centerY, radius, "FD");
-      
-      // Inner decorative circle
-      doc.setLineWidth(0.3);
-      doc.circle(centerX, centerY, radius - 1.5, "S");
-      
-      // Text
-      doc.setTextColor(21, 128, 61); // Tailwind green-700
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.text("INSURED", centerX, centerY, { align: "center", baseline: "middle" });
-      
-      // Reset colors
-      doc.setTextColor(0, 0, 0);
-      doc.setDrawColor(200);
-      doc.setLineWidth(0.5);
-    }
-
-    doc.setDrawColor(100);
-    doc.line(PAGE_LEFT, finalSigY, 80, finalSigY); // customer line
-    doc.line(130, finalSigY, PAGE_RIGHT, finalSigY); // authorized line
-
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text("ROADOZ PVT. LTD.", LEFT + 60, currY + 6);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    doc.text("Customer Signature", PAGE_LEFT, finalSigY + 5);
-    doc.text("Authorized Signatory", 130, finalSigY + 5);
-};
+    doc.text("Courier And Cargo", LEFT + 60, currY + 11);
+    doc.setFontSize(7);
+    doc.text("Room No: 122, DD Vyapar Bhavan, Kadavanthra, Kochi-682020", LEFT + 60, currY + 14);
+    doc.text("Phone: +91 9496630687 | Email: info@roadoz.com | Web: www.roadoz.com", LEFT + 60, currY + 17);
+    doc.setFont("helvetica", "bold");
+    doc.text(`GSTIN: 32AAPCR1988L1ZP | Invoice No: INV-${order.id || "N/A"}`, LEFT + 60, currY + 20);
 
-export const generateInvoicePDF = (order, isSuperAdmin = false) => {
-  try {
-    const doc = new jsPDF();
-    drawInvoice(doc, order, isSuperAdmin);
-    doc.save(`Invoice_${order.id || "invoice"}.pdf`);
-  } catch (error) {
-    console.error("PDF Generation Error:", error);
-  }
-};
+    currY += 22;
 
-export const generateInvoiceDataUri = (order, pdfTitle, isSuperAdmin = false) => {
-  try {
-    const doc = new jsPDF();
-    drawInvoice(doc, order, isSuperAdmin);
-    return doc.output('bloburl');
-  } catch (error) {
-    console.error("PDF URI Generation Error:", error);
-    return null;
-  }
-};
+    // ---------------------------------------------------------
+    // 2. META BAR (Date, Payment, Pieces, Barcode)
+    // ---------------------------------------------------------
+    drawGrid(LEFT, currY, WIDTH, 18);
+    doc.line(LEFT + 55, currY, LEFT + 55, currY + 18); 
+    doc.line(LEFT + 85, currY, LEFT + 85, currY + 18); 
+    doc.line(LEFT + 110, currY, LEFT + 110, currY + 18); 
 
-export const generateBulkInvoicesPDF = (orders, isSuperAdmin = false) => {
-  try {
-    if (!orders || orders.length === 0) return;
-    const doc = new jsPDF();
-    orders.forEach((order, index) => {
-      if (index > 0) doc.addPage();
-      drawInvoice(doc, order, isSuperAdmin);
+    doc.setFontSize(8);
+    doc.text("DATE & TIME", LEFT + 2, currY + 5);
+    doc.setFontSize(9);
+    doc.text(order.created || "N/A", LEFT + 2, currY + 11);
+    doc.setFontSize(7);
+    doc.text("Type: " + shipmentTypeStr, LEFT + 2, currY + 16);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    const payMethod = (order.payment?.method || "TO PAY").toUpperCase();
+    doc.text(payMethod, LEFT + 70, currY + 10, { align: "center" });
+
+    const pkgCount = order.packages?.length || order.package_count || 1;
+    doc.setFontSize(7);
+    doc.text("TOTAL PIECES", LEFT + 87, currY + 5);
+    doc.setFontSize(14);
+    doc.text(String(pkgCount), LEFT + 97, currY + 13, { align: "center" });
+
+    try {
+        const barcodeId = order.id || "ORD-00000";
+        const canvas = document.createElement("canvas");
+        JsBarcode(canvas, barcodeId, { format: "CODE128", displayValue: true, fontSize: 18, height: 40 });
+        const barcodeImg = canvas.toDataURL("image/png");
+        doc.addImage(barcodeImg, 'PNG', LEFT + 115, currY + 2, 75, 14);
+    } catch (e) {
+        doc.text(order.id || "", LEFT + 120, currY + 10);
+    }
+
+    currY += 18;
+
+    // ---------------------------------------------------------
+    // 3. ROUTE BAR
+    // ---------------------------------------------------------
+    drawGrid(LEFT, currY, WIDTH, 7);
+    doc.line(LEFT + (WIDTH / 2), currY, LEFT + (WIDTH / 2), currY + 7);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text(`FROM : ${order.pickup?.city || "N/A"}`, LEFT + 2, currY + 5);
+    doc.text(`DESTINATION : ${order.customer?.city || "N/A"}`, LEFT + (WIDTH / 2) + 2, currY + 5);
+
+    currY += 7;
+
+    // ---------------------------------------------------------
+    // 4. ADDRESS GRID
+    // ---------------------------------------------------------
+    const gridH = 32;
+    drawGrid(LEFT, currY, WIDTH, gridH);
+    doc.line(LEFT + 45, currY, LEFT + 45, currY + gridH); 
+    doc.line(LEFT + (WIDTH / 2), currY, LEFT + (WIDTH / 2), currY + gridH); 
+    doc.line(LEFT + 140, currY, LEFT + 140, currY + gridH); 
+
+    const rowH = 6.4;
+    for (let i = 1; i < 5; i++) {
+        doc.line(LEFT, currY + (i * rowH), RIGHT, currY + (i * rowH));
+    }
+
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    doc.text("CONSIGNOR", LEFT + 2, currY + 4.5);
+    doc.text(order.pickup?.name || "N/A", LEFT + 47, currY + 4.5);
+    doc.text("CONTACT NO", LEFT + 2, currY + 11);
+    doc.text(order.pickup?.phone || "N/A", LEFT + 47, currY + 11);
+    doc.text("REFERENCE NO", LEFT + 2, currY + 17.5);
+    doc.text(order.reference_no || "Door Delivery", LEFT + 47, currY + 17.5);
+    doc.setFont("helvetica", "bold");
+    doc.text(`AWB No: ${order.id || "-"}`, LEFT + 2, currY + 24);
+    doc.text(`Weight: ${order.weight || "0"} kg`, LEFT + 47, currY + 24);
+    doc.text(`Declared Val: ${order.amount || "0"}`, LEFT + 2, currY + 30.5);
+    doc.text(`Service: ${order.serviceType || "Standard"}`, LEFT + 47, currY + 30.5);
+
+    doc.setFont("helvetica", "normal");
+    doc.text("CONSIGNEE", LEFT + 102, currY + 4.5);
+    doc.text(order.customer?.name || "N/A", LEFT + 142, currY + 4.5);
+    doc.text("CONTACT NO", LEFT + 102, currY + 11);
+    doc.text(order.customer?.phone || "N/A", LEFT + 142, currY + 11);
+    doc.text("DISTRICT", LEFT + 102, currY + 17.5);
+    doc.text(order.customer?.city || "N/A", LEFT + 142, currY + 17.5);
+    doc.text("STATE", LEFT + 102, currY + 24);
+    doc.text(order.customer?.state || "KERALA", LEFT + 142, currY + 24);
+    doc.text("DELIVERY BY", LEFT + 102, currY + 30.5);
+    doc.text(order.creator?.name  || "ROADOZ LOGISTICS", LEFT + 142, currY + 30.5);
+
+    currY += gridH;
+
+    // ---------------------------------------------------------
+    // 5. DESCRIPTION & CHARGES (DYNAMIC)
+    // ---------------------------------------------------------
+    const descH = 42; // Increased height for more charge rows
+    drawGrid(LEFT, currY, WIDTH, descH);
+    doc.line(LEFT + 150, currY, LEFT + 150, currY + descH); 
+    doc.line(LEFT + 172, currY, LEFT + 172, currY + descH); 
+    doc.line(LEFT, currY + 6, RIGHT, currY + 6); 
+
+    doc.setFont("helvetica", "bold");
+    doc.text("DESCRIPTIONS / ITEM NAME", LEFT + 2, currY + 4);
+    doc.text("Charges", LEFT + 152, currY + 4);
+    doc.text("Amount", RIGHT - 2, currY + 4, { align: "right" });
+
+    // Left side: Items
+    doc.setFont("helvetica", "normal");
+    const items = order.items || [];
+    let itemTextY = currY + 10;
+    if (items.length > 0) {
+        items.slice(0, 4).forEach((item) => {
+            doc.text(`- ${item.product_name} (Qty: ${item.qty || 1})`, LEFT + 2, itemTextY);
+            itemTextY += 4;
+        });
+    } else {
+        doc.text(`- ${order.product?.name || "General Goods"}`, LEFT + 2, itemTextY);
+    }
+    
+    // Bank Details (pinned to bottom of grid)
+    doc.setFont("helvetica", "bold");
+    doc.text("BANK DETAILS:", LEFT + 2, currY + descH - 8);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.5);
+    doc.text("HDFC BANK | A/C: 50200116941777 | IFSC: HDFC0002321", LEFT + 2, currY + descH - 4);
+    doc.setFontSize(7);
+
+    // --- Right Side: Logic Based Charges ---
+    const chargesBody = [];
+    const isCOD = payMethod === "COD" || payMethod === "CASH ON DELIVERY";
+
+    // 1. Product Total (Only for COD)
+    if (isCOD) {
+        const declaredVal = safeParse(order.amount);
+        if (declaredVal > 0) chargesBody.push(["Product Total", declaredVal]);
+    }
+
+    // 2. Freight
+    const freight = safeParse(order.charges?.freight);
+    if (freight > 0) chargesBody.push(["Freight", freight]);
+
+    // 3. GST (If not exempt)
+    const gst = safeParse(order.charges?.freight_gst);
+    if (!order.is_gst_exempt && gst > 0) chargesBody.push(["GST", gst]);
+
+    // 4. Insurance
+    const ins = safeParse(order.charges?.insurance);
+    if (ins > 0) chargesBody.push(["Insurance", ins]);
+
+    // 5. Regional Area
+    const reg = safeParse(order.charges?.regional_area);
+    if (reg > 0) chargesBody.push(["Reg. Area", reg]);
+
+    // 6. COD Amount
+    const codA = safeParse(order.charges?.cod_amount);
+    if (codA > 0) chargesBody.push(["COD Chrg", codA]);
+
+    // 7. To Pay Amount
+    const toPay = safeParse(order.charges?.to_pay_amount);
+    if (toPay > 0) chargesBody.push(["To Pay Amt", toPay]);
+
+    // 8. Credit Amount
+    const credit = safeParse(order.charges?.credit_amount);
+    if (credit > 0) chargesBody.push(["Credit Amt", credit]);
+
+    // 9. Prepaid Amount
+    const prepaid = safeParse(order.charges?.prepaid_amount);
+    if (prepaid > 0) chargesBody.push(["Prepaid Amt", prepaid]);
+
+    // Render Charges
+    chargesBody.forEach((c, i) => {
+        const rowY = currY + 10 + (i * 4.5);
+        if (rowY < currY + descH - 6) {
+            doc.text(c[0], LEFT + 152, rowY);
+            doc.text(c[1].toFixed(2), RIGHT - 2, rowY, { align: "right" });
+            doc.setDrawColor(230);
+            doc.line(LEFT + 150, rowY + 1, RIGHT, rowY + 1);
+            doc.setDrawColor(0);
+        }
     });
-    doc.save(`Bulk_Invoices_${orders.length}_Orders.pdf`);
-  } catch (error) {
-    console.error("Bulk PDF Generation Error:", error);
-  }
+
+    // Grand Total
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text("TOTAL", LEFT + 152, currY + descH - 4);
+    const totalVal = safeParse(order.charges?.grand_total) || chargesBody.reduce((acc, curr) => acc + curr[1], 0);
+    doc.text(`Rs. ${totalVal.toLocaleString('en-IN', {minimumFractionDigits: 2})}`, RIGHT - 2, currY + descH - 4, { align: "right" });
+
+    currY += descH;
+
+    // ---------------------------------------------------------
+    // 6. TERMS & FOOTER
+    // ---------------------------------------------------------
+    doc.setFontSize(5.5);
+    doc.setFont("helvetica", "normal");
+    const terms = "Terms & conditions: (1) Shipments subject to standard terms. (2) No illegal items allowed. (3) Max liability is Rs 100/- unless insured. (4) Claims must be made within 15 days of delivery.";
+    doc.text(doc.splitTextToSize(terms, WIDTH), LEFT, currY + 4);
+
+    const footerY = HALF_H - 12;
+    doc.line(LEFT, footerY, LEFT + 45, footerY);
+    doc.line(RIGHT - 45, footerY, RIGHT, footerY);
+    doc.setFontSize(7);
+    doc.text("Receiver Signature", LEFT + 22, footerY + 4, { align: "center" });
+    doc.text("Authorized Signatory", RIGHT - 22, footerY + 4, { align: "center" });
 };
 
-export const generateBulkInvoicesDataUri = (orders, isSuperAdmin = false) => {
-  try {
-    if (!orders || orders.length === 0) return null;
-    const doc = new jsPDF();
-    orders.forEach((order, index) => {
-      if (index > 0) doc.addPage();
-      drawInvoice(doc, order, isSuperAdmin);
-    });
-    return doc.output('bloburl');
-  } catch (error) {
-    console.error("Bulk PDF URI Generation Error:", error);
-    return null;
-  }
+// --- Export Functions ---
+
+export const generateInvoicePDF = (order) => {
+    try {
+        const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+        drawInvoice(doc, order);
+        doc.save(`Invoice_${order.id || "ROADOZ"}.pdf`);
+    } catch (error) {
+        console.error("PDF Error:", error);
+    }
+};
+
+export const generateInvoiceDataUri = (order) => {
+    try {
+        const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+        drawInvoice(doc, order);
+        return doc.output('bloburl');
+    } catch (error) {
+        return null;
+    }
+};
+
+export const generateBulkInvoicesPDF = (orders) => {
+    try {
+        if (!orders?.length) return;
+        const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+        orders.forEach((order, index) => {
+            if (index > 0) doc.addPage();
+            drawInvoice(doc, order);
+        });
+        doc.save(`Bulk_Invoices_${orders.length}.pdf`);
+    } catch (error) {
+        console.error("Bulk PDF Error:", error);
+    }
+};
+
+export const generateBulkInvoicesDataUri = (orders) => {
+    try {
+        if (!orders?.length) return null;
+        const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+        orders.forEach((order, index) => {
+            if (index > 0) doc.addPage();
+            drawInvoice(doc, order);
+        });
+        return doc.output('bloburl');
+    } catch (error) {
+        return null;
+    }
 };
