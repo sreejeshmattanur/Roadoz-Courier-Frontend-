@@ -403,6 +403,15 @@ export function Warehouse() {
                   <tbody className="divide-y divide-border-subtle">
                     {filteredItems.map((w) => (
                       <tr key={w.id} className="hover:bg-dashboard-bg/20 transition-colors">
+                       <td className="px-6 py-4">
+                <div className="font-mono font-bold text-primary text-xs uppercase tracking-wider">
+                  {w.warehouse_code}
+                </div>
+                <p className="text-[9px] text-text-muted mt-1 flex items-center gap-1">
+                  <Calendar size={10} />
+                  {new Date(w.created_at).toLocaleDateString()}
+                </p>
+              </td>
                         <td className="px-6 py-4">
                           <div className="flex items-start gap-2">
                             <WarehouseIcon size={16} className="text-primary mt-1" />
