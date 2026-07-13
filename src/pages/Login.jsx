@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
@@ -10,6 +10,7 @@ import {
   Hash,
   ShieldCheck,
   AlertCircle,
+  Warehouse, // Added Warehouse icon
 } from "lucide-react";
 import Logo from "../assets/images/RO-2.png";
 import { Button } from "../components/ui/button";
@@ -20,28 +21,28 @@ export function Login() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  const { loading, error, role, isAuthenticated } = useSelector(
-    (state) => state.auth,
-  );
+  const { loading, role } = useSelector((state) => state.auth);
 
   const [step, setStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
+  const [userRoleType, setUserRoleType] = useState(""); // Tracks "franchise" or "warehouse"
 
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     franchiseCode: "",
+    warehouseCode: "",
   });
 
   const [loginError, setLoginError] = useState("");
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    
-    // We trim email and franchiseCode immediately on change to keep the state clean
-    // Password is usually NOT trimmed on change (to allow spaces if the user intended them),
-    // but we will handle it in the submit phase if needed.
-    const cleanValue = (name === "email" || name === "franchiseCode") ? value.trim() : value;
+    // Trim email and codes, keep password as is
+    const cleanValue =
+      name === "email" || name === "franchiseCode" || name === "warehouseCode"
+        ? value.trim()
+        : value;
 
     setFormData({ ...formData, [name]: cleanValue });
     setLoginError("");
@@ -51,44 +52,43 @@ export function Login() {
     e.preventDefault();
     setLoginError("");
 
-    // Strip whitespaces before processing
     const trimmedEmail = formData.email.trim();
     const trimmedPassword = formData.password.trim();
 
     if (!trimmedEmail || !trimmedPassword) {
-        setLoginError("Please enter both email and password.");
-        return;
+      setLoginError("Please enter both email and password.");
+      return;
     }
 
     // Step 1: check role via Redux
     const roleResult = await dispatch(checkUserRole(trimmedEmail));
 
     if (checkUserRole.fulfilled.match(roleResult)) {
-      const { role, requires_franchise_code } = roleResult.payload;
+      const payload = roleResult.payload;
+      // The API returns role as an object: { name: "warehouse", id: "..." }
+      const roleName = payload.role?.name || payload.role; 
+      const requiresFranchise = payload.requires_franchise_code;
 
-      // Franchise → go to step 2
-      if (requires_franchise_code || role === "franchise") {
+      if (roleName === "franchise" || requiresFranchise) {
+        setUserRoleType("franchise");
         setStep(2);
-        return;
-      }
-
-      // Admin → login
-      const loginResult = await dispatch(
-        loginUser({
-          email: trimmedEmail,
-          password: trimmedPassword,
-        }),
-      );
-
-      if (loginUser.fulfilled.match(loginResult)) {
-        navigate("/dashboard");
+      } else if (roleName === "warehouse") {
+        setUserRoleType("warehouse");
+        setStep(2);
       } else {
-        const message =
-          loginResult?.payload?.detail ||
-          loginResult?.error?.message ||
-          "Login failed";
+        // Admin or other roles login directly
+        const loginResult = await dispatch(
+          loginUser({
+            email: trimmedEmail,
+            password: trimmedPassword,
+          })
+        );
 
-        setLoginError(message);
+        if (loginUser.fulfilled.match(loginResult)) {
+          navigate("/dashboard");
+        } else {
+          setLoginError(loginResult?.payload?.detail || "Login failed");
+        }
       }
     } else {
       setLoginError("Unable to verify user");
@@ -98,34 +98,38 @@ export function Login() {
   const handleFinalStep = async (e) => {
     e.preventDefault();
 
-    // Strip whitespaces
     const trimmedEmail = formData.email.trim();
     const trimmedPassword = formData.password.trim();
-    const trimmedCode = formData.franchiseCode.trim();
+    
+    // Construct dynamic payload based on the role detected in step 1
+    const loginPayload = {
+      email: trimmedEmail,
+      password: trimmedPassword,
+    };
 
-    if (!trimmedCode) {
+    if (userRoleType === "franchise") {
+      if (!formData.franchiseCode) {
         setLoginError("Franchise code is required.");
         return;
+      }
+      loginPayload.franchise_code = formData.franchiseCode;
+    } else if (userRoleType === "warehouse") {
+      if (!formData.warehouseCode) {
+        setLoginError("Warehouse code is required.");
+        return;
+      }
+      loginPayload.warehouse_code = formData.warehouseCode;
     }
 
     try {
-      const resultAction = await dispatch(
-        loginUser({
-          email: trimmedEmail,
-          password: trimmedPassword,
-          franchise_code: trimmedCode,
-        }),
-      );
+      const resultAction = await dispatch(loginUser(loginPayload));
 
       if (loginUser.fulfilled.match(resultAction)) {
         navigate("/dashboard");
       } else {
-        const message =
-          resultAction?.payload?.detail ||
-          resultAction?.error?.message ||
-          "Invalid franchise code";
-
-        setLoginError(message);
+        setLoginError(
+          resultAction?.payload?.detail || `Invalid ${userRoleType} code`
+        );
       }
     } catch (err) {
       setLoginError("Something went wrong.");
@@ -159,9 +163,7 @@ export function Login() {
               className="p-8 md:p-10"
             >
               <div className="text-center mb-10">
-                <h2 className="text-3xl font-bold text-text-main mb-2">
-                  Sign In
-                </h2>
+                <h2 className="text-3xl font-bold text-text-main mb-2">Sign In</h2>
                 <p className="text-text-muted font-medium italic">
                   Enter your credentials to continue
                 </p>
@@ -180,17 +182,14 @@ export function Login() {
                     Email Address
                   </label>
                   <div className="relative">
-                    <Mail
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted"
-                      size={18}
-                    />
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
                     <input
                       type="email"
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
                       className="w-full bg-dashboard-bg border border-border-subtle rounded-xl pl-12 pr-4 py-4 text-text-main focus:border-primary outline-none transition-all"
-                      placeholder="admin@example.com"
+                      placeholder="name@example.com"
                       required
                     />
                   </div>
@@ -201,18 +200,12 @@ export function Login() {
                     <label className="text-xs font-bold text-text-muted uppercase tracking-wider">
                       Password
                     </label>
-                    <Link
-                      to="/forgot-password"
-                      className="text-primary text-xs font-bold hover:underline"
-                    >
+                    <Link to="/forgot-password" size={18} className="text-primary text-xs font-bold hover:underline">
                       Forgot?
                     </Link>
                   </div>
                   <div className="relative">
-                    <Lock
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted"
-                      size={18}
-                    />
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
                     <input
                       type={showPassword ? "text" : "password"}
                       name="password"
@@ -258,14 +251,17 @@ export function Login() {
 
               <div className="text-center mb-10">
                 <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <ShieldCheck className="text-primary" size={32} />
+                  {userRoleType === "warehouse" ? (
+                    <Warehouse className="text-primary" size={32} />
+                  ) : (
+                    <ShieldCheck className="text-primary" size={32} />
+                  )}
                 </div>
                 <h2 className="text-2xl font-bold text-text-main mb-2">
-                  Franchise Verification
+                  {userRoleType === "warehouse" ? "Warehouse Verification" : "Franchise Verification"}
                 </h2>
                 <p className="text-text-muted text-sm italic px-4">
-                  Please enter your unique Franchise ID to access your
-                  dashboard.
+                  Please enter your unique {userRoleType} ID to access your dashboard.
                 </p>
               </div>
 
@@ -279,20 +275,17 @@ export function Login() {
               <form onSubmit={handleFinalStep} className="space-y-6">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-text-muted uppercase tracking-wider block">
-                    Franchise Code
+                    {userRoleType === "warehouse" ? "Warehouse Code" : "Franchise Code"}
                   </label>
                   <div className="relative">
-                    <Hash
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted"
-                      size={18}
-                    />
+                    <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
                     <input
                       type="text"
-                      name="franchiseCode"
-                      value={formData.franchiseCode}
+                      name={userRoleType === "warehouse" ? "warehouseCode" : "franchiseCode"}
+                      value={userRoleType === "warehouse" ? formData.warehouseCode : formData.franchiseCode}
                       onChange={handleInputChange}
                       className="w-full bg-dashboard-bg border border-border-subtle rounded-xl pl-12 pr-4 py-4 text-text-main focus:border-primary outline-none transition-all"
-                      placeholder="Enter franchise code"
+                      placeholder={`Enter ${userRoleType} code`}
                       required
                       autoFocus
                     />
