@@ -433,4 +433,4 @@ export const {
   resetOrderState,
 } = orderSlice.actions;
 
-export default orderSlice.reducer;src/pages/NewOrder.jsx
+export default orderSlice.reducer;
