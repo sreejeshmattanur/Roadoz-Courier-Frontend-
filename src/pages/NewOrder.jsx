@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Plus, Trash2, ChevronDown, ChevronUp, Lock, ShoppingBag, Search,
   MapPin, Loader2, User, MapPinned, CreditCard, ShieldCheck, 
   Truck, Zap, FileText, Scale, Home, Building2, 
-  Ban as BanIcon, MousePointerClick,
-  File as FileIcon 
+  Ban as BanIcon, MousePointerClick, Edit3
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
@@ -18,15 +17,16 @@ import ConsigneeModal from "../components/modals/ConsigneeModal";
 
 import {
   createPickupAddress,
+  updatePickupAddress, // Assumed available in your slice
   fetchPickupAddresses,
   setSelectedAddress,
   fetchConsignees,
   createConsignee,
+  updateConsignee, // Assumed available in your slice
   createOrder,
   updateOrder,
 } from "../redux/orderSlice";
 
-// Debounce Hook to prevent excessive API calls while searching
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value);
   useEffect(() => {
@@ -54,11 +54,17 @@ export default function NewOrder() {
 
   const generateSKU = () => `SKU-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  // --- Search States ---
+  // --- Search & Modal States ---
   const [pickupSearch, setPickupSearch] = useState("");
   const [consigneeSearch, setConsigneeSearch] = useState("");
   const debouncedPickupSearch = useDebounce(pickupSearch, 500);
   const debouncedConsigneeSearch = useDebounce(consigneeSearch, 500);
+
+  const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
+  const [isConsigneeModalOpen, setIsConsigneeModalOpen] = useState(false);
+  const [isAddressDropdownOpen, setIsAddressDropdownOpen] = useState(false);
+  const [isConsigneeDropdownOpen, setIsConsigneeDropdownOpen] = useState(false);
+  const [isOtherDetailsOpen, setIsOtherDetailsOpen] = useState(true);
 
   // --- Form States ---
   const [orderType, setOrderType] = useState("B2C");
@@ -66,18 +72,14 @@ export default function NewOrder() {
   const [deliveryType, setDeliveryType] = useState("none"); 
   const [isDoc, setIsDoc] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("Prepaid");
-  
   const [prepaidAmount, setPrepaidAmount] = useState("");
   const [codAmount, setCodAmount] = useState("");
   const [toPayAmount, setToPayAmount] = useState("");
   const [creditAmount, setCreditAmount] = useState("");
-  
   const [isManualFreight, setIsManualFreight] = useState(false);
   const [freightCharge, setFreightCharge] = useState("");
-  
   const [isInsuranceEnabled, setIsInsuranceEnabled] = useState(false);
   const [insuranceAmount, setInsuranceAmount] = useState(0); 
-  
   const [regionalArea, setRegionalArea] = useState(0); 
   const [isGstExempt, setIsGstExempt] = useState(false);
 
@@ -90,13 +92,6 @@ export default function NewOrder() {
     name: "", mobile: "", alternate_mobile: "", email: "", address_line_1: "", address_line_2: "", pincode: "", city: "", state: ""
   });
 
-  const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
-  const [isAddressDropdownOpen, setIsAddressDropdownOpen] = useState(false);
-  const [isConsigneeDropdownOpen, setIsConsigneeDropdownOpen] = useState(false);
-  const [isConsigneeModalOpen, setIsConsigneeModalOpen] = useState(false);
-  const [isOtherDetailsOpen, setIsOtherDetailsOpen] = useState(true);
-
-  // --- Products & Packages ---
   const [packages, setPackages] = useState([
     { id: Date.now(), count: 1, length_cm: 0, breadth_cm: 0, height_cm: 0, weight_unit: "kg", weight_value: "", row_vol_weight: 0 }
   ]);
@@ -105,7 +100,7 @@ export default function NewOrder() {
   ]);
   const [otherDetails, setOtherDetails] = useState({ gst_number: "", eway_bill_number: "", invoicenumber: "", amount: "" });
 
-  // --- API Search Trigger ---
+  // --- API Sync ---
   useEffect(() => {
     dispatch(fetchPickupAddresses({ search: debouncedPickupSearch, page: 1, limit: 10 }));
   }, [dispatch, debouncedPickupSearch]);
@@ -114,7 +109,7 @@ export default function NewOrder() {
     dispatch(fetchConsignees({ search: debouncedConsigneeSearch, page: 1, limit: 10 }));
   }, [dispatch, debouncedConsigneeSearch]);
 
-  // --- Calculations ---
+  // --- Insurance Calculation ---
   const totalOrderValue = useMemo(() => products.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0), [products]);
 
   useEffect(() => {
@@ -146,33 +141,47 @@ export default function NewOrder() {
   // --- Populate Edit Mode ---
   useEffect(() => {
     if (!isEditMode || !editOrderData) return;
+
     setOrderType(editOrderData.order_type || "B2C");
     setServiceType(editOrderData.service_type || "Surface");
     setDeliveryType(editOrderData.delivery_type || "none");
-    setIsDoc(editOrderData.is_doc || false);
+    setIsDoc(Boolean(editOrderData.is_doc));
     setPaymentMethod(editOrderData.payment_method || "Prepaid");
-    setPrepaidAmount(editOrderData.prepaid_amount?.toString() || "");
-    setCodAmount(editOrderData.cod_amount?.toString() || "");
-    setToPayAmount(editOrderData.to_pay_amount?.toString() || "");
-    setCreditAmount(editOrderData.credit_amount?.toString() || "");
-    setIsManualFreight(editOrderData.is_manual_freight === true);
-    setFreightCharge(editOrderData.freight_charge?.toString() || "");
+    setPrepaidAmount(editOrderData.prepaid_amount || "");
+    setCodAmount(editOrderData.cod_amount || "");
+    setToPayAmount(editOrderData.to_pay_amount || "");
+    setCreditAmount(editOrderData.credit_amount || "");
+    setIsManualFreight(Boolean(editOrderData.is_manual_freight));
+    setFreightCharge(editOrderData.freight_charge || "");
     setRegionalArea(editOrderData.regional_area || 0);
-    setIsInsuranceEnabled(editOrderData.insurance === true);
+    setIsGstExempt(Boolean(editOrderData.is_gst_exempt));
+
+    // FIX: Insurance state initialization
+    const insuranceActive = editOrderData.insurance === true || editOrderData.insurance === 1 || editOrderData.insurance === "1";
+    setIsInsuranceEnabled(insuranceActive);
+    if (insuranceActive) {
+      setInsuranceAmount(Number(editOrderData.insurance_amount) || 0);
+    }
 
     if (editOrderData.pickup_address) dispatch(setSelectedAddress(editOrderData.pickup_address));
     if (editOrderData.consignee) setConsigneeData(editOrderData.consignee);
+    
     if (editOrderData.items?.length > 0) {
       setProducts(editOrderData.items.map(item => ({ ...item, id: Math.random(), total: (Number(item.unit_price) || 0) * (Number(item.qty) || 0) })));
     }
     if (editOrderData.packages?.length > 0) {
       setPackages(editOrderData.packages.map(pkg => ({
         ...pkg, id: Math.random(), weight_unit: "kg",
-        weight_value: pkg.physical_weight?.toString() || pkg.physical_weight_kg?.toString() || "",
+        weight_value: pkg.physical_weight?.toString() || "",
         row_vol_weight: ((Number(pkg.length_cm) * Number(pkg.breadth_cm) * Number(pkg.height_cm)) / 2700).toFixed(3)
       })));
     }
-    setOtherDetails({ gst_number: editOrderData.gst_number || "", eway_bill_number: editOrderData.eway_bill_number || "", invoicenumber: editOrderData.invoicenumber || "", amount: editOrderData.amount || "" });
+    setOtherDetails({ 
+        gst_number: editOrderData.gst_number || "", 
+        eway_bill_number: editOrderData.eway_bill_number || "", 
+        invoicenumber: editOrderData.invoicenumber || "", 
+        amount: editOrderData.amount || "" 
+    });
   }, [isEditMode, editOrderData, dispatch]);
 
   const handleProductChange = (id, field, value) => {
@@ -184,14 +193,6 @@ export default function NewOrder() {
       }
       return p;
     }));
-  };
-
-  const addProductRow = () => {
-    const nextIndex = products.length + 1;
-    if (nextIndex > packages.length) {
-        setPackages(prev => [...prev, { id: Date.now() + Math.random(), count: 1, length_cm: 0, breadth_cm: 0, height_cm: 0, weight_unit: "kg", weight_value: "", row_vol_weight: 0 }]);
-    }
-    setProducts([...products, { id: Date.now() + Math.random(), product_name: "", sku: generateSKU(), unit_price: "", qty: 1, total: 0, package_index: nextIndex }]);
   };
 
   const handlePackageChange = (id, field, value) => {
@@ -208,21 +209,45 @@ export default function NewOrder() {
     }));
   };
 
+  // --- CRUD Address Handlers ---
+  const openEditPickup = () => {
+    if (!selectedAddress) return;
+    setPickupForm(selectedAddress);
+    setIsPickupModalOpen(true);
+  };
+
+  const openEditConsignee = () => {
+    if (!consigneeData.id) return;
+    setConsigneeForm(consigneeData);
+    setIsConsigneeModalOpen(true);
+  };
+
   const handleSavePickupAddress = async () => {
     try {
-      await dispatch(createPickupAddress(pickupForm)).unwrap();
-      toast.success("Pickup address created!");
+      if (pickupForm.id) {
+        await dispatch(updatePickupAddress({ id: pickupForm.id, data: pickupForm })).unwrap();
+        toast.success("Pickup address updated!");
+      } else {
+        await dispatch(createPickupAddress(pickupForm)).unwrap();
+        toast.success("Pickup address created!");
+      }
       setIsPickupModalOpen(false);
-    } catch (err) { toast.error(err || "Failed to create address"); }
+    } catch (err) { toast.error(err || "Operation failed"); }
   };
 
   const handleSaveConsigneeAddress = async () => {
     try {
-      const newC = await dispatch(createConsignee(consigneeForm)).unwrap();
-      setConsigneeData(newC);
-      toast.success("Consignee created!");
+      if (consigneeForm.id) {
+        const updated = await dispatch(updateConsignee({ id: consigneeForm.id, data: consigneeForm })).unwrap();
+        setConsigneeData(updated);
+        toast.success("Consignee updated!");
+      } else {
+        const newC = await dispatch(createConsignee(consigneeForm)).unwrap();
+        setConsigneeData(newC);
+        toast.success("Consignee created!");
+      }
       setIsConsigneeModalOpen(false);
-    } catch (err) { toast.error(err || "Failed to create consignee"); }
+    } catch (err) { toast.error(err || "Operation failed"); }
   };
 
   const handleSubmit = async () => {
@@ -234,34 +259,29 @@ export default function NewOrder() {
       pickup_address_id: selectedAddress.id,
       consignee_id: consigneeData.id,
       payment_method: paymentMethod,
-      prepaid_amount: paymentMethod === "Prepaid" ? Number(prepaidAmount) : 0,
-      cod_amount: paymentMethod === "COD" ? Number(codAmount) : 0,
-      to_pay_amount: paymentMethod === "To Pay" ? Number(toPayAmount) : 0,
-      credit_amount: paymentMethod === "Credit" ? Number(creditAmount) : 0,
+      prepaid_amount: Number(prepaidAmount) || 0,
+      cod_amount: Number(codAmount) || 0,
+      to_pay_amount: Number(toPayAmount) || 0,
+      credit_amount: Number(creditAmount) || 0,
       rov: "owner_risk",
       order_value: Number(totalOrderValue),
       service_type: serviceType,
       is_gst_exempt: isGstExempt,
       insurance: isInsuranceEnabled,
+      insurance_amount: isInsuranceEnabled ? Number(insuranceAmount) : 0,
       is_doc: isDoc,
       delivery_type: deliveryType === "none" ? null : deliveryType,
       is_manual_freight: isManualFreight,
       freight_charge: isManualFreight ? Number(freightCharge) : null,
-      manual_freight_reason: isManualFreight ? "Manual override" : null,
       regional_area: Number(regionalArea),
       gst_number: otherDetails.gst_number || null,
       eway_bill_number: otherDetails.eway_bill_number || null,
       invoicenumber: otherDetails.invoicenumber || null,
       amount: Number(otherDetails.amount) || Number(totalOrderValue),
-      items: products.map(p => ({ 
-        product_name: p.product_name, sku: p.sku, unit_price: Number(p.unit_price), qty: Number(p.qty), total: Number(p.total), package_index: Number(p.package_index) 
-      })),
+      items: products.map(p => ({ ...p, unit_price: Number(p.unit_price), qty: Number(p.qty), total: Number(p.total) })),
       packages: packages.map((pkg, idx) => ({
         package_index: idx + 1,
-        count: 1,
-        length_cm: Number(pkg.length_cm), 
-        breadth_cm: Number(pkg.breadth_cm), 
-        height_cm: Number(pkg.height_cm),
+        length_cm: Number(pkg.length_cm), breadth_cm: Number(pkg.breadth_cm), height_cm: Number(pkg.height_cm),
         physical_weight: pkg.weight_unit === "kg" ? Number(pkg.weight_value) : Number(pkg.weight_value) / 1000,
         vol_weight_kg: Number(pkg.row_vol_weight)
       }))
@@ -276,15 +296,15 @@ export default function NewOrder() {
         toast.success("Order Created!");
       }
       navigate("/dashboard/processing-order");
-    } catch (err) { toast.error(err || "Operation failed"); }
+    } catch (err) { toast.error(err || "Submission failed"); }
   };
 
   const inputClass = "w-full bg-transparent border border-border-subtle rounded-lg px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary transition-all";
 
   return (
     <div className="space-y-6 relative pb-24 min-h-screen">
-      <PickupAddressModal isOpen={isPickupModalOpen} onClose={() => setIsPickupModalOpen(false)} pickupForm={pickupForm} handlePickupChange={(e) => setPickupForm({ ...pickupForm, [e.target.name]: e.target.value })} handleSavePickup={handleSavePickupAddress} loading={pickupLoading} inputClass={inputClass} />
-      <ConsigneeModal isOpen={isConsigneeModalOpen} onClose={() => setIsConsigneeModalOpen(false)} consigneeForm={consigneeForm} handleConsigneeChange={(e) => setConsigneeForm({ ...consigneeForm, [e.target.name]: e.target.value })} handleSaveConsignee={handleSaveConsigneeAddress} loading={pickupLoading} inputClass={inputClass} />
+      <PickupAddressModal isOpen={isPickupModalOpen} onClose={() => { setIsPickupModalOpen(false); setPickupForm({nickname: "", contact_name: "", phone: "", email: "", address_line_1: "", address_line_2: "", pincode: "", city: "", state: "", country: "India"}); }} pickupForm={pickupForm} handlePickupChange={(e) => setPickupForm({ ...pickupForm, [e.target.name]: e.target.value })} handleSavePickup={handleSavePickupAddress} loading={pickupLoading} inputClass={inputClass} />
+      <ConsigneeModal isOpen={isConsigneeModalOpen} onClose={() => { setIsConsigneeModalOpen(false); setConsigneeForm({name: "", mobile: "", alternate_mobile: "", email: "", address_line_1: "", address_line_2: "", pincode: "", city: "", state: ""}); }} consigneeForm={consigneeForm} handleConsigneeChange={(e) => setConsigneeForm({ ...consigneeForm, [e.target.name]: e.target.value })} handleSaveConsignee={handleSaveConsigneeAddress} loading={pickupLoading} inputClass={inputClass} />
 
       <header>
         <h1 className="text-2xl font-bold">{isEditMode ? `Edit Order (${editOrderData?.order_number})` : "New Order"}</h1>
@@ -351,9 +371,15 @@ export default function NewOrder() {
             <div className="flex justify-between items-center"><h2 className="text-lg font-semibold flex items-center gap-2"><MapPinned size={20} className="text-primary" /> Pickup Location</h2><Button variant="ghost" size="sm" onClick={() => setIsPickupModalOpen(true)} className="text-primary hover:bg-primary/10"><Plus size={16} /> Add New</Button></div>
             <div className="relative">
                 {selectedAddress ? (
-                  <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center cursor-pointer" onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)}>
-                    <div><p className="font-bold text-sm">{selectedAddress.nickname}</p><p className="text-xs text-text-muted">{selectedAddress.city} - {selectedAddress.pincode}</p></div>
-                    <Button variant="outline" size="sm" className="text-primary border-primary/20">Change</Button>
+                  <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center">
+                    <div className="cursor-pointer flex-1" onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)}>
+                        <p className="font-bold text-sm">{selectedAddress.nickname}</p>
+                        <p className="text-xs text-text-muted">{selectedAddress.city} - {selectedAddress.pincode}</p>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button variant="ghost" size="sm" onClick={openEditPickup} className="h-8 w-8 p-0 text-text-muted hover:text-primary"><Edit3 size={14} /></Button>
+                        <Button variant="outline" size="sm" onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)} className="text-primary border-primary/20 h-8">Change</Button>
+                    </div>
                   </div>
                 ) : <div onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)} className="w-full border-2 border-dashed border-border-subtle rounded-xl py-8 flex flex-col items-center text-text-muted cursor-pointer hover:border-primary/40 transition-colors"><MapPin size={32} className="mb-2 opacity-50" /><p className="text-sm font-medium">Select Pickup</p></div>}
               
@@ -386,9 +412,15 @@ export default function NewOrder() {
             <div className="flex justify-between items-center"><h2 className="text-lg font-semibold flex items-center gap-2"><User size={20} className="text-primary" /> Deliver To</h2><Button variant="ghost" size="sm" onClick={() => setIsConsigneeModalOpen(true)} className="text-primary hover:bg-primary/10"><Plus size={16} /> Add New</Button></div>
             <div className="relative">
                 {consigneeData.id ? (
-                  <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center cursor-pointer" onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)}>
-                    <div><p className="font-bold text-sm">{consigneeData.name}</p><p className="text-xs text-text-muted">{consigneeData.city} - {consigneeData.mobile}</p></div>
-                    <Button variant="outline" size="sm" className="text-primary border-primary/20">Change</Button>
+                  <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center">
+                    <div className="cursor-pointer flex-1" onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)}>
+                        <p className="font-bold text-sm">{consigneeData.name}</p>
+                        <p className="text-xs text-text-muted">{consigneeData.city} - {consigneeData.mobile}</p>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button variant="ghost" size="sm" onClick={openEditConsignee} className="h-8 w-8 p-0 text-text-muted hover:text-primary"><Edit3 size={14} /></Button>
+                        <Button variant="outline" size="sm" onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)} className="text-primary border-primary/20 h-8">Change</Button>
+                    </div>
                   </div>
                 ) : <div onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)} className="w-full border-2 border-dashed border-border-subtle rounded-xl py-8 flex flex-col items-center text-text-muted cursor-pointer hover:border-primary/40 transition-colors"><User size={32} className="mb-2 opacity-50" /><p className="text-sm font-medium">Select Consignee</p></div>}
               
@@ -417,11 +449,11 @@ export default function NewOrder() {
         </Card>
       </div>
 
-      {/* Payment & Regional Area */}
+      {/* Payment & Charges */}
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2"><CreditCard size={20} className="text-primary" /> Payment Method & Charges</h2>
+            <h2 className="text-lg font-semibold flex items-center gap-2"><CreditCard size={20} className="text-primary" /> Payment & Charges</h2>
             <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-lg border border-border-subtle">
                 <ShieldCheck size={18} className={cn(isInsuranceEnabled ? "text-green-500" : "text-text-muted")} />
                 <span className="text-sm font-medium">Add Insurance (1.8%)?</span>
@@ -444,11 +476,11 @@ export default function NewOrder() {
                 <label className="text-[10px] font-bold text-text-muted uppercase ml-1">Amt ({paymentMethod})</label>
                 <input type="number" value={paymentMethod === "Prepaid" ? prepaidAmount : paymentMethod === "COD" ? codAmount : paymentMethod === "To Pay" ? toPayAmount : creditAmount} 
                     onChange={(e) => {
-                        const val = e.target.value;
-                        if(paymentMethod === "Prepaid") setPrepaidAmount(val);
-                        else if(paymentMethod === "COD") setCodAmount(val);
-                        else if(paymentMethod === "To Pay") setToPayAmount(val);
-                        else setCreditAmount(val);
+                        const v = e.target.value;
+                        if(paymentMethod === "Prepaid") setPrepaidAmount(v);
+                        else if(paymentMethod === "COD") setCodAmount(v);
+                        else if(paymentMethod === "To Pay") setToPayAmount(v);
+                        else setCreditAmount(v);
                     }} className={inputClass} />
               </div>
               <div className="flex-1">
@@ -459,7 +491,7 @@ export default function NewOrder() {
               </div>
               <div className="flex-1">
                 <label className="text-[10px] font-bold text-text-muted uppercase ml-1">Regional Area</label>
-                <input type="number" placeholder="0" value={regionalArea} onChange={(e) => setRegionalArea(e.target.value)} className={inputClass} />
+                <input type="number" value={regionalArea} onChange={(e) => setRegionalArea(e.target.value)} className={inputClass} />
               </div>
             </div>
           </div>
@@ -478,13 +510,13 @@ export default function NewOrder() {
                     <button type="button" onClick={() => setIsManualFreight(!isManualFreight)} className={cn("w-8 h-4 rounded-full transition-all relative", isManualFreight ? "bg-primary" : "bg-white/20")}>
                         <div className={cn("w-3 h-3 rounded-full bg-white absolute top-0.5 transition-all", isManualFreight ? "left-4.5" : "left-0.5")} />
                     </button>
-                    {isManualFreight && <input type="number" placeholder="freight Charge" value={freightCharge} onChange={(e) => setFreightCharge(e.target.value)} className="bg-dashboard-bg border border-primary/30 rounded-lg px-3 py-1 text-xs text-primary focus:outline-none w-24 ml-2" />}
+                    {isManualFreight && <input type="number" placeholder="Charge" value={freightCharge} onChange={(e) => setFreightCharge(e.target.value)} className="bg-dashboard-bg border border-primary/30 rounded-lg px-3 py-1 text-xs text-primary w-24 ml-2 focus:outline-none" />}
                 </div>
             </div>
             <div className="flex gap-4 bg-primary/5 border border-primary/20 rounded-xl px-4 py-2">
               <div className="text-center pr-4 border-r border-primary/10"><p className="text-[10px] font-bold text-text-muted uppercase">Applicable</p><p className="text-sm font-bold text-primary">{weightSummary.applicable_weight_kg} kg</p></div>
               <div className="text-center pr-4 border-r border-primary/10"><p className="text-[10px] font-bold text-text-muted uppercase">Physical</p><p className="text-sm font-bold">{weightSummary.total_weight_kg} kg</p></div>
-              <div className="text-center"><p className="text-[10px] font-bold text-text-muted uppercase">Vol (2700)</p><p className="text-sm font-bold text-green-500">{weightSummary.total_vol_weight_kg} kg</p></div>
+              <div className="text-center"><p className="text-[10px] font-bold text-text-muted uppercase">Vol</p><p className="text-sm font-bold text-green-500">{weightSummary.total_vol_weight_kg} kg</p></div>
             </div>
           </div>
           {packages.map((pkg, idx) => (
@@ -493,7 +525,7 @@ export default function NewOrder() {
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">B (cm)</label><input type="number" value={pkg.breadth_cm} onChange={(e) => handlePackageChange(pkg.id, "breadth_cm", e.target.value)} className={inputClass} /></div>
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">H (cm)</label><input type="number" value={pkg.height_cm} onChange={(e) => handlePackageChange(pkg.id, "height_cm", e.target.value)} className={inputClass} /></div>
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">Vol (kg)</label><div className={cn(inputClass, "bg-white/5 flex items-center justify-center")}>{pkg.row_vol_weight}</div></div>
-              <div className="space-y-1">
+              <div className="space-y-1 col-span-2">
                 <label className="text-[10px] font-bold text-text-muted uppercase">Manual Weight</label>
                 <div className="flex">
                   <input type="number" value={pkg.weight_value} onChange={(e) => handlePackageChange(pkg.id, "weight_value", e.target.value)} className={cn(inputClass, "rounded-r-none")} placeholder="0.0" />
@@ -505,7 +537,7 @@ export default function NewOrder() {
               <div className="flex justify-end"><Button variant="destructive" size="icon" onClick={() => setPackages(packages.filter(i => i.id !== pkg.id))}><Trash2 size={16} /></Button></div>
             </div>
           ))}
-          <Button variant="outline" size="sm" onClick={() => setPackages([...packages, { id: Date.now() + Math.random(), count: 1, length_cm: 0, breadth_cm: 0, height_cm: 0, weight_unit: "kg", weight_value: "", row_vol_weight: 0 }])} className="border-primary text-primary hover:bg-primary/10 transition-colors"><Plus size={16} className="mr-2" /> Add Package</Button>
+          <Button variant="outline" size="sm" onClick={() => setPackages([...packages, { id: Date.now() + Math.random(), count: 1, length_cm: 0, breadth_cm: 0, height_cm: 0, weight_unit: "kg", weight_value: "", row_vol_weight: 0 }])} className="border-primary text-primary hover:bg-primary/10"><Plus size={16} className="mr-2" /> Add Package</Button>
         </CardContent>
       </Card>
 
@@ -526,23 +558,23 @@ export default function NewOrder() {
               <div className="md:col-span-1 flex justify-end"><Button variant="destructive" size="icon" onClick={() => setProducts(products.filter(i => i.id !== p.id))}><Trash2 size={16} /></Button></div>
             </div>
           ))}
-          <Button variant="outline" size="sm" onClick={addProductRow} className="border-primary text-primary hover:bg-primary/10 transition-colors"><Plus size={16} className="mr-2" /> Add Item</Button>
+          <Button variant="outline" size="sm" onClick={() => setProducts([...products, { id: Date.now() + Math.random(), product_name: "", sku: generateSKU(), unit_price: "", qty: 1, total: 0, package_index: products.length + 1 }])} className="border-primary text-primary hover:bg-primary/10"><Plus size={16} className="mr-2" /> Add Item</Button>
         </CardContent>
       </Card>
 
       {/* Compliance Details */}
       <Card className="bg-card-bg border-border-subtle">
-        <button type="button" onClick={() => setIsOtherDetailsOpen(!isOtherDetailsOpen)} className="w-full flex justify-between p-6 items-center hover:bg-white/5 transition-colors rounded-xl"><h2 className="text-lg font-semibold flex items-center gap-2"><FileText size={20} className="text-primary"/> Compliance Details</h2>{isOtherDetailsOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}</button>
+        <button type="button" onClick={() => setIsOtherDetailsOpen(!isOtherDetailsOpen)} className="w-full flex justify-between p-6 items-center hover:bg-white/5 rounded-xl"><h2 className="text-lg font-semibold flex items-center gap-2"><FileText size={20} className="text-primary"/> Compliance Details</h2>{isOtherDetailsOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}</button>
         {isOtherDetailsOpen && (
-          <CardContent className="p-6 pt-0 border-t border-border-subtle/20 animate-in slide-in-from-top-2">
+          <CardContent className="p-6 pt-0 border-t border-border-subtle/20">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase ml-1">GST Number</label><input type="text" value={otherDetails.gst_number} onChange={(e) => setOtherDetails({...otherDetails, gst_number: e.target.value})} className={inputClass} /></div>
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase ml-1">E-Way Bill</label><input type="text" value={otherDetails.eway_bill_number} onChange={(e) => setOtherDetails({...otherDetails, eway_bill_number: e.target.value})} className={inputClass} /></div>
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase ml-1">Invoice Number</label><input type="text" value={otherDetails.invoicenumber} onChange={(e) => setOtherDetails({...otherDetails, invoicenumber: e.target.value})} className={inputClass} /></div>
-              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase ml-1"> Total Bill Amount</label><input type="number" value={otherDetails.amount} onChange={(e) => setOtherDetails({...otherDetails, amount: e.target.value})} className={inputClass} /></div>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase ml-1">Total Bill Amount</label><input type="number" value={otherDetails.amount} onChange={(e) => setOtherDetails({...otherDetails, amount: e.target.value})} className={inputClass} /></div>
               <div className="md:col-span-2 flex items-center justify-between bg-dashboard-bg/20 p-4 rounded-xl border border-border-subtle">
-                <div className="flex items-center gap-3"><div className={cn("w-10 h-10 rounded-full flex items-center justify-center", isGstExempt ? "bg-primary/20 text-primary" : "bg-white/10 text-text-muted")}><BanIcon size={18}/></div><div><p className="text-sm font-bold">GST Exempt Order</p></div></div>
-                <button type="button" onClick={() => setIsGstExempt(!isGstExempt)} className={cn("w-12 h-6 rounded-full transition-all relative", isGstExempt ? "bg-primary" : "bg-white/5 border border-border-subtle")}><div className={cn("w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all shadow-md", isGstExempt ? "left-7" : "left-0.5")} /></button>
+                <div className="flex items-center gap-3"><div className={cn("w-10 h-10 rounded-full flex items-center justify-center", isGstExempt ? "bg-primary/20 text-primary" : "bg-white/10 text-text-muted")}><BanIcon size={18}/></div><p className="text-sm font-bold">GST Exempt Order</p></div>
+                <button type="button" onClick={() => setIsGstExempt(!isGstExempt)} className={cn("w-12 h-6 rounded-full relative transition-all", isGstExempt ? "bg-primary" : "bg-white/5 border border-border-subtle")}><div className={cn("w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all shadow-md", isGstExempt ? "left-7" : "left-0.5")} /></button>
               </div>
             </div>
           </CardContent>
@@ -550,7 +582,7 @@ export default function NewOrder() {
       </Card>
 
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-card-bg/90 backdrop-blur-md border-t border-border-subtle flex justify-end z-30 shadow-2xl">
-        <Button disabled={orderLoading} onClick={handleSubmit} className="bg-primary hover:bg-primary/90 text-black px-10 h-11 font-bold rounded-xl shadow-lg flex gap-2 transition-transform active:scale-95">
+        <Button disabled={orderLoading} onClick={handleSubmit} className="bg-primary hover:bg-primary/90 text-black px-10 h-11 font-bold rounded-xl shadow-lg flex gap-2 active:scale-95 transition-all">
           {orderLoading ? <Loader2 className="animate-spin" size={18} /> : <><ShoppingBag size={18} /> {isEditMode ? "Update Order" : "Complete Order"}</>}
         </Button>
       </div>
