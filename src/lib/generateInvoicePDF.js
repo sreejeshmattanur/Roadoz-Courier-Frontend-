@@ -3,283 +3,297 @@ import JsBarcode from "jsbarcode";
 import roadozLogo from "../assets/images/RO-2.png";
 
 /**
- * Draws a single invoice copy. 
- * Vertical heights are adjusted to ensure 3 copies fit on one A4 (297mm).
+ * Reusable function to draw one invoice block
+ * @param {Object} doc - jsPDF instance
+ * @param {Object} order - The order data
+ * @param {Number} startY - Vertical offset (10 for top, 158.5 for bottom)
+ * @param {String} copyLabel - Label like "CONSIGNEE COPY" or "TRANSIT COPY"
  */
-const drawInvoice = (doc, order, startY, label) => {
-    const LEFT = 10;
-    const RIGHT = 200;
-    const WIDTH = RIGHT - LEFT;
-    const shipmentTypeStr = order.shipmentType || "N/A";
+const drawInvoiceBlock = (doc, order, startY, copyLabel) => {
+  const LEFT = 10;
+  const RIGHT = 200;
+  const WIDTH = RIGHT - LEFT;
+  let currY = startY;
 
-    let currY = startY;
+  // Helper to draw the grid lines
+  const drawGrid = (x, y, w, h) => doc.rect(x, y, w, h);
 
-    // Helper to safely parse strings/numbers
-    const safeParse = (val) => {
-        if (val === null || val === undefined) return 0;
-        const sanitized = String(val).replace(/[^0-9.-]+/g, "");
-        return parseFloat(sanitized) || 0;
-    };
+  // --- Header Label ---
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "italic");
+  doc.text(copyLabel, RIGHT, currY - 2, { align: "right" });
 
-    const drawGrid = (x, y, w, h) => doc.rect(x, y, w, h);
+  // 1. HEADER & INSURANCE SEAL
+  drawGrid(LEFT, currY, WIDTH, 22);
 
-    // Label for the copy (Top Right)
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "italic");
-    doc.text(label, RIGHT, currY - 1, { align: "right" });
-
-    // ---------------------------------------------------------
-    // 1. HEADER (Reduced height to 18mm)
-    // ---------------------------------------------------------
-    drawGrid(LEFT, currY, WIDTH, 18);
-    try {
-        doc.addImage(roadozLogo, "PNG", LEFT + 4, currY + 2, 35, 14);
-    } catch (e) {
-        doc.setFontSize(16);
-        doc.text("ROADOZ", LEFT + 5, currY + 10);
-    }
-
+  const insuranceAmt = Number(order.charges?.insurance || 0);
+  if (insuranceAmt > 0) {
+    const sealCenterX = LEFT + 170;
+    const sealCenterY = currY + 10.5;
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.5);
+    doc.circle(sealCenterX, sealCenterY, 8, "S");
+    doc.setLineWidth(0.2);
+    doc.circle(sealCenterX, sealCenterY, 6.5, "S");
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text("ROADOZ PVT. LTD.", LEFT + 55, currY + 5);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    doc.text("Courier And Cargo | Room No: 122, DD Vyapar Bhavan, Kochi-682020", LEFT + 55, currY + 9);
-    doc.text("Phone: +91 9496630687 | Email: info@roadoz.com", LEFT + 55, currY + 12);
-    doc.setFont("helvetica", "bold");
-    doc.text(`GSTIN: 32AAPCR1988L1ZP | Invoice: INV-${order.id || "N/A"}`, LEFT + 55, currY + 16);
-
-    currY += 18;
-
-    // ---------------------------------------------------------
-    // 2. META BAR (Reduced height to 15mm)
-    // ---------------------------------------------------------
-    drawGrid(LEFT, currY, WIDTH, 15);
-    doc.line(LEFT + 55, currY, LEFT + 55, currY + 15); 
-    doc.line(LEFT + 85, currY, LEFT + 85, currY + 15); 
-    doc.line(LEFT + 110, currY, LEFT + 110, currY + 15); 
-
-    doc.setFontSize(7);
-    doc.text("DATE & TIME", LEFT + 2, currY + 4);
-    doc.setFontSize(8);
-    doc.text(order.created || "N/A", LEFT + 2, currY + 9);
-    doc.setFontSize(6);
-    doc.text("Type: " + shipmentTypeStr, LEFT + 2, currY + 13);
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    const payMethod = (order.payment?.method || "TO PAY").toUpperCase();
-    doc.text(payMethod, LEFT + 70, currY + 9, { align: "center" });
-
-    const pkgCount = order.packages?.length || order.package_count || 1;
-    doc.setFontSize(7);
-    doc.text("TOTAL PCS", LEFT + 87, currY + 4);
-    doc.setFontSize(12);
-    doc.text(String(pkgCount), LEFT + 97, currY + 11, { align: "center" });
-
-    try {
-        const barcodeId = order.id || "ORD-00000";
-        const canvas = document.createElement("canvas");
-        JsBarcode(canvas, barcodeId, { format: "CODE128", displayValue: false, height: 35 });
-        doc.addImage(canvas.toDataURL("image/png"), 'PNG', LEFT + 115, currY + 1, 75, 10);
-        doc.setFontSize(7);
-        doc.text(barcodeId, LEFT + 152, currY + 13, { align: "center" });
-    } catch (e) {
-        doc.text(order.id || "", LEFT + 120, currY + 9);
-    }
-
-    currY += 15;
-
-    // ---------------------------------------------------------
-    // 3. ROUTE BAR (Height: 6mm)
-    // ---------------------------------------------------------
-    drawGrid(LEFT, currY, WIDTH, 6);
-    doc.line(LEFT + (WIDTH / 2), currY, LEFT + (WIDTH / 2), currY + 6);
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "bold");
-    doc.text(`FROM : ${order.pickup?.city || "N/A"}`, LEFT + 2, currY + 4);
-    doc.text(`DESTINATION : ${order.customer?.city || "N/A"}`, LEFT + (WIDTH / 2) + 2, currY + 4);
-
-    currY += 6;
-
-    // ---------------------------------------------------------
-    // 4. ADDRESS GRID (Height: 25mm)
-    // ---------------------------------------------------------
-    const gridH = 25;
-    drawGrid(LEFT, currY, WIDTH, gridH);
-    doc.line(LEFT + 45, currY, LEFT + 45, currY + gridH); 
-    doc.line(LEFT + (WIDTH / 2), currY, LEFT + (WIDTH / 2), currY + gridH); 
-    doc.line(LEFT + 140, currY, LEFT + 140, currY + gridH); 
-
-    const rowH = 5;
-    for (let i = 1; i < 5; i++) {
-        doc.line(LEFT, currY + (i * rowH), RIGHT, currY + (i * rowH));
-    }
-
     doc.setFontSize(6.5);
-    doc.setFont("helvetica", "normal");
-    doc.text("CONSIGNOR", LEFT + 2, currY + 3.5);
-    doc.text(order.pickup?.name?.substring(0, 30) || "N/A", LEFT + 47, currY + 3.5);
-    doc.text("CONTACT NO", LEFT + 2, currY + 8.5);
-    doc.text(order.pickup?.phone || "N/A", LEFT + 47, currY + 8.5);
-    doc.text("REFERENCE NO", LEFT + 2, currY + 13.5);
-    doc.text(order.reference_no || "Door Delivery", LEFT + 47, currY + 13.5);
-    doc.setFont("helvetica", "bold");
-    doc.text(`AWB No: ${order.id || "-"}`, LEFT + 2, currY + 18.5);
-    doc.text(`Weight: ${order.weight || "0"} kg`, LEFT + 47, currY + 18.5);
-    doc.text(`Declared Val: ${order.amount || "0"}`, LEFT + 2, currY + 23.5);
-    doc.text(`Service: ${order.serviceType || "Standard"}`, LEFT + 47, currY + 23.5);
+    doc.text("INSURED", sealCenterX, sealCenterY + 2, { align: "center" });
+    doc.setLineWidth(0.2);
+  }
 
-    doc.setFont("helvetica", "normal");
-    doc.text("CONSIGNEE", LEFT + 102, currY + 3.5);
-    doc.text(order.customer?.name?.substring(0, 30) || "N/A", LEFT + 142, currY + 3.5);
-    doc.text("CONTACT NO", LEFT + 102, currY + 8.5);
-    doc.text(order.customer?.phone || "N/A", LEFT + 142, currY + 8.5);
-    doc.text("DISTRICT", LEFT + 102, currY + 13.5);
-    doc.text(order.customer?.city || "N/A", LEFT + 142, currY + 13.5);
-    doc.text("STATE", LEFT + 102, currY + 18.5);
-    doc.text(order.customer?.state || "KERALA", LEFT + 142, currY + 18.5);
-    doc.text("DELIVERY BY", LEFT + 102, currY + 23.5);
-    doc.text(order.creator?.name || "ROADOZ LOGISTICS", LEFT + 142, currY + 23.5);
+  // Logo
+  try {
+    doc.addImage(roadozLogo, "PNG", LEFT + 4, currY + 3, 40, 16);
+  } catch (e) {
+    console.error("Logo load fail", e);
+  }
 
-    currY += gridH;
+  // Company Info
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("ROADOZ PVT. LTD.", LEFT + 60, currY + 6);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text("Courier And Cargo", LEFT + 60, currY + 11);
+  doc.setFontSize(7);
+  doc.text("Room No: 122, DD Vyapar Bhavan, Kadavanthra, Kochi-682020", LEFT + 60, currY + 14);
+  doc.text("Phone: +91 9496630687 | Email: info@roadoz.com", LEFT + 60, currY + 17);
+  doc.setFont("helvetica", "bold");
+  doc.text(`GSTIN: 32AAPCR1988L1ZP | AWB NO: ${order.id || "ORD"}`, LEFT + 60, currY + 20);
 
-    // ---------------------------------------------------------
-    // 5. DESCRIPTION & CHARGES (All Fields Included)
-    // ---------------------------------------------------------
-    const descH = 26; 
-    drawGrid(LEFT, currY, WIDTH, descH);
-    doc.line(LEFT + 150, currY, LEFT + 150, currY + descH); 
-    doc.line(LEFT + 172, currY, LEFT + 172, currY + descH); 
-    doc.line(LEFT, currY + 5, RIGHT, currY + 5); 
+  currY += 22;
 
-    doc.setFont("helvetica", "bold");
-    doc.text("DESCRIPTIONS", LEFT + 2, currY + 3.5);
-    doc.text("Charges", LEFT + 152, currY + 3.5);
-    doc.text("Amount", RIGHT - 2, currY + 3.5, { align: "right" });
+  // 2. META BAR (Date, Payment, Pieces, Barcode)
+  drawGrid(LEFT, currY, WIDTH, 18);
+  doc.line(LEFT + 55, currY, LEFT + 55, currY + 18);
+  doc.line(LEFT + 85, currY, LEFT + 85, currY + 18);
+  doc.line(LEFT + 110, currY, LEFT + 110, currY + 18);
 
-    // Left side: Item Name
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6);
-    const itemName = order.items?.[0]?.product_name || order.product?.name || "General Goods";
-    doc.text(`- ${itemName}`, LEFT + 2, currY + 8);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  doc.text("DATE & TIME", LEFT + 2, currY + 5);
+  doc.setFontSize(9);
+  doc.text(order.created || "N/A", LEFT + 2, currY + 11);
+  doc.setFontSize(7);
+  doc.text(`Service: ${order.serviceType || "Surface"}`, LEFT + 2, currY + 16);
 
-    // Bank Details (Reduced font to fit)
-    doc.setFontSize(5);
-    doc.text("BANK: HDFC | A/C: 50200116941777 | IFSC: HDFC0002321", LEFT + 2, currY + descH - 2);
+  // --- Payment Logic for Meta Bar ---
+  const payMethod = (order.payment?.method || "").toUpperCase();
+  let payLabel = payMethod;
+  if (payMethod === "TOPAY") payLabel = "TO PAY";
+  if (payMethod === "CREDIT") payLabel = "CREDIT";
+  if (payMethod === "COD") payLabel = "C.O.D";
+  if (payMethod === "PREPAID") payLabel = "PREPAID";
 
-    // RIGHT SIDE: EXACT CHARGE LOGIC
-    const isCOD = payMethod === "COD" || payMethod === "CASH ON DELIVERY";
-    const chargesBody = [];
-    
-    if (isCOD && safeParse(order.amount) > 0) chargesBody.push(["Product Total", safeParse(order.amount)]);
-    if (safeParse(order.charges?.freight) > 0) chargesBody.push(["Freight", safeParse(order.charges?.freight)]);
-    if (!order.is_gst_exempt && safeParse(order.charges?.freight_gst) > 0) chargesBody.push(["GST", safeParse(order.charges?.freight_gst)]);
-    if (safeParse(order.charges?.insurance) > 0) chargesBody.push(["Insurance", safeParse(order.charges?.insurance)]);
-    if (safeParse(order.charges?.regional_area) > 0) chargesBody.push(["Reg. Area", safeParse(order.charges?.regional_area)]);
-    if (safeParse(order.charges?.cod_amount) > 0) chargesBody.push(["COD Chrg", safeParse(order.charges?.cod_amount)]);
-    if (safeParse(order.charges?.to_pay_amount) > 0) chargesBody.push(["To Pay Amt", safeParse(order.charges?.to_pay_amount)]);
-    if (safeParse(order.charges?.credit_amount) > 0) chargesBody.push(["Credit Amt", safeParse(order.charges?.credit_amount)]);
-    if (safeParse(order.charges?.prepaid_amount) > 0) chargesBody.push(["Prepaid Amt", safeParse(order.charges?.prepaid_amount)]);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text(payLabel || "TO PAY", LEFT + 70, currY + 11, { align: "center" });
+ 
+  const totalQty = order.items?.reduce((acc, item) => acc + (item.qty || 0), 0) || 1;
+  doc.setFontSize(7);
+  doc.text("TOTAL QTY", LEFT + 87, currY + 5);
+  doc.setFontSize(14);
+  doc.text(String(totalQty), LEFT + 97, currY + 13, { align: "center" });
 
-    doc.setFontSize(6);
-    chargesBody.forEach((c, i) => {
-        const rowY = currY + 8.5 + (i * 3.2);
-        if (rowY < currY + descH - 4) {
-            doc.text(c[0], LEFT + 152, rowY);
-            doc.text(c[1].toFixed(2), RIGHT - 2, rowY, { align: "right" });
-        }
-    });
+  // Barcode
+  try {
+    const barcodeId = order.id || "ORD-0000";
+    const canvas = document.createElement("canvas");
+    JsBarcode(canvas, barcodeId, { format: "CODE128", displayValue: false, height: 40 });
+    const barcodeImg = canvas.toDataURL("image/png");
+    doc.addImage(barcodeImg, 'PNG', LEFT + 115, currY + 2, 75, 14);
+  } catch (e) {}
 
-    // Grand Total
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "bold");
-    const totalVal = safeParse(order.charges?.grand_total) || chargesBody.reduce((acc, curr) => acc + curr[1], 0);
-    doc.text("TOTAL", LEFT + 152, currY + descH - 1.5);
-    doc.text(`Rs. ${totalVal.toFixed(2)}`, RIGHT - 2, currY + descH - 1.5, { align: "right" });
+  currY += 18;
 
-    currY += descH;
+  // 3. ROUTE BAR
+  drawGrid(LEFT, currY, WIDTH, 7);
+  doc.line(LEFT + (WIDTH / 2), currY, LEFT + (WIDTH / 2), currY + 7);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.text(`FROM : ${order.pickup?.city || "N/A"}`, LEFT + 2, currY + 5);
+  doc.text(`DESTINATION : ${order.customer?.city || "N/A"}`, LEFT + (WIDTH / 2) + 2, currY + 5);
 
-    // ---------------------------------------------------------
-    // 6. FOOTER (Signatures)
-    // ---------------------------------------------------------
-    doc.setFontSize(5);
-    doc.setFont("helvetica", "normal");
-    doc.text("Terms: Shipments subject to standard terms. Liability restricted. Claims within 15 days.", LEFT, currY + 3);
-    
-    doc.setFontSize(6);
-    doc.text("Receiver Signature", LEFT + 25, currY + 7, { align: "center" });
-    doc.text("Authorized Signatory", RIGHT - 25, currY + 7, { align: "center" });
+  currY += 7;
+
+  // 4. ADDRESS GRID
+  const gridH = 32;
+  drawGrid(LEFT, currY, WIDTH, gridH);
+  doc.line(LEFT + 45, currY, LEFT + 45, currY + gridH); 
+  doc.line(LEFT + (WIDTH / 2), currY, LEFT + (WIDTH / 2), currY + gridH); 
+  doc.line(LEFT + 140, currY, LEFT + 140, currY + gridH); 
+
+  for (let i = 1; i < 5; i++) {
+    doc.line(LEFT, currY + (i * 6.4), RIGHT, currY + (i * 6.4));
+  }
+
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "normal");
+  // Consignor side
+  doc.text("CONSIGNOR", LEFT + 2, currY + 4.5);
+  doc.text(order.pickup?.name || "N/A", LEFT + 47, currY + 4.5);
+  doc.text("CONTACT NO", LEFT + 2, currY + 11);
+  doc.text(order.pickup?.phone || "N/A", LEFT + 47, currY + 11);
+  doc.text("REFERENCE NO", LEFT + 2, currY + 17.5);
+  doc.text(`DLY: ${order.deliveryType || "Door Delivery"}`, LEFT + 47, currY + 17.5);
+  
+  doc.setFont("helvetica", "bold");
+  doc.text(`Invoice No: ${order.invoiceNo || order.invoice_no || "N/A"}`, LEFT + 2, currY + 24);
+  
+  // FIX: WEIGHT FROM PACKAGES ARRAY
+  const totalWeight = (order.packages || []).reduce((sum, pkg) => sum + (pkg.applicable_weight_kg || 0), 0);
+  doc.text(`Weight: ${totalWeight.toFixed(2)} kg`, LEFT + 47, currY + 24);
+
+  doc.text(`Invoice Amount: ${order.amount || "0.00"}`, LEFT + 2, currY + 30.5);
+  doc.text(`Type: ${order.shipmentType || "N/A"}`, LEFT + 47, currY + 30.5);
+
+  // Consignee side
+  doc.setFont("helvetica", "normal");
+  doc.text("CONSIGNEE", LEFT + 102, currY + 4.5);
+  doc.text(order.customer?.name || "N/A", LEFT + 142, currY + 4.5);
+  doc.text("CONTACT NO", LEFT + 102, currY + 11);
+  doc.text(order.customer?.phone || "N/A", LEFT + 142, currY + 11);
+  doc.text("DISTRICT", LEFT + 102, currY + 17.5);
+  doc.text(order.customer?.city || "N/A", LEFT + 142, currY + 17.5);
+  doc.text("STATE", LEFT + 102, currY + 24);
+  doc.text(order.customer?.state || "Kerala", LEFT + 142, currY + 24);
+  doc.text("Booked By", LEFT + 102, currY + 30.5);
+  doc.setFont("helvetica", "bold");
+  doc.text(order.creator?.name || "ROADOZ", LEFT + 142, currY + 30.5);
+
+  currY += gridH;
+
+  // 5. DESCRIPTION & DYNAMIC CHARGES
+  const descH = 40;
+  drawGrid(LEFT, currY, WIDTH, descH);
+  doc.line(LEFT + 150, currY, LEFT + 150, currY + descH); 
+  doc.line(LEFT + 170, currY, LEFT + 170, currY + descH); 
+  doc.line(LEFT, currY + 6, RIGHT, currY + 6); 
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.text("DESCRIPTIONS / ITEM NAME", LEFT + 2, currY + 4);
+  doc.text("Charges", LEFT + 152, currY + 4);
+  doc.text("Amount", RIGHT - 2, currY + 4, { align: "right" });
+
+  doc.setFont("helvetica", "normal");
+  order.items?.slice(0, 4).forEach((item, index) => {
+    doc.text(`${item.product_name} (Qty: ${item.qty})`, LEFT + 2, currY + 11 + (index * 4));
+  });
+
+  // --- Dynamic Payment Charges Logic ---
+  let chargesBody = [];
+  if (Number(order.charges?.freight) > 0) chargesBody.push(["Freight Charges", order.charges.freight]);
+  if (!order.is_gst_exempt && Number(order.charges?.freight_gst) > 0) chargesBody.push(["Freight GST", order.charges.freight_gst]);
+  if (Number(order.charges?.insurance) > 0) chargesBody.push(["Insurance", order.charges.insurance]);
+  
+  // Specific Dynamic Label based on payment method
+  const grandTotal = order.charges?.grand_total || 0;
+  const m = payMethod;
+  if (m === "TOPAY") chargesBody.push(["To Pay Amount", grandTotal]);
+  else if (m === "CREDIT") chargesBody.push(["Credit Amount", grandTotal]);
+  else if (m === "COD") chargesBody.push(["COD Amount", grandTotal]);
+  else if (m === "PREPAID") chargesBody.push(["Prepaid Amount", grandTotal]);
+
+  chargesBody.forEach((c, i) => {
+    const rowY = currY + 10 + (i * 4);
+    doc.setFontSize(7);
+    doc.text(c[0], LEFT + 152, rowY);
+    doc.text(parseFloat(c[1]).toFixed(2), RIGHT - 2, rowY, { align: "right" });
+  });
+
+  // Bank & Total
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7);
+  doc.text("BANK: HDFC | A/C: 50200116941777 | IFSC: HDFC0002321", LEFT + 2, currY + 38);
+
+  doc.setFontSize(9);
+  doc.text("TOTAL", LEFT + 152, currY + descH - 3);
+  doc.text(`${parseFloat(grandTotal).toFixed(2)}`, RIGHT - 2, currY + descH - 3, { align: "right" });
+
+  currY += descH;
+
+  // 6. FOOTER
+  doc.setFontSize(5.5);
+  doc.setFont("helvetica", "normal");
+  const terms = "Terms & conditions: (1) All shipments subject to standard carriage terms. (2) ROADOZ not responsible for illegal items. (3) Max liability Rs 100/- unless insured.";
+  doc.text(doc.splitTextToSize(terms, WIDTH), LEFT, currY + 4);
+
+  const footerY = currY + 14;
+  doc.line(LEFT, footerY, LEFT + 40, footerY);
+  doc.line(RIGHT - 40, footerY, RIGHT, footerY);
+  doc.setFontSize(7);
+  doc.text("Receiver Signature", LEFT + 20, footerY + 4, { align: "center" });
+  doc.text("Authorized Signatory", RIGHT - 20, footerY + 4, { align: "center" });
 };
 
-/**
- * Handles generating 3 copies per page
+/** 
+ * EXPORT FUNCTIONS 
  */
-const drawThreeCopies = (doc, order) => {
-    const labels = ["CONSIGNEE COPY", "CONSIGNOR COPY", "TRANSIT COPY"];
-    const verticalSpacing = 96; // 297 / 3 = 99mm. 96 gives room for labels/padding.
-    
-    labels.forEach((label, index) => {
-        const startY = 8 + (index * verticalSpacing);
-        drawInvoice(doc, order, startY, label);
-        
-        // Draw cut-line
-        if (index < 2) {
-            doc.setDrawColor(200);
-            doc.setLineDashPattern([1, 1], 0);
-            doc.line(5, startY + verticalSpacing - 3, 205, startY + verticalSpacing - 3);
-            doc.setLineDashPattern([], 0);
-            doc.setDrawColor(0);
-        }
-    });
-};
-
-// --- Export Functions ---
-
 export const generateInvoicePDF = (order) => {
-    try {
-        const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
-        drawThreeCopies(doc, order);
-        doc.save(`Invoice_${order.id || "ROADOZ"}.pdf`);
-    } catch (error) {
-        console.error("PDF Error:", error);
-    }
+  try {
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    drawInvoiceBlock(doc, order, 10, "CONSIGNEE COPY");
+    doc.setDrawColor(200);
+    doc.setLineDash([2, 2], 0);
+    doc.line(0, 148.5, 210, 148.5);
+    doc.setLineDash([], 0);
+    doc.setDrawColor(0);
+    drawInvoiceBlock(doc, order, 158.5, "TRANSIT COPY");
+    doc.save(`Invoice_${order.id || "order"}.pdf`);
+  } catch (error) {
+    console.error("PDF Generation Error:", error);
+  }
 };
 
 export const generateInvoiceDataUri = (order) => {
-    try {
-        const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
-        drawThreeCopies(doc, order);
-        return doc.output('bloburl');
-    } catch (error) {
-        return null;
-    }
+  try {
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    drawInvoiceBlock(doc, order, 10, "CONSIGNEE COPY");
+    doc.setLineDash([2, 2], 0);
+    doc.line(0, 148.5, 210, 148.5);
+    doc.setLineDash([], 0);
+    drawInvoiceBlock(doc, order, 158.5, "TRANSIT COPY");
+    return doc.output('bloburl');
+  } catch (error) {
+    console.error("PDF URI Error:", error);
+    return null;
+  }
 };
 
 export const generateBulkInvoicesPDF = (orders) => {
-    try {
-        if (!orders?.length) return;
-        const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
-        orders.forEach((order, index) => {
-            if (index > 0) doc.addPage();
-            drawThreeCopies(doc, order);
-        });
-        doc.save(`Bulk_Invoices_${orders.length}.pdf`);
-    } catch (error) {
-        console.error("Bulk PDF Error:", error);
-    }
+  try {
+    if (!orders?.length) return;
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    orders.forEach((order, index) => {
+      if (index > 0) doc.addPage();
+      drawInvoiceBlock(doc, order, 10, "CONSIGNEE COPY");
+      doc.setLineDash([2, 2], 0);
+      doc.line(0, 148.5, 210, 148.5);
+      doc.setLineDash([], 0);
+      drawInvoiceBlock(doc, order, 158.5, "TRANSIT COPY");
+    });
+    doc.save(`Bulk_Invoices.pdf`);
+  } catch (error) {
+    console.error("Bulk PDF Error:", error);
+  }
 };
 
 export const generateBulkInvoicesDataUri = (orders) => {
-    try {
-        if (!orders?.length) return null;
-        const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
-        orders.forEach((order, index) => {
-            if (index > 0) doc.addPage();
-            drawThreeCopies(doc, order);
-        });
-        return doc.output('bloburl');
-    } catch (error) {
-        return null;
-    }
+  try {
+    if (!orders || orders.length === 0) return null;
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    orders.forEach((order, index) => {
+      if (index > 0) doc.addPage();
+      drawInvoiceBlock(doc, order, 10, "CONSIGNEE COPY");
+      doc.setLineDash([2, 2], 0);
+      doc.line(0, 148.5, 210, 148.5);
+      doc.setLineDash([], 0);
+      drawInvoiceBlock(doc, order, 158.5, "TRANSIT COPY");
+    });
+    return doc.output('bloburl');
+  } catch (error) {
+    console.error("Bulk PDF URI Error:", error);
+    return null;
+  }
 };

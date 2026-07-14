@@ -3,7 +3,7 @@ import {
   Plus, Trash2, ChevronDown, ChevronUp, Lock, ShoppingBag, Search,
   MapPin, Loader2, User, MapPinned, CreditCard, ShieldCheck, 
   Truck, Zap, FileText, Scale, Home, Building2, 
-  Ban as BanIcon, MousePointerClick, Edit3
+  Ban as BanIcon, Edit3
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
@@ -54,26 +54,6 @@ export default function NewOrder() {
 
   const generateSKU = () => `SKU-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  // --- FAST ENTRY LOGIC: Move focus on Enter ---
-  const handleKeyDown = useCallback((e) => {
-    if (e.key === "Enter" && e.target.tagName !== "TEXTAREA") {
-      // If user is on the submit button, let it click. Otherwise, move focus.
-      if (e.target.id === "submit-btn") return;
-
-      e.preventDefault();
-      const form = e.currentTarget;
-      // Get all focusable elements
-      const elements = Array.from(form.querySelectorAll(
-        'input:not([disabled]):not([type="hidden"]), select:not([disabled]), button:not([disabled]):not(.exclude-tab)'
-      ));
-      
-      const currentIndex = elements.indexOf(e.target);
-      if (currentIndex > -1 && currentIndex < elements.length - 1) {
-        elements[currentIndex + 1].focus();
-      }
-    }
-  }, []);
-
   // --- Search & Modal States ---
   const [pickupSearch, setPickupSearch] = useState("");
   const [consigneeSearch, setConsigneeSearch] = useState("");
@@ -120,21 +100,12 @@ export default function NewOrder() {
   ]);
   const [otherDetails, setOtherDetails] = useState({ gst_number: "", eway_bill_number: "", invoicenumber: "", amount: "" });
 
-  // --- API Sync ---
-  useEffect(() => {
-    dispatch(fetchPickupAddresses({ search: debouncedPickupSearch, page: 1, limit: 10 }));
-  }, [dispatch, debouncedPickupSearch]);
-
-  useEffect(() => {
-    dispatch(fetchConsignees({ search: debouncedConsigneeSearch, page: 1, limit: 10 }));
-  }, [dispatch, debouncedConsigneeSearch]);
-
   // --- Calculations ---
-  // FIX: Added '0' initial value and robust parsing to prevent .toFixed crash
   const totalOrderValue = useMemo(() => {
     return products.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
   }, [products]);
 
+  // Insurance calculation
   useEffect(() => {
     if (isInsuranceEnabled && totalOrderValue >= 1000) {
       setInsuranceAmount(parseFloat((totalOrderValue * 0.018).toFixed(2)));
@@ -161,6 +132,15 @@ export default function NewOrder() {
     };
   }, [packages]);
 
+  // --- API Sync ---
+  useEffect(() => {
+    dispatch(fetchPickupAddresses({ search: debouncedPickupSearch, page: 1, limit: 10 }));
+  }, [dispatch, debouncedPickupSearch]);
+
+  useEffect(() => {
+    dispatch(fetchConsignees({ search: debouncedConsigneeSearch, page: 1, limit: 10 }));
+  }, [dispatch, debouncedConsigneeSearch]);
+
   // --- Populate Edit Mode ---
   useEffect(() => {
     if (!isEditMode || !editOrderData) return;
@@ -179,24 +159,34 @@ export default function NewOrder() {
         setRegionalArea(editOrderData.regional_area || 0);
         setIsGstExempt(Boolean(editOrderData.is_gst_exempt));
 
-        const ins = editOrderData.insurance;
-        const insuranceActive = ins === true || ins === 1 || ins === "1";
-        setIsInsuranceEnabled(insuranceActive);
-        if (insuranceActive) setInsuranceAmount(Number(editOrderData.insurance_amount) || 0);
+        // Insurance logic for edit mode
+        const rawInsurance = editOrderData.insurance;
+        // If API returns the amount in the insurance field, we detect it
+        const hasInsurance = typeof rawInsurance === 'boolean' ? rawInsurance : Number(rawInsurance) > 0;
+        setIsInsuranceEnabled(hasInsurance);
+        setInsuranceAmount(Number(editOrderData.insurance_amount) || (typeof rawInsurance === 'number' ? rawInsurance : 0));
 
         if (editOrderData.pickup_address) dispatch(setSelectedAddress(editOrderData.pickup_address));
         if (editOrderData.consignee) setConsigneeData(editOrderData.consignee);
         
         if (editOrderData.items?.length > 0) {
-          setProducts(editOrderData.items.map(item => ({ ...item, id: Math.random(), total: (Number(item.unit_price) || 0) * (Number(item.qty) || 0) })));
-        }
-        if (editOrderData.packages?.length > 0) {
-          setPackages(editOrderData.packages.map(pkg => ({
-            ...pkg, id: Math.random(), weight_unit: "kg",
-            weight_value: pkg.physical_weight?.toString() || "",
-            row_vol_weight: ((Number(pkg.length_cm) * Number(pkg.breadth_cm) * Number(pkg.height_cm)) / 2700).toFixed(3)
+          setProducts(editOrderData.items.map(item => ({ 
+            ...item, 
+            id: Math.random(), 
+            total: (Number(item.unit_price) || 0) * (Number(item.qty) || 0) 
           })));
         }
+        
+        if (editOrderData.packages?.length > 0) {
+          setPackages(editOrderData.packages.map(pkg => ({
+            ...pkg, 
+            id: Math.random(), 
+            weight_unit: "kg",
+            weight_value: pkg.physical_weight_kg !== undefined ? pkg.physical_weight_kg.toString() : "0", 
+            row_vol_weight: pkg.vol_weight_kg || 0
+          })));
+        }
+
         setOtherDetails({ 
             gst_number: editOrderData.gst_number || "", 
             eway_bill_number: editOrderData.eway_bill_number || "", 
@@ -206,7 +196,21 @@ export default function NewOrder() {
     } catch (e) { console.error("Population error", e); }
   }, [isEditMode, editOrderData, dispatch]);
 
-  // --- CRUD Handlers ---
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === "Enter" && e.target.tagName !== "TEXTAREA") {
+      if (e.target.id === "submit-btn") return;
+      e.preventDefault();
+      const form = e.currentTarget;
+      const elements = Array.from(form.querySelectorAll(
+        'input:not([disabled]):not([type="hidden"]), select:not([disabled]), button:not([disabled]):not(.exclude-tab)'
+      ));
+      const currentIndex = elements.indexOf(e.target);
+      if (currentIndex > -1 && currentIndex < elements.length - 1) {
+        elements[currentIndex + 1].focus();
+      }
+    }
+  }, []);
+
   const handleSavePickupAddress = async () => {
     try {
       if (pickupForm.id) {
@@ -252,24 +256,42 @@ export default function NewOrder() {
       order_value: Number(totalOrderValue),
       service_type: serviceType,
       is_gst_exempt: isGstExempt,
-      insurance: isInsuranceEnabled,
-      insurance_amount: isInsuranceEnabled ? Number(insuranceAmount) : 0,
+      // FIX: Must send boolean to 'insurance' key to satisfy API validation
+      insurance: !!isInsuranceEnabled, 
+      insurance_amount: isInsuranceEnabled ? Number(insuranceAmount) : 0, 
       is_doc: isDoc,
       delivery_type: deliveryType === "none" ? null : deliveryType,
       is_manual_freight: isManualFreight,
-      freight_charge: isManualFreight ? Number(freightCharge) : null,
+      freight_charge: isManualFreight ? Number(freightCharge) : 0,
       regional_area: Number(regionalArea),
       gst_number: otherDetails.gst_number || null,
       eway_bill_number: otherDetails.eway_bill_number || null,
       invoicenumber: otherDetails.invoicenumber || null,
       amount: Number(otherDetails.amount) || Number(totalOrderValue),
-      items: products.map(p => ({ ...p, unit_price: Number(p.unit_price), qty: Number(p.qty), total: Number(p.total) })),
-      packages: packages.map((pkg, idx) => ({
-        package_index: idx + 1,
-        length_cm: Number(pkg.length_cm), breadth_cm: Number(pkg.breadth_cm), height_cm: Number(pkg.height_cm),
-        physical_weight: pkg.weight_unit === "kg" ? Number(pkg.weight_value) : Number(pkg.weight_value) / 1000,
-        vol_weight_kg: Number(pkg.row_vol_weight)
-      }))
+      items: products.map(p => ({ 
+        product_name: p.product_name,
+        sku: p.sku,
+        unit_price: Number(p.unit_price), 
+        qty: Number(p.qty), 
+        total: Number(p.total),
+        package_index: Number(p.package_index)
+      })),
+      // FIX: Ensure no sparse array indices and clean number conversions
+      packages: packages.filter(p => p).map((pkg, idx) => {
+        const weightVal = parseFloat(pkg.weight_value) || 0;
+        const physical_weight_kg = pkg.weight_unit === "kg" ? weightVal : weightVal / 1000;
+        const vol_weight_kg = (Number(pkg.length_cm) * Number(pkg.breadth_cm) * Number(pkg.height_cm)) / 2700;
+        
+        return {
+          package_index: idx + 1,
+          count: 1,
+          length_cm: Number(pkg.length_cm) || 0, 
+          breadth_cm: Number(pkg.breadth_cm) || 0, 
+          height_cm: Number(pkg.height_cm) || 0,
+          physical_weight_kg: Number(physical_weight_kg.toFixed(3)), 
+          vol_weight_kg: Number(vol_weight_kg.toFixed(3))
+        };
+      })
     };
 
     try {
@@ -282,7 +304,6 @@ export default function NewOrder() {
       }
       navigate("/dashboard/processing-order");
     } catch (err) {
-      // Capture the exact error from API response
       const errorMessage = err?.message || err?.error || (typeof err === 'string' ? err : "Submission failed");
       toast.error(errorMessage, { duration: 5000 });
     }
@@ -355,7 +376,6 @@ export default function NewOrder() {
 
       {/* Address Management */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Pickup Selector */}
         <Card className="bg-card-bg border-border-subtle overflow-visible relative">
           <CardContent className="p-6 space-y-4">
             <div className="flex justify-between items-center"><h2 className="text-lg font-semibold flex items-center gap-2"><MapPinned size={20} className="text-primary" /> Pickup Location</h2><Button variant="ghost" size="sm" onClick={() => setIsPickupModalOpen(true)} className="text-primary hover:bg-primary/10 exclude-tab"><Plus size={16} /></Button></div>
@@ -397,7 +417,6 @@ export default function NewOrder() {
           </CardContent>
         </Card>
 
-        {/* Consignee Selector */}
         <Card className="bg-card-bg border-border-subtle overflow-visible relative">
           <CardContent className="p-6 space-y-4">
             <div className="flex justify-between items-center"><h2 className="text-lg font-semibold flex items-center gap-2"><User size={20} className="text-primary" /> Deliver To</h2><Button variant="ghost" size="sm" onClick={() => setIsConsigneeModalOpen(true)} className="text-primary hover:bg-primary/10 exclude-tab"><Plus size={16} /></Button></div>
@@ -440,7 +459,7 @@ export default function NewOrder() {
         </Card>
       </div>
 
-      {/* Payment Information */}
+      {/* Payment & Charges */}
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -489,7 +508,7 @@ export default function NewOrder() {
         </CardContent>
       </Card>
 
-      {/* Packages Section */}
+      {/* Package Details */}
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
           <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
@@ -511,10 +530,10 @@ export default function NewOrder() {
           </div>
           {packages?.map((pkg, idx) => (
             <div key={pkg.id} className="grid grid-cols-2 md:grid-cols-7 gap-4 items-end border-b border-border-subtle pb-6 last:border-0">
-              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">L (cm)</label><input type="number" value={pkg.length_cm} onChange={(e) => setPackages(packages.map(p => p.id === pkg.id ? {...p, length_cm: e.target.value, row_vol_weight: (e.target.value * p.breadth_cm * p.height_cm / 2700).toFixed(3)} : p))} className={inputClass} /></div>
-              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">B (cm)</label><input type="number" value={pkg.breadth_cm} onChange={(e) => setPackages(packages.map(p => p.id === pkg.id ? {...p, breadth_cm: e.target.value, row_vol_weight: (p.length_cm * e.target.value * p.height_cm / 2700).toFixed(3)} : p))} className={inputClass} /></div>
-              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">H (cm)</label><input type="number" value={pkg.height_cm} onChange={(e) => setPackages(packages.map(p => p.id === pkg.id ? {...p, height_cm: e.target.value, row_vol_weight: (p.length_cm * p.breadth_cm * e.target.value / 2700).toFixed(3)} : p))} className={inputClass} /></div>
-              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">Vol (kg)</label><div className={cn(inputClass, "bg-white/5 flex items-center justify-center")}>{pkg.row_vol_weight}</div></div>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">L (cm)</label><input type="number" value={pkg.length_cm} onChange={(e) => setPackages(packages.map(p => p.id === pkg.id ? {...p, length_cm: e.target.value, row_vol_weight: ((e.target.value * p.breadth_cm * p.height_cm) / 2700).toFixed(3)} : p))} className={inputClass} /></div>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">B (cm)</label><input type="number" value={pkg.breadth_cm} onChange={(e) => setPackages(packages.map(p => p.id === pkg.id ? {...p, breadth_cm: e.target.value, row_vol_weight: ((p.length_cm * e.target.value * p.height_cm) / 2700).toFixed(3)} : p))} className={inputClass} /></div>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">H (cm)</label><input type="number" value={pkg.height_cm} onChange={(e) => setPackages(packages.map(p => p.id === pkg.id ? {...p, height_cm: e.target.value, row_vol_weight: ((p.length_cm * p.breadth_cm * e.target.value) / 2700).toFixed(3)} : p))} className={inputClass} /></div>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">Vol (kg)</label><div className={cn(inputClass, "bg-white/5 flex items-center justify-center")}>{pkg.row_vol_weight || 0}</div></div>
               <div className="space-y-1 col-span-2">
                 <label className="text-[10px] font-bold text-text-muted uppercase">Manual Weight</label>
                 <div className="flex">
@@ -531,7 +550,7 @@ export default function NewOrder() {
         </CardContent>
       </Card>
 
-      {/* Product Section */}
+      {/* Product Details */}
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
           <div className="flex justify-between items-center"><h2 className="text-lg font-semibold">Product Details</h2><div className="bg-primary/10 px-4 py-2 rounded-lg border border-primary/20"><span className="text-lg font-bold text-primary">₹{Number(totalOrderValue).toFixed(2)}</span></div></div>
@@ -552,7 +571,7 @@ export default function NewOrder() {
         </CardContent>
       </Card>
 
-      {/* Compliance Section */}
+      {/* Compliance Details */}
       <Card className="bg-card-bg border-border-subtle">
         <button type="button" onClick={() => setIsOtherDetailsOpen(!isOtherDetailsOpen)} className="w-full flex justify-between p-6 items-center hover:bg-white/5 rounded-xl exclude-tab">
           <h2 className="text-lg font-semibold flex items-center gap-2"><FileText size={20} className="text-primary"/> Compliance Details</h2>
@@ -574,7 +593,7 @@ export default function NewOrder() {
         )}
       </Card>
 
-      {/* Footer / Submit */}
+      {/* Footer */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-card-bg/90 backdrop-blur-md border-t border-border-subtle flex justify-end z-30 shadow-2xl">
         <Button 
           id="submit-btn" 
