@@ -157,7 +157,7 @@ const drawInvoiceBlock = (doc, order, startY, copyLabel) => {
   doc.text(order.customer?.city || "N/A", LEFT + 142, currY + 17.5);
   doc.text("STATE", LEFT + 102, currY + 24);
   doc.text(order.customer?.state || "Kerala", LEFT + 142, currY + 24);
-  doc.text("DELIVERY BY", LEFT + 102, currY + 30.5);
+  doc.text("Booked By", LEFT + 102, currY + 30.5);
   doc.setFont("helvetica", "bold");
   doc.text(order.creator?.name || "ROADOZ", LEFT + 142, currY + 30.5);
 

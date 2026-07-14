@@ -3,7 +3,7 @@ import {
   Plus, Trash2, ChevronDown, ChevronUp, Lock, ShoppingBag, Search,
   MapPin, Loader2, User, MapPinned, CreditCard, ShieldCheck, 
   Truck, Zap, FileText, Scale, Home, Building2, 
-  Ban as BanIcon, MousePointerClick, Edit3
+  Ban as BanIcon, Edit3
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
@@ -141,7 +141,7 @@ export default function NewOrder() {
     dispatch(fetchConsignees({ search: debouncedConsigneeSearch, page: 1, limit: 10 }));
   }, [dispatch, debouncedConsigneeSearch]);
 
-  // --- Populate Edit Mode (Fixed for full data mapping) ---
+  // --- Populate Edit Mode ---
   useEffect(() => {
     if (!isEditMode || !editOrderData) return;
     try {
@@ -159,10 +159,12 @@ export default function NewOrder() {
         setRegionalArea(editOrderData.regional_area || 0);
         setIsGstExempt(Boolean(editOrderData.is_gst_exempt));
 
-        // Insurance Logic
-        const insValue = Number(editOrderData.insurance);
-        setIsInsuranceEnabled(insValue > 0);
-        setInsuranceAmount(insValue || 0);
+        // Insurance logic for edit mode
+        const rawInsurance = editOrderData.insurance;
+        // If API returns the amount in the insurance field, we detect it
+        const hasInsurance = typeof rawInsurance === 'boolean' ? rawInsurance : Number(rawInsurance) > 0;
+        setIsInsuranceEnabled(hasInsurance);
+        setInsuranceAmount(Number(editOrderData.insurance_amount) || (typeof rawInsurance === 'number' ? rawInsurance : 0));
 
         if (editOrderData.pickup_address) dispatch(setSelectedAddress(editOrderData.pickup_address));
         if (editOrderData.consignee) setConsigneeData(editOrderData.consignee);
@@ -180,12 +182,11 @@ export default function NewOrder() {
             ...pkg, 
             id: Math.random(), 
             weight_unit: "kg",
-            weight_value: pkg.physical_weight_kg?.toString() || "0", // Note: mapped from physical_weight_kg
-            row_vol_weight: pkg.vol_weight_kg || ((Number(pkg.length_cm) * Number(pkg.breadth_cm) * Number(pkg.height_cm)) / 2700).toFixed(3)
+            weight_value: pkg.physical_weight_kg !== undefined ? pkg.physical_weight_kg.toString() : "0", 
+            row_vol_weight: pkg.vol_weight_kg || 0
           })));
         }
 
-        // Mapping Compliance Details
         setOtherDetails({ 
             gst_number: editOrderData.gst_number || "", 
             eway_bill_number: editOrderData.eway_bill_number || "", 
@@ -255,14 +256,14 @@ export default function NewOrder() {
       order_value: Number(totalOrderValue),
       service_type: serviceType,
       is_gst_exempt: isGstExempt,
-      // API expects the numerical value of insurance (charges)
-      insurance: isInsuranceEnabled ? Number(insuranceAmount) : 0, 
+      // FIX: Must send boolean to 'insurance' key to satisfy API validation
+      insurance: !!isInsuranceEnabled, 
+      insurance_amount: isInsuranceEnabled ? Number(insuranceAmount) : 0, 
       is_doc: isDoc,
       delivery_type: deliveryType === "none" ? null : deliveryType,
       is_manual_freight: isManualFreight,
-      freight_charge: isManualFreight ? Number(freightCharge) : null,
+      freight_charge: isManualFreight ? Number(freightCharge) : 0,
       regional_area: Number(regionalArea),
-      // Compliance Mapping
       gst_number: otherDetails.gst_number || null,
       eway_bill_number: otherDetails.eway_bill_number || null,
       invoicenumber: otherDetails.invoicenumber || null,
@@ -275,16 +276,19 @@ export default function NewOrder() {
         total: Number(p.total),
         package_index: Number(p.package_index)
       })),
-      packages: packages.map((pkg, idx) => {
-        const physical_weight = pkg.weight_unit === "kg" ? Number(pkg.weight_value) : Number(pkg.weight_value) / 1000;
+      // FIX: Ensure no sparse array indices and clean number conversions
+      packages: packages.filter(p => p).map((pkg, idx) => {
+        const weightVal = parseFloat(pkg.weight_value) || 0;
+        const physical_weight_kg = pkg.weight_unit === "kg" ? weightVal : weightVal / 1000;
         const vol_weight_kg = (Number(pkg.length_cm) * Number(pkg.breadth_cm) * Number(pkg.height_cm)) / 2700;
         
         return {
           package_index: idx + 1,
-          length_cm: Number(pkg.length_cm), 
-          breadth_cm: Number(pkg.breadth_cm), 
-          height_cm: Number(pkg.height_cm),
-          physical_weight_kg: Number(physical_weight.toFixed(3)), // Key fixed to match JSON
+          count: 1,
+          length_cm: Number(pkg.length_cm) || 0, 
+          breadth_cm: Number(pkg.breadth_cm) || 0, 
+          height_cm: Number(pkg.height_cm) || 0,
+          physical_weight_kg: Number(physical_weight_kg.toFixed(3)), 
           vol_weight_kg: Number(vol_weight_kg.toFixed(3))
         };
       })
