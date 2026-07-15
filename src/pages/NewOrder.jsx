@@ -105,7 +105,6 @@ export default function NewOrder() {
     return products.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
   }, [products]);
 
-  // Insurance calculation
   useEffect(() => {
     if (isInsuranceEnabled && totalOrderValue >= 1000) {
       setInsuranceAmount(parseFloat((totalOrderValue * 0.018).toFixed(2)));
@@ -116,7 +115,7 @@ export default function NewOrder() {
 
   const weightSummary = useMemo(() => {
     let totalPhys = 0, totalVol = 0, totalBoxes = 0;
-    packages?.forEach(pkg => {
+    (packages || []).forEach(pkg => {
         totalBoxes += 1;
         const calcVol = ((Number(pkg.length_cm) || 0) * (Number(pkg.breadth_cm) || 0) * (Number(pkg.height_cm) || 0)) / 2700;
         const manualVal = Number(pkg.weight_value) || 0;
@@ -159,9 +158,7 @@ export default function NewOrder() {
         setRegionalArea(editOrderData.regional_area || 0);
         setIsGstExempt(Boolean(editOrderData.is_gst_exempt));
 
-        // Insurance logic for edit mode
         const rawInsurance = editOrderData.insurance;
-        // If API returns the amount in the insurance field, we detect it
         const hasInsurance = typeof rawInsurance === 'boolean' ? rawInsurance : Number(rawInsurance) > 0;
         setIsInsuranceEnabled(hasInsurance);
         setInsuranceAmount(Number(editOrderData.insurance_amount) || (typeof rawInsurance === 'number' ? rawInsurance : 0));
@@ -211,31 +208,46 @@ export default function NewOrder() {
     }
   }, []);
 
+  // FIXED: Improved Address Save Handler
   const handleSavePickupAddress = async () => {
     try {
+      let result;
       if (pickupForm.id) {
-        await dispatch(updatePickupAddress({ id: pickupForm.id, data: pickupForm })).unwrap();
+        result = await dispatch(updatePickupAddress({ id: pickupForm.id, data: pickupForm })).unwrap();
         toast.success("Address Updated");
       } else {
-        await dispatch(createPickupAddress(pickupForm)).unwrap();
+        result = await dispatch(createPickupAddress(pickupForm)).unwrap();
         toast.success("Address Created");
       }
+      // Use result data if available, otherwise just refresh list
+      if (result && result.id) dispatch(setSelectedAddress(result));
+      else if (result?.data?.id) dispatch(setSelectedAddress(result.data));
+      
       setIsPickupModalOpen(false);
+      setPickupForm({ nickname: "", contact_name: "", phone: "", email: "", address_line_1: "", address_line_2: "", pincode: "", city: "", state: "", country: "India" });
     } catch (err) { toast.error(err?.message || err || "Operation failed"); }
   };
 
+  // FIXED: Improved Consignee Save Handler (The main issue)
   const handleSaveConsigneeAddress = async () => {
     try {
+      let result;
       if (consigneeForm.id) {
-        const updated = await dispatch(updateConsignee({ id: consigneeForm.id, data: consigneeForm })).unwrap();
-        setConsigneeData(updated);
+        result = await dispatch(updateConsignee({ id: consigneeForm.id, data: consigneeForm })).unwrap();
         toast.success("Consignee Updated");
       } else {
-        const newC = await dispatch(createConsignee(consigneeForm)).unwrap();
-        setConsigneeData(newC);
+        result = await dispatch(createConsignee(consigneeForm)).unwrap();
         toast.success("Consignee Created");
       }
+
+      // Safeguard against nested API response structures like { data: { ... } }
+      const newConsignee = result?.data || result;
+      if (newConsignee && newConsignee.id) {
+        setConsigneeData(newConsignee);
+      }
+      
       setIsConsigneeModalOpen(false);
+      setConsigneeForm({ name: "", mobile: "", alternate_mobile: "", email: "", address_line_1: "", address_line_2: "", pincode: "", city: "", state: "" });
     } catch (err) { toast.error(err?.message || err || "Operation failed"); }
   };
 
@@ -256,7 +268,6 @@ export default function NewOrder() {
       order_value: Number(totalOrderValue),
       service_type: serviceType,
       is_gst_exempt: isGstExempt,
-      // FIX: Must send boolean to 'insurance' key to satisfy API validation
       insurance: !!isInsuranceEnabled, 
       insurance_amount: isInsuranceEnabled ? Number(insuranceAmount) : 0, 
       is_doc: isDoc,
@@ -268,7 +279,7 @@ export default function NewOrder() {
       eway_bill_number: otherDetails.eway_bill_number || null,
       invoicenumber: otherDetails.invoicenumber || null,
       amount: Number(otherDetails.amount) || Number(totalOrderValue),
-      items: products.map(p => ({ 
+      items: (products || []).map(p => ({ 
         product_name: p.product_name,
         sku: p.sku,
         unit_price: Number(p.unit_price), 
@@ -276,8 +287,7 @@ export default function NewOrder() {
         total: Number(p.total),
         package_index: Number(p.package_index)
       })),
-      // FIX: Ensure no sparse array indices and clean number conversions
-      packages: packages.filter(p => p).map((pkg, idx) => {
+      packages: (packages || []).filter(p => p).map((pkg, idx) => {
         const weightVal = parseFloat(pkg.weight_value) || 0;
         const physical_weight_kg = pkg.weight_unit === "kg" ? weightVal : weightVal / 1000;
         const vol_weight_kg = (Number(pkg.length_cm) * Number(pkg.breadth_cm) * Number(pkg.height_cm)) / 2700;
@@ -317,7 +327,7 @@ export default function NewOrder() {
       <ConsigneeModal isOpen={isConsigneeModalOpen} onClose={() => setIsConsigneeModalOpen(false)} consigneeForm={consigneeForm} handleConsigneeChange={(e) => setConsigneeForm({ ...consigneeForm, [e.target.name]: e.target.value })} handleSaveConsignee={handleSaveConsigneeAddress} loading={pickupLoading} inputClass={inputClass} />
 
       <header>
-        <h1 className="text-2xl font-bold">{isEditMode ? `Edit Order (${editOrderData?.order_number})` : "New Order"}</h1>
+        <h1 className="text-2xl font-bold">{isEditMode ? `Edit Order (${editOrderData?.order_number || ''})` : "New Order"}</h1>
         <p className="text-xs text-primary mt-1 font-medium">Dashboard <span className="text-text-muted mx-2">&gt;&gt;</span> Order Management</p>
       </header>
 
@@ -378,17 +388,17 @@ export default function NewOrder() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-card-bg border-border-subtle overflow-visible relative">
           <CardContent className="p-6 space-y-4">
-            <div className="flex justify-between items-center"><h2 className="text-lg font-semibold flex items-center gap-2"><MapPinned size={20} className="text-primary" /> Pickup Location</h2><Button variant="ghost" size="sm" onClick={() => setIsPickupModalOpen(true)} className="text-primary hover:bg-primary/10 exclude-tab"><Plus size={16} /></Button></div>
+            <div className="flex justify-between items-center"><h2 className="text-lg font-semibold flex items-center gap-2"><MapPinned size={20} className="text-primary" /> Pickup Location</h2><Button variant="ghost" type="button" size="sm" onClick={() => setIsPickupModalOpen(true)} className="text-primary hover:bg-primary/10 exclude-tab"><Plus size={16} /></Button></div>
             <div className="relative">
-                {selectedAddress ? (
+                {selectedAddress?.id ? (
                   <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center">
                     <div className="cursor-pointer flex-1" onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)}>
                         <p className="font-bold text-sm">{selectedAddress.nickname}</p>
                         <p className="text-xs text-text-muted">{selectedAddress.city} - {selectedAddress.pincode}</p>
                     </div>
                     <div className="flex gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => { setPickupForm(selectedAddress); setIsPickupModalOpen(true); }} className="h-8 w-8 p-0 text-text-muted exclude-tab"><Edit3 size={14} /></Button>
-                        <Button variant="outline" size="sm" onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)} className="text-primary border-primary/20 h-8 exclude-tab">Change</Button>
+                        <Button variant="ghost" type="button" size="sm" onClick={() => { setPickupForm(selectedAddress); setIsPickupModalOpen(true); }} className="h-8 w-8 p-0 text-text-muted exclude-tab"><Edit3 size={14} /></Button>
+                        <Button variant="outline" type="button" size="sm" onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)} className="text-primary border-primary/20 h-8 exclude-tab">Change</Button>
                     </div>
                   </div>
                 ) : <div onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)} className="w-full border-2 border-dashed border-border-subtle rounded-xl py-8 flex flex-col items-center text-text-muted cursor-pointer hover:border-primary/40"><MapPin size={32} className="mb-2 opacity-50" /><p className="text-sm font-medium">Select Pickup</p></div>}
@@ -404,7 +414,7 @@ export default function NewOrder() {
                       </div>
                     </div>
                     <div className="overflow-y-auto max-h-60 custom-scrollbar">
-                      {pickupAddresses?.length > 0 ? pickupAddresses.map(a => (
+                      {(pickupAddresses || []).length > 0 ? pickupAddresses.map(a => (
                         <div key={a.id} onClick={() => { dispatch(setSelectedAddress(a)); setIsAddressDropdownOpen(false); }} className="p-4 hover:bg-primary/10 cursor-pointer text-sm border-b border-border-subtle/10 last:border-0">
                           <p className="font-bold">{a.nickname}</p><p className="text-[11px] text-text-muted">{a.city}, {a.pincode}</p>
                         </div>
@@ -419,17 +429,17 @@ export default function NewOrder() {
 
         <Card className="bg-card-bg border-border-subtle overflow-visible relative">
           <CardContent className="p-6 space-y-4">
-            <div className="flex justify-between items-center"><h2 className="text-lg font-semibold flex items-center gap-2"><User size={20} className="text-primary" /> Deliver To</h2><Button variant="ghost" size="sm" onClick={() => setIsConsigneeModalOpen(true)} className="text-primary hover:bg-primary/10 exclude-tab"><Plus size={16} /></Button></div>
+            <div className="flex justify-between items-center"><h2 className="text-lg font-semibold flex items-center gap-2"><User size={20} className="text-primary" /> Deliver To</h2><Button variant="ghost" type="button" size="sm" onClick={() => setIsConsigneeModalOpen(true)} className="text-primary hover:bg-primary/10 exclude-tab"><Plus size={16} /></Button></div>
             <div className="relative">
                 {consigneeData?.id ? (
                   <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center">
                     <div className="cursor-pointer flex-1" onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)}>
-                        <p className="font-bold text-sm">{consigneeData.name}</p>
-                        <p className="text-xs text-text-muted">{consigneeData.city} - {consigneeData.mobile}</p>
+                        <p className="font-bold text-sm">{consigneeData.name || 'Unnamed'}</p>
+                        <p className="text-xs text-text-muted">{(consigneeData.city || '')} - {(consigneeData.mobile || '')}</p>
                     </div>
                     <div className="flex gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => { setConsigneeForm(consigneeData); setIsConsigneeModalOpen(true); }} className="h-8 w-8 p-0 text-text-muted exclude-tab"><Edit3 size={14} /></Button>
-                        <Button variant="outline" size="sm" onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)} className="text-primary border-primary/20 h-8 exclude-tab">Change</Button>
+                        <Button variant="ghost" type="button" size="sm" onClick={() => { setConsigneeForm(consigneeData); setIsConsigneeModalOpen(true); }} className="h-8 w-8 p-0 text-text-muted exclude-tab"><Edit3 size={14} /></Button>
+                        <Button variant="outline" type="button" size="sm" onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)} className="text-primary border-primary/20 h-8 exclude-tab">Change</Button>
                     </div>
                   </div>
                 ) : <div onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)} className="w-full border-2 border-dashed border-border-subtle rounded-xl py-8 flex flex-col items-center text-text-muted cursor-pointer hover:border-primary/40"><User size={32} className="mb-2 opacity-50" /><p className="text-sm font-medium">Select Consignee</p></div>}
@@ -445,7 +455,7 @@ export default function NewOrder() {
                       </div>
                     </div>
                     <div className="overflow-y-auto max-h-60 custom-scrollbar">
-                      {consignees?.length > 0 ? consignees.map(c => (
+                      {(consignees || []).length > 0 ? consignees.map(c => (
                         <div key={c.id} onClick={() => { setConsigneeData(c); setIsConsigneeDropdownOpen(false); }} className="p-4 hover:bg-primary/10 cursor-pointer text-sm border-b border-border-subtle/10 last:border-0">
                           <p className="font-bold">{c.name}</p><p className="text-[11px] text-text-muted">{c.mobile} | {c.city}</p>
                         </div>
@@ -528,7 +538,7 @@ export default function NewOrder() {
               <div className="text-center"><p className="text-[10px] font-bold text-text-muted uppercase">Vol</p><p className="text-sm font-bold text-green-500">{weightSummary.total_vol_weight_kg} kg</p></div>
             </div>
           </div>
-          {packages?.map((pkg, idx) => (
+          {(packages || []).map((pkg, idx) => (
             <div key={pkg.id} className="grid grid-cols-2 md:grid-cols-7 gap-4 items-end border-b border-border-subtle pb-6 last:border-0">
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">L (cm)</label><input type="number" value={pkg.length_cm} onChange={(e) => setPackages(packages.map(p => p.id === pkg.id ? {...p, length_cm: e.target.value, row_vol_weight: ((e.target.value * p.breadth_cm * p.height_cm) / 2700).toFixed(3)} : p))} className={inputClass} /></div>
               <div className="space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">B (cm)</label><input type="number" value={pkg.breadth_cm} onChange={(e) => setPackages(packages.map(p => p.id === pkg.id ? {...p, breadth_cm: e.target.value, row_vol_weight: ((p.length_cm * e.target.value * p.height_cm) / 2700).toFixed(3)} : p))} className={inputClass} /></div>
@@ -543,10 +553,10 @@ export default function NewOrder() {
                   </select>
                 </div>
               </div>
-              <div className="flex justify-end"><Button variant="destructive" size="icon" className="exclude-tab" onClick={() => setPackages(packages.filter(i => i.id !== pkg.id))}><Trash2 size={16} /></Button></div>
+              <div className="flex justify-end"><Button variant="destructive" type="button" size="icon" className="exclude-tab" onClick={() => setPackages(packages.filter(i => i.id !== pkg.id))}><Trash2 size={16} /></Button></div>
             </div>
           ))}
-          <Button variant="outline" size="sm" onClick={() => setPackages([...packages, { id: Date.now() + Math.random(), count: 1, length_cm: 0, breadth_cm: 0, height_cm: 0, weight_unit: "kg", weight_value: "", row_vol_weight: 0 }])} className="border-primary text-primary hover:bg-primary/10 exclude-tab"><Plus size={16} className="mr-2" /> Add Package</Button>
+          <Button variant="outline" type="button" size="sm" onClick={() => setPackages([...packages, { id: Date.now() + Math.random(), count: 1, length_cm: 0, breadth_cm: 0, height_cm: 0, weight_unit: "kg", weight_value: "", row_vol_weight: 0 }])} className="border-primary text-primary hover:bg-primary/10 exclude-tab"><Plus size={16} className="mr-2" /> Add Package</Button>
         </CardContent>
       </Card>
 
@@ -554,20 +564,20 @@ export default function NewOrder() {
       <Card className="bg-card-bg border-border-subtle">
         <CardContent className="p-6 space-y-6">
           <div className="flex justify-between items-center"><h2 className="text-lg font-semibold">Product Details</h2><div className="bg-primary/10 px-4 py-2 rounded-lg border border-primary/20"><span className="text-lg font-bold text-primary">₹{Number(totalOrderValue).toFixed(2)}</span></div></div>
-          {products?.map(p => (
+          {(products || []).map(p => (
             <div key={p.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-dashboard-bg/20 p-4 rounded-xl border border-border-subtle">
               <div className="md:col-span-4 space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase ml-1">Item Name</label><input type="text" value={p.product_name} onChange={(e) => setProducts(products.map(pr => pr.id === p.id ? {...pr, product_name: e.target.value} : pr))} className={inputClass} /></div>
               <div className="md:col-span-3 space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase ml-1">Package Assignment</label>
                   <select value={p.package_index} onChange={(e) => setProducts(products.map(pr => pr.id === p.id ? {...pr, package_index: e.target.value} : pr))} className={cn(inputClass, "bg-dashboard-bg cursor-pointer")}>
-                    {packages?.map((_, i) => <option key={i+1} value={i+1}>Package {i+1}</option>)}
+                    {(packages || []).map((_, i) => <option key={i+1} value={i+1}>Package {i+1}</option>)}
                   </select>
               </div>
               <div className="md:col-span-2 space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">Invoice Price</label><input type="number" value={p.unit_price} onChange={(e) => setProducts(products.map(pr => pr.id === p.id ? {...pr, unit_price: e.target.value, total: (Number(e.target.value) * Number(pr.qty))} : pr))} className={inputClass} /></div>
               <div className="md:col-span-2 space-y-1"><label className="text-[10px] font-bold text-text-muted uppercase">Qty</label><input type="number" value={p.qty} onChange={(e) => setProducts(products.map(pr => pr.id === p.id ? {...pr, qty: e.target.value, total: (Number(pr.unit_price) * Number(e.target.value))} : pr))} className={inputClass} /></div>
-              <div className="md:col-span-1 flex justify-end"><Button variant="destructive" size="icon" className="exclude-tab" onClick={() => setProducts(products.filter(i => i.id !== p.id))}><Trash2 size={16} /></Button></div>
+              <div className="md:col-span-1 flex justify-end"><Button variant="destructive" type="button" size="icon" className="exclude-tab" onClick={() => setProducts(products.filter(i => i.id !== p.id))}><Trash2 size={16} /></Button></div>
             </div>
           ))}
-          <Button variant="outline" size="sm" onClick={() => setProducts([...products, { id: Date.now() + Math.random(), product_name: "", sku: generateSKU(), unit_price: "", qty: 1, total: 0, package_index: 1 }])} className="border-primary text-primary hover:bg-primary/10 exclude-tab"><Plus size={16} className="mr-2" /> Add Item</Button>
+          <Button variant="outline" type="button" size="sm" onClick={() => setProducts([...products, { id: Date.now() + Math.random(), product_name: "", sku: generateSKU(), unit_price: "", qty: 1, total: 0, package_index: 1 }])} className="border-primary text-primary hover:bg-primary/10 exclude-tab"><Plus size={16} className="mr-2" /> Add Item</Button>
         </CardContent>
       </Card>
 
