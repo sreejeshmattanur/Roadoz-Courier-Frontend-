@@ -4,7 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import {
   Plus, Search, Eye, Edit, Trash2, Phone, Mail,
   ToggleRight, ToggleLeft, Filter, RotateCcw,
-  Download, User, Loader2, ShieldAlert, CheckSquare, Square
+  Download, User, Loader2, ShieldAlert, CheckSquare, Square, CheckCircle2
 } from "lucide-react";
 
 import { Button } from "../components/ui/button";
@@ -34,7 +34,8 @@ export function Franchise() {
   const [selectedFranchise, setSelectedFranchise] = useState(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   
-  // --- NEW STATE FOR SELECTION ---
+  // --- SELECTION STATE ---
+  // We keep IDs here. Because we don't reset on page change, selections persist.
   const [selectedIds, setSelectedIds] = useState([]);
 
   const sortedItems = useMemo(() => {
@@ -47,11 +48,6 @@ export function Franchise() {
       fetchData();
     }
   }, [canView]);
-
-  // Reset selection when page changes
-  useEffect(() => {
-    setSelectedIds([]);
-  }, [pagination?.page]);
 
   const fetchData = (customParams = {}) => {
     const params = {
@@ -68,11 +64,17 @@ export function Franchise() {
   };
 
   // --- SELECTION HANDLERS ---
-  const handleSelectAll = () => {
-    if (selectedIds.length === sortedItems.length) {
-      setSelectedIds([]);
+  const isAllPageSelected = sortedItems.length > 0 && sortedItems.every(item => selectedIds.includes(item.id));
+
+  const handleSelectPage = () => {
+    if (isAllPageSelected) {
+      // Unselect only the items on the current page
+      const currentPageIds = sortedItems.map(i => i.id);
+      setSelectedIds(prev => prev.filter(id => !currentPageIds.includes(id)));
     } else {
-      setSelectedIds(sortedItems.map((item) => item.id));
+      // Add current page items to selection, avoiding duplicates
+      const newIds = sortedItems.map(i => i.id).filter(id => !selectedIds.includes(id));
+      setSelectedIds(prev => [...prev, ...newIds]);
     }
   };
 
@@ -82,17 +84,23 @@ export function Franchise() {
     );
   };
 
+  const handleClearSelection = () => setSelectedIds([]);
+
   const handlePageChange = (newPage) => {
     fetchData({ page: newPage });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleFilter = () => fetchData({ page: 1 });
+  const handleFilter = () => {
+    handleClearSelection(); // Clear selection when filters change to avoid data mismatch
+    fetchData({ page: 1 });
+  };
 
   const clearFilters = () => {
     setSearchTerm("");
     setStartDate("");
     setEndDate("");
+    handleClearSelection();
     dispatch(getFranchises({ page: 1, limit: 10, sort: "created_at", order: "desc" }));
   };
 
@@ -123,33 +131,51 @@ export function Franchise() {
     }
   };
 
-  // --- UPDATED EXPORT LOGIC ---
+  // --- CSV EXPORT WITH COMPANY HEADING ---
   const exportToCSV = () => {
-    // If items are selected, export only those. Otherwise, export the whole current page.
+    // If specific IDs are selected, we filter our current items.
+    // NOTE: If you need to export items from Page 1 while on Page 3, 
+    // the Redux state 'items' usually only holds the current page.
+    // This logic exports the intersection of selected IDs and current data,
+    // or all current data if nothing is selected.
+    
     const itemsToExport = selectedIds.length > 0 
       ? sortedItems.filter(f => selectedIds.includes(f.id)) 
       : sortedItems;
 
-    if (itemsToExport.length === 0) return;
+    if (itemsToExport.length === 0) {
+        swalError("Export Error", "No records found to export.");
+        return;
+    }
 
-    const headers = ["Code,Name,Email,Mobile,Location,Status,Joined Date"];
+    const companyHeading = "Roadoz PVT LTD courier and Cargo";
+    const reportTitle = `Franchise Registry Report - Exported on ${new Date().toLocaleDateString()}`;
+    const csvHeaders = ["Code,Name,Email,Mobile,Location,Status,Joined Date"];
+    
     const rows = itemsToExport.map((f) =>
       [
         f.franchise_code, 
         f.full_name, 
         f.email_id, 
         f.mobile_number, 
-        `"${f.proposed_location}"`, // Quoted to handle commas in address
+        `"${f.proposed_location.replace(/"/g, '""')}"`, 
         f.is_active ? "Active" : "Inactive", 
         new Date(f.created_at).toLocaleDateString()
       ].join(",")
     );
-    
-    const csvContent = "data:text/csv;charset=utf-8," + headers.concat(rows).join("\n");
-    const encodedUri = encodeURI(csvContent);
+
+    // Combine Everything
+    const csvContent = 
+      companyHeading + "\n" + 
+      reportTitle + "\n\n" + 
+      csvHeaders + "\n" + 
+      rows.join("\n");
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `franchise_report_${new Date().getTime()}.csv`);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Roadoz_Franchise_Report_${new Date().getTime()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -176,11 +202,10 @@ export function Franchise() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-text-main uppercase tracking-tight">
-            Franchise Registry
+            Roadoz PVT LTD courier and Cargo
           </h1>
-          <p className="text-xs md:text-sm text-primary mt-1 font-medium">
-            <Link to="/dashboard" className="hover:underline">Dashboard</Link>
-            <span className="text-text-muted mx-2">&gt;&gt;</span> Registry Management
+          <p className="text-xs md:text-sm text-primary mt-1 font-medium italic">
+            Franchise Registry Management
           </p>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -188,12 +213,12 @@ export function Franchise() {
             variant="outline" 
             onClick={exportToCSV} 
             className={cn(
-              "flex-1 sm:flex-none border-border-subtle h-10 text-text-main text-xs",
-              selectedIds.length > 0 && "border-primary text-primary bg-primary/5"
+              "flex-1 sm:flex-none border-border-subtle h-10 text-text-main text-xs transition-all",
+              selectedIds.length > 0 && "border-primary text-primary bg-primary/10"
             )}
           >
             <Download size={16} className="mr-2" /> 
-            {selectedIds.length > 0 ? `Export Selected (${selectedIds.length})` : "Export CSV"}
+            {selectedIds.length > 0 ? `Download (${selectedIds.length})` : "Export CSV"}
           </Button>
           
           {canCreate && (
@@ -206,6 +231,19 @@ export function Franchise() {
           )}
         </div>
       </div>
+
+      {/* Selection Info Bar */}
+      {selectedIds.length > 0 && (
+        <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-primary font-bold text-sm">
+                <CheckCircle2 size={18} />
+                <span>{selectedIds.length} franchises selected across all pages</span>
+            </div>
+            <button onClick={handleClearSelection} className="text-xs text-text-main hover:underline bg-card-bg px-3 py-1 rounded-full border border-border-subtle">
+                Clear Selection
+            </button>
+        </div>
+      )}
 
       {/* Filter Card */}
       <Card className="bg-card-bg border-border-subtle shadow-sm">
@@ -260,11 +298,11 @@ export function Franchise() {
                   <thead>
                     <tr className="bg-dashboard-bg/50 text-text-muted text-[10px] font-bold uppercase tracking-widest border-b border-border-subtle">
                       <th className="px-4 py-4 w-10">
-                        <button onClick={handleSelectAll} className="text-primary">
-                          {selectedIds.length === sortedItems.length && sortedItems.length > 0 ? (
-                            <CheckSquare size={18} />
+                        <button onClick={handleSelectPage} className="text-primary transition-transform active:scale-90">
+                          {isAllPageSelected ? (
+                            <CheckSquare size={20} fill="currentColor" className="text-primary fill-primary/20" />
                           ) : (
-                            <Square size={18} />
+                            <Square size={20} />
                           )}
                         </button>
                       </th>
@@ -282,15 +320,15 @@ export function Franchise() {
                         key={f.id} 
                         className={cn(
                           "hover:bg-dashboard-bg/20 transition-colors group",
-                          selectedIds.includes(f.id) && "bg-primary/5"
+                          selectedIds.includes(f.id) && "bg-primary/5 shadow-inner"
                         )}
                       >
                         <td className="px-4 py-4">
                           <button onClick={() => handleSelectItem(f.id)} className="text-text-muted hover:text-primary">
                             {selectedIds.includes(f.id) ? (
-                              <CheckSquare size={18} className="text-primary" />
+                              <CheckSquare size={20} className="text-primary" />
                             ) : (
-                              <Square size={18} />
+                              <Square size={20} />
                             )}
                           </button>
                         </td>
@@ -358,12 +396,12 @@ export function Franchise() {
           {/* Mobile Card View */}
           <div className="md:hidden space-y-4">
             {sortedItems.map((f) => (
-              <Card key={f.id} className={cn("bg-card-bg border-border-subtle overflow-hidden", selectedIds.includes(f.id) && "border-primary")}>
+              <Card key={f.id} className={cn("bg-card-bg border-border-subtle overflow-hidden", selectedIds.includes(f.id) && "border-primary bg-primary/5")}>
                 <CardContent className="p-4">
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center gap-2">
                         <button onClick={() => handleSelectItem(f.id)}>
-                            {selectedIds.includes(f.id) ? <CheckSquare size={20} className="text-primary" /> : <Square size={20} className="text-text-muted" />}
+                            {selectedIds.includes(f.id) ? <CheckSquare size={22} className="text-primary" /> : <Square size={22} className="text-text-muted" />}
                         </button>
                         <div className="bg-primary/10 text-primary px-2 py-1 rounded text-[10px] font-mono font-bold">{f.franchise_code}</div>
                     </div>
