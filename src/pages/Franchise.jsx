@@ -34,9 +34,9 @@ export function Franchise() {
   const [selectedFranchise, setSelectedFranchise] = useState(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   
-  // --- SELECTION STATE ---
-  // We keep IDs here. Because we don't reset on page change, selections persist.
-  const [selectedIds, setSelectedIds] = useState([]);
+  // --- UPDATED SELECTION STATE ---
+  // Storing whole objects instead of just IDs to persist data across pages
+  const [selectedItems, setSelectedItems] = useState([]);
 
   const sortedItems = useMemo(() => {
     if (!items) return [];
@@ -63,28 +63,38 @@ export function Franchise() {
     dispatch(getFranchises(params));
   };
 
-  // --- SELECTION HANDLERS ---
-  const isAllPageSelected = sortedItems.length > 0 && sortedItems.every(item => selectedIds.includes(item.id));
+  // --- UPDATED SELECTION HANDLERS ---
+  const isAllPageSelected = sortedItems.length > 0 && sortedItems.every(item => 
+    selectedItems.some(s => s.id === item.id)
+  );
 
   const handleSelectPage = () => {
     if (isAllPageSelected) {
-      // Unselect only the items on the current page
+      // Remove all items from current page from the selected list
       const currentPageIds = sortedItems.map(i => i.id);
-      setSelectedIds(prev => prev.filter(id => !currentPageIds.includes(id)));
+      setSelectedItems(prev => prev.filter(item => !currentPageIds.includes(item.id)));
     } else {
-      // Add current page items to selection, avoiding duplicates
-      const newIds = sortedItems.map(i => i.id).filter(id => !selectedIds.includes(id));
-      setSelectedIds(prev => [...prev, ...newIds]);
+      // Add items from current page that aren't already selected
+      setSelectedItems(prev => {
+        const existingIds = prev.map(p => p.id);
+        const newItems = sortedItems.filter(item => !existingIds.includes(item.id));
+        return [...prev, ...newItems];
+      });
     }
   };
 
-  const handleSelectItem = (id) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id]
-    );
+  const handleSelectItem = (franchise) => {
+    setSelectedItems((prev) => {
+      const isSelected = prev.some(item => item.id === franchise.id);
+      if (isSelected) {
+        return prev.filter(item => item.id !== franchise.id);
+      } else {
+        return [...prev, franchise];
+      }
+    });
   };
 
-  const handleClearSelection = () => setSelectedIds([]);
+  const handleClearSelection = () => setSelectedItems([]);
 
   const handlePageChange = (newPage) => {
     fetchData({ page: newPage });
@@ -92,7 +102,7 @@ export function Franchise() {
   };
 
   const handleFilter = () => {
-    handleClearSelection(); // Clear selection when filters change to avoid data mismatch
+    handleClearSelection();
     fetchData({ page: 1 });
   };
 
@@ -110,6 +120,8 @@ export function Franchise() {
     if (res.isConfirmed) {
       try {
         await dispatch(deleteFranchise(id)).unwrap();
+        // Remove from selection if deleted
+        setSelectedItems(prev => prev.filter(i => i.id !== id));
         swalSuccess("Deleted", "Franchise removed successfully.");
       } catch (err) {
         swalError("Error", err || "Failed to delete record.");
@@ -131,16 +143,12 @@ export function Franchise() {
     }
   };
 
-  // --- CSV EXPORT WITH COMPANY HEADING ---
+  // --- FIXED CSV EXPORT ---
   const exportToCSV = () => {
-    // If specific IDs are selected, we filter our current items.
-    // NOTE: If you need to export items from Page 1 while on Page 3, 
-    // the Redux state 'items' usually only holds the current page.
-    // This logic exports the intersection of selected IDs and current data,
-    // or all current data if nothing is selected.
-    
-    const itemsToExport = selectedIds.length > 0 
-      ? sortedItems.filter(f => selectedIds.includes(f.id)) 
+    // Priority: If items are checked, export the accumulated selectedItems.
+    // Otherwise, export only the current page items.
+    const itemsToExport = selectedItems.length > 0 
+      ? selectedItems 
       : sortedItems;
 
     if (itemsToExport.length === 0) {
@@ -149,7 +157,8 @@ export function Franchise() {
     }
 
     const companyHeading = "Roadoz PVT LTD courier and Cargo";
-    const reportTitle = `Franchise Registry Report - Exported on ${new Date().toLocaleDateString()}`;
+    const reportTitle = `Franchise Registry Report - Total Records: ${itemsToExport.length}`;
+    const dateExported = `Exported on: ${new Date().toLocaleString()}`;
     const csvHeaders = ["Code,Name,Email,Mobile,Location,Status,Joined Date"];
     
     const rows = itemsToExport.map((f) =>
@@ -158,16 +167,17 @@ export function Franchise() {
         f.full_name, 
         f.email_id, 
         f.mobile_number, 
-        `"${f.proposed_location.replace(/"/g, '""')}"`, 
+        `"${f.proposed_location?.replace(/"/g, '""') || ''}"`, // Handle commas in address
         f.is_active ? "Active" : "Inactive", 
         new Date(f.created_at).toLocaleDateString()
       ].join(",")
     );
 
-    // Combine Everything
+    // Combine everything into the CSV string
     const csvContent = 
       companyHeading + "\n" + 
-      reportTitle + "\n\n" + 
+      reportTitle + "\n" + 
+      dateExported + "\n\n" + 
       csvHeaders + "\n" + 
       rows.join("\n");
 
@@ -175,7 +185,7 @@ export function Franchise() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `Roadoz_Franchise_Report_${new Date().getTime()}.csv`);
+    link.setAttribute("download", `Roadoz_Franchise_List.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -214,11 +224,11 @@ export function Franchise() {
             onClick={exportToCSV} 
             className={cn(
               "flex-1 sm:flex-none border-border-subtle h-10 text-text-main text-xs transition-all",
-              selectedIds.length > 0 && "border-primary text-primary bg-primary/10"
+              selectedItems.length > 0 && "border-primary text-primary bg-primary/10"
             )}
           >
             <Download size={16} className="mr-2" /> 
-            {selectedIds.length > 0 ? `Download (${selectedIds.length})` : "Export CSV"}
+            {selectedItems.length > 0 ? `Download (${selectedItems.length})` : "Export CSV"}
           </Button>
           
           {canCreate && (
@@ -233,14 +243,14 @@ export function Franchise() {
       </div>
 
       {/* Selection Info Bar */}
-      {selectedIds.length > 0 && (
-        <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 flex items-center justify-between">
+      {selectedItems.length > 0 && (
+        <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
             <div className="flex items-center gap-2 text-primary font-bold text-sm">
                 <CheckCircle2 size={18} />
-                <span>{selectedIds.length} franchises selected across all pages</span>
+                <span>{selectedItems.length} items ready for export from all pages</span>
             </div>
             <button onClick={handleClearSelection} className="text-xs text-text-main hover:underline bg-card-bg px-3 py-1 rounded-full border border-border-subtle">
-                Clear Selection
+                Clear All
             </button>
         </div>
       )}
@@ -300,7 +310,7 @@ export function Franchise() {
                       <th className="px-4 py-4 w-10">
                         <button onClick={handleSelectPage} className="text-primary transition-transform active:scale-90">
                           {isAllPageSelected ? (
-                            <CheckSquare size={20} fill="currentColor" className="text-primary fill-primary/20" />
+                            <CheckSquare size={20} className="text-primary fill-primary/20" />
                           ) : (
                             <Square size={20} />
                           )}
@@ -315,77 +325,80 @@ export function Franchise() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-subtle">
-                    {sortedItems.map((f) => (
-                      <tr 
-                        key={f.id} 
-                        className={cn(
-                          "hover:bg-dashboard-bg/20 transition-colors group",
-                          selectedIds.includes(f.id) && "bg-primary/5 shadow-inner"
-                        )}
-                      >
-                        <td className="px-4 py-4">
-                          <button onClick={() => handleSelectItem(f.id)} className="text-text-muted hover:text-primary">
-                            {selectedIds.includes(f.id) ? (
-                              <CheckSquare size={20} className="text-primary" />
-                            ) : (
-                              <Square size={20} />
-                            )}
-                          </button>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="font-mono font-bold text-primary text-xs">{f.franchise_code}</div>
-                          <div className="text-[9px] text-text-muted mt-0.5">{new Date(f.created_at).toLocaleDateString()}</div>
-                        </td>
-                        <td className="px-6 py-4 font-bold text-sm text-text-main">{f.full_name}</td>
-                        <td className="px-6 py-4 space-y-1">
-                          <div className="flex items-center gap-1.5 text-[11px] text-text-muted"><Mail size={12} className="text-primary/70" /> {f.email_id}</div>
-                          <div className="flex items-center gap-1.5 text-[11px] text-text-muted"><Phone size={12} className="text-primary/70" /> {f.mobile_number}</div>
-                        </td>
-                        <td className="px-6 py-4 font-bold text-xs text-text-main uppercase">{f.proposed_location}</td>
-                        <td className="px-6 py-4">
-                          {canEdit ? (
-                            <button onClick={() => handleToggleStatus(f)}>
-                              {f.is_active ? <ToggleRight className="text-green-500" size={28} /> : <ToggleLeft className="text-text-muted/50" size={28} />}
-                            </button>
-                          ) : (
-                            <span className={cn("text-[10px] px-2 py-1 rounded font-bold", f.is_active ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500")}>
-                               {f.is_active ? "ACTIVE" : "INACTIVE"}
-                            </span>
+                    {sortedItems.map((f) => {
+                      const isSelected = selectedItems.some(item => item.id === f.id);
+                      return (
+                        <tr 
+                          key={f.id} 
+                          className={cn(
+                            "hover:bg-dashboard-bg/20 transition-colors group",
+                            isSelected && "bg-primary/5 shadow-inner"
                           )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex justify-center items-center gap-2">
-                            {canView && (
-                              <button 
-                                onClick={() => { setSelectedFranchise(f); setIsDetailsOpen(true); }} 
-                                className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md"
-                                title="View Details"
-                              >
-                                <Eye size={16} />
+                        >
+                          <td className="px-4 py-4">
+                            <button onClick={() => handleSelectItem(f)} className="text-text-muted hover:text-primary">
+                              {isSelected ? (
+                                <CheckSquare size={20} className="text-primary" />
+                              ) : (
+                                <Square size={20} />
+                              )}
+                            </button>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="font-mono font-bold text-primary text-xs">{f.franchise_code}</div>
+                            <div className="text-[9px] text-text-muted mt-0.5">{new Date(f.created_at).toLocaleDateString()}</div>
+                          </td>
+                          <td className="px-6 py-4 font-bold text-sm text-text-main">{f.full_name}</td>
+                          <td className="px-6 py-4 space-y-1">
+                            <div className="flex items-center gap-1.5 text-[11px] text-text-muted"><Mail size={12} className="text-primary/70" /> {f.email_id}</div>
+                            <div className="flex items-center gap-1.5 text-[11px] text-text-muted"><Phone size={12} className="text-primary/70" /> {f.mobile_number}</div>
+                          </td>
+                          <td className="px-6 py-4 font-bold text-xs text-text-main uppercase">{f.proposed_location}</td>
+                          <td className="px-6 py-4">
+                            {canEdit ? (
+                              <button onClick={() => handleToggleStatus(f)}>
+                                {f.is_active ? <ToggleRight className="text-green-500" size={28} /> : <ToggleLeft className="text-text-muted/50" size={28} />}
                               </button>
+                            ) : (
+                              <span className={cn("text-[10px] px-2 py-1 rounded font-bold", f.is_active ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500")}>
+                                 {f.is_active ? "ACTIVE" : "INACTIVE"}
+                              </span>
                             )}
-                            {canEdit && (
-                              <button 
-                                onClick={() => navigate(`/dashboard/franchise/edit/${f.id}`)} 
-                                className="w-8 h-8 flex items-center justify-center text-primary bg-primary/10 border border-primary/20 rounded-lg hover:bg-primary/20"
-                                title="Edit"
-                              >
-                                <Edit size={16} />
-                              </button>
-                            )}
-                            {canDelete && (
-                              <button 
-                                onClick={() => handleDelete(f.id)} 
-                                className="w-8 h-8 flex items-center justify-center text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-500/20"
-                                title="Delete"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex justify-center items-center gap-2">
+                              {canView && (
+                                <button 
+                                  onClick={() => { setSelectedFranchise(f); setIsDetailsOpen(true); }} 
+                                  className="p-1.5 border border-primary/40 text-primary hover:bg-primary/10 rounded-md"
+                                  title="View Details"
+                                >
+                                  <Eye size={16} />
+                                </button>
+                              )}
+                              {canEdit && (
+                                <button 
+                                  onClick={() => navigate(`/dashboard/franchise/edit/${f.id}`)} 
+                                  className="w-8 h-8 flex items-center justify-center text-primary bg-primary/10 border border-primary/20 rounded-lg hover:bg-primary/20"
+                                  title="Edit"
+                                >
+                                  <Edit size={16} />
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button 
+                                  onClick={() => handleDelete(f.id)} 
+                                  className="w-8 h-8 flex items-center justify-center text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-500/20"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -395,50 +408,53 @@ export function Franchise() {
 
           {/* Mobile Card View */}
           <div className="md:hidden space-y-4">
-            {sortedItems.map((f) => (
-              <Card key={f.id} className={cn("bg-card-bg border-border-subtle overflow-hidden", selectedIds.includes(f.id) && "border-primary bg-primary/5")}>
-                <CardContent className="p-4">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-2">
-                        <button onClick={() => handleSelectItem(f.id)}>
-                            {selectedIds.includes(f.id) ? <CheckSquare size={22} className="text-primary" /> : <Square size={22} className="text-text-muted" />}
-                        </button>
-                        <div className="bg-primary/10 text-primary px-2 py-1 rounded text-[10px] font-mono font-bold">{f.franchise_code}</div>
-                    </div>
-                    {canEdit && (
-                        <button onClick={() => handleToggleStatus(f)}>
-                            {f.is_active ? <ToggleRight className="text-green-500" size={28} /> : <ToggleLeft className="text-text-muted/50" size={28} />}
-                        </button>
-                    )}
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-dashboard-bg flex items-center justify-center text-primary border border-border-subtle"><User size={14} /></div>
-                      <div><p className="text-sm font-bold text-text-main">{f.full_name}</p></div>
+            {sortedItems.map((f) => {
+              const isSelected = selectedItems.some(item => item.id === f.id);
+              return (
+                <Card key={f.id} className={cn("bg-card-bg border-border-subtle overflow-hidden", isSelected && "border-primary bg-primary/5")}>
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex items-center gap-2">
+                          <button onClick={() => handleSelectItem(f)}>
+                              {isSelected ? <CheckSquare size={22} className="text-primary" /> : <Square size={22} className="text-text-muted" />}
+                          </button>
+                          <div className="bg-primary/10 text-primary px-2 py-1 rounded text-[10px] font-mono font-bold">{f.franchise_code}</div>
+                      </div>
+                      {canEdit && (
+                          <button onClick={() => handleToggleStatus(f)}>
+                              {f.is_active ? <ToggleRight className="text-green-500" size={28} /> : <ToggleLeft className="text-text-muted/50" size={28} />}
+                          </button>
+                      )}
                     </div>
 
-                    <div className="flex items-center justify-between pt-2 border-t border-border-subtle">
-                      <div className="flex flex-col">
-                        <span className="text-[9px] text-text-muted uppercase font-bold">Joined On</span>
-                        <span className="text-[11px] font-mono text-text-main">{new Date(f.created_at).toLocaleDateString()}</span>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-dashboard-bg flex items-center justify-center text-primary border border-border-subtle"><User size={14} /></div>
+                        <div><p className="text-sm font-bold text-text-main">{f.full_name}</p></div>
                       </div>
-                      <div className="flex gap-2">
-                        {canView && (
-                          <button onClick={() => { setSelectedFranchise(f); setIsDetailsOpen(true); }} className="p-2 bg-dashboard-bg border border-border-subtle text-primary rounded-lg"><Eye size={16} /></button>
-                        )}
-                        {canEdit && (
-                          <button onClick={() => navigate(`/dashboard/franchise/edit/${f.id}`)} className="p-2 bg-primary/10 border border-primary/20 text-primary rounded-lg"><Edit size={16} /></button>
-                        )}
-                        {canDelete && (
-                          <button onClick={() => handleDelete(f.id)} className="p-2 bg-red-500/10 border border-red-500/20 text-red-500 rounded-lg"><Trash2 size={16} /></button>
-                        )}
+
+                      <div className="flex items-center justify-between pt-2 border-t border-border-subtle">
+                        <div className="flex flex-col">
+                          <span className="text-[9px] text-text-muted uppercase font-bold">Joined On</span>
+                          <span className="text-[11px] font-mono text-text-main">{new Date(f.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex gap-2">
+                          {canView && (
+                            <button onClick={() => { setSelectedFranchise(f); setIsDetailsOpen(true); }} className="p-2 bg-dashboard-bg border border-border-subtle text-primary rounded-lg"><Eye size={16} /></button>
+                          )}
+                          {canEdit && (
+                            <button onClick={() => navigate(`/dashboard/franchise/edit/${f.id}`)} className="p-2 bg-primary/10 border border-primary/20 text-primary rounded-lg"><Edit size={16} /></button>
+                          )}
+                          {canDelete && (
+                            <button onClick={() => handleDelete(f.id)} className="p-2 bg-red-500/10 border border-red-500/20 text-red-500 rounded-lg"><Trash2 size={16} /></button>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
             {sortedItems.length > 0 && (
               <Pagination currentPage={pagination.page} totalPages={pagination.pages} totalEntries={pagination.total} limit={pagination.limit} onPageChange={handlePageChange} />
             )}
