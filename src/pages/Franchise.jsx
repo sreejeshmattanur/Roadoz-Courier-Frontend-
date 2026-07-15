@@ -4,7 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import {
   Plus, Search, Eye, Edit, Trash2, Phone, Mail,
   ToggleRight, ToggleLeft, Filter, RotateCcw,
-  Download, User, Loader2, ShieldAlert
+  Download, User, Loader2, ShieldAlert, CheckSquare, Square
 } from "lucide-react";
 
 import { Button } from "../components/ui/button";
@@ -33,6 +33,9 @@ export function Franchise() {
   const [endDate, setEndDate] = useState("");
   const [selectedFranchise, setSelectedFranchise] = useState(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  
+  // --- NEW STATE FOR SELECTION ---
+  const [selectedIds, setSelectedIds] = useState([]);
 
   const sortedItems = useMemo(() => {
     if (!items) return [];
@@ -40,11 +43,15 @@ export function Franchise() {
   }, [items]);
 
   useEffect(() => {
-    // Only fetch if the user has permission to view the listing
     if (canView) {
       fetchData();
     }
   }, [canView]);
+
+  // Reset selection when page changes
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [pagination?.page]);
 
   const fetchData = (customParams = {}) => {
     const params = {
@@ -58,6 +65,21 @@ export function Franchise() {
       ...customParams,
     };
     dispatch(getFranchises(params));
+  };
+
+  // --- SELECTION HANDLERS ---
+  const handleSelectAll = () => {
+    if (selectedIds.length === sortedItems.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(sortedItems.map((item) => item.id));
+    }
+  };
+
+  const handleSelectItem = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id]
+    );
   };
 
   const handlePageChange = (newPage) => {
@@ -101,23 +123,38 @@ export function Franchise() {
     }
   };
 
+  // --- UPDATED EXPORT LOGIC ---
   const exportToCSV = () => {
-    if (sortedItems.length === 0) return;
+    // If items are selected, export only those. Otherwise, export the whole current page.
+    const itemsToExport = selectedIds.length > 0 
+      ? sortedItems.filter(f => selectedIds.includes(f.id)) 
+      : sortedItems;
+
+    if (itemsToExport.length === 0) return;
+
     const headers = ["Code,Name,Email,Mobile,Location,Status,Joined Date"];
-    const rows = sortedItems.map((f) =>
-      [f.franchise_code, f.full_name, f.email_id, f.mobile_number, f.proposed_location, f.is_active ? "Active" : "Inactive", new Date(f.created_at).toLocaleDateString()].join(",")
+    const rows = itemsToExport.map((f) =>
+      [
+        f.franchise_code, 
+        f.full_name, 
+        f.email_id, 
+        f.mobile_number, 
+        `"${f.proposed_location}"`, // Quoted to handle commas in address
+        f.is_active ? "Active" : "Inactive", 
+        new Date(f.created_at).toLocaleDateString()
+      ].join(",")
     );
+    
     const csvContent = "data:text/csv;charset=utf-8," + headers.concat(rows).join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `franchise_report.csv`);
+    link.setAttribute("download", `franchise_report_${new Date().getTime()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // UI GUARD: If the user doesn't have franchises:view, show Access Denied
   if (!canView) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
@@ -147,11 +184,18 @@ export function Franchise() {
           </p>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Button variant="outline" onClick={exportToCSV} className="flex-1 sm:flex-none border-border-subtle h-10 text-text-main text-xs">
-            <Download size={16} className="mr-2" /> Export CSV
+          <Button 
+            variant="outline" 
+            onClick={exportToCSV} 
+            className={cn(
+              "flex-1 sm:flex-none border-border-subtle h-10 text-text-main text-xs",
+              selectedIds.length > 0 && "border-primary text-primary bg-primary/5"
+            )}
+          >
+            <Download size={16} className="mr-2" /> 
+            {selectedIds.length > 0 ? `Export Selected (${selectedIds.length})` : "Export CSV"}
           </Button>
           
-          {/* ONLY SHOW ADD BUTTON IF USER HAS franchises:create */}
           {canCreate && (
             <Button
               onClick={() => navigate("/dashboard/franchise/add")}
@@ -215,6 +259,15 @@ export function Franchise() {
                 <table className="w-full text-left">
                   <thead>
                     <tr className="bg-dashboard-bg/50 text-text-muted text-[10px] font-bold uppercase tracking-widest border-b border-border-subtle">
+                      <th className="px-4 py-4 w-10">
+                        <button onClick={handleSelectAll} className="text-primary">
+                          {selectedIds.length === sortedItems.length && sortedItems.length > 0 ? (
+                            <CheckSquare size={18} />
+                          ) : (
+                            <Square size={18} />
+                          )}
+                        </button>
+                      </th>
                       <th className="px-6 py-4">Unique Code</th>
                       <th className="px-6 py-4">Applicant</th>
                       <th className="px-6 py-4">Contact Info</th>
@@ -225,7 +278,22 @@ export function Franchise() {
                   </thead>
                   <tbody className="divide-y divide-border-subtle">
                     {sortedItems.map((f) => (
-                      <tr key={f.id} className="hover:bg-dashboard-bg/20 transition-colors group">
+                      <tr 
+                        key={f.id} 
+                        className={cn(
+                          "hover:bg-dashboard-bg/20 transition-colors group",
+                          selectedIds.includes(f.id) && "bg-primary/5"
+                        )}
+                      >
+                        <td className="px-4 py-4">
+                          <button onClick={() => handleSelectItem(f.id)} className="text-text-muted hover:text-primary">
+                            {selectedIds.includes(f.id) ? (
+                              <CheckSquare size={18} className="text-primary" />
+                            ) : (
+                              <Square size={18} />
+                            )}
+                          </button>
+                        </td>
                         <td className="px-6 py-4">
                           <div className="font-mono font-bold text-primary text-xs">{f.franchise_code}</div>
                           <div className="text-[9px] text-text-muted mt-0.5">{new Date(f.created_at).toLocaleDateString()}</div>
@@ -237,7 +305,6 @@ export function Franchise() {
                         </td>
                         <td className="px-6 py-4 font-bold text-xs text-text-main uppercase">{f.proposed_location}</td>
                         <td className="px-6 py-4">
-                          {/* Only show Toggle if user has Edit permission, else static badge */}
                           {canEdit ? (
                             <button onClick={() => handleToggleStatus(f)}>
                               {f.is_active ? <ToggleRight className="text-green-500" size={28} /> : <ToggleLeft className="text-text-muted/50" size={28} />}
@@ -250,7 +317,6 @@ export function Franchise() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex justify-center items-center gap-2">
-                            {/* EYE ICON controlled by franchises:view */}
                             {canView && (
                               <button 
                                 onClick={() => { setSelectedFranchise(f); setIsDetailsOpen(true); }} 
@@ -260,8 +326,6 @@ export function Franchise() {
                                 <Eye size={16} />
                               </button>
                             )}
-                            
-                            {/* EDIT ICON controlled by franchises:edit */}
                             {canEdit && (
                               <button 
                                 onClick={() => navigate(`/dashboard/franchise/edit/${f.id}`)} 
@@ -271,8 +335,6 @@ export function Franchise() {
                                 <Edit size={16} />
                               </button>
                             )}
-
-                            {/* DELETE ICON controlled by franchises:delete */}
                             {canDelete && (
                               <button 
                                 onClick={() => handleDelete(f.id)} 
@@ -296,10 +358,15 @@ export function Franchise() {
           {/* Mobile Card View */}
           <div className="md:hidden space-y-4">
             {sortedItems.map((f) => (
-              <Card key={f.id} className="bg-card-bg border-border-subtle overflow-hidden">
+              <Card key={f.id} className={cn("bg-card-bg border-border-subtle overflow-hidden", selectedIds.includes(f.id) && "border-primary")}>
                 <CardContent className="p-4">
                   <div className="flex justify-between items-start mb-4">
-                    <div className="bg-primary/10 text-primary px-2 py-1 rounded text-[10px] font-mono font-bold">{f.franchise_code}</div>
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => handleSelectItem(f.id)}>
+                            {selectedIds.includes(f.id) ? <CheckSquare size={20} className="text-primary" /> : <Square size={20} className="text-text-muted" />}
+                        </button>
+                        <div className="bg-primary/10 text-primary px-2 py-1 rounded text-[10px] font-mono font-bold">{f.franchise_code}</div>
+                    </div>
                     {canEdit && (
                         <button onClick={() => handleToggleStatus(f)}>
                             {f.is_active ? <ToggleRight className="text-green-500" size={28} /> : <ToggleLeft className="text-text-muted/50" size={28} />}
