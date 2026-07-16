@@ -178,9 +178,9 @@ export default function NewOrder() {
           setPackages(editOrderData.packages.map(pkg => ({
             ...pkg, 
             id: Math.random(), 
-            weight_unit: "kg",
-            weight_value: pkg.physical_weight_kg !== undefined ? pkg.physical_weight_kg.toString() : "0", 
-            row_vol_weight: pkg.vol_weight_kg || 0
+            weight_unit: pkg.weight_unit || "kg",
+            weight_value: pkg.physical_weight !== undefined ? pkg.physical_weight.toString() : (pkg.physical_weight_kg?.toString() || "0"), 
+            row_vol_weight: pkg.vol_weight || pkg.vol_weight_kg || 0
           })));
         }
 
@@ -211,12 +211,11 @@ export default function NewOrder() {
   const handleSavePickupAddress = async () => {
     try {
       let result;
-      // Added safety check for ID
       if (pickupForm.id && pickupForm.id !== "") {
         result = await dispatch(updatePickupAddress({ id: pickupForm.id, data: pickupForm })).unwrap();
         toast.success("Pickup Address Updated Successfully!");
       } else {
-        const { id, ...createData } = pickupForm; // Remove empty ID if present
+        const { id, ...createData } = pickupForm;
         result = await dispatch(createPickupAddress(createData)).unwrap();
         toast.success("New Pickup Address Added!");
       }
@@ -233,12 +232,11 @@ export default function NewOrder() {
   const handleSaveConsigneeAddress = async () => {
     try {
       let result;
-      // Added safety check for ID to prevent 403 Forbidden
       if (consigneeForm.id && consigneeForm.id !== "") {
         result = await dispatch(updateConsignee({ id: consigneeForm.id, data: consigneeForm })).unwrap();
         toast.success("Delivery Address Updated!");
       } else {
-        const { id, ...createData } = consigneeForm; // Remove empty ID if present
+        const { id, ...createData } = consigneeForm;
         result = await dispatch(createConsignee(createData)).unwrap();
         toast.success("Delivery Address Added Successfully!");
       }
@@ -246,12 +244,15 @@ export default function NewOrder() {
       const newConsignee = result?.data || result;
       if (newConsignee && newConsignee.id) {
         setConsigneeData(newConsignee);
-      } else {
-        dispatch(fetchConsignees({ search: consigneeForm.mobile, page: 1, limit: 5 }));
       }
       
-      setIsConsigneeModalOpen(false);
-      setConsigneeForm({ name: "", mobile: "", alternate_mobile: "", email: "", address_line_1: "", address_line_2: "", pincode: "", city: "", state: "" });
+      // Safety: Added small timeout and reset logic for franchise desktops
+      setTimeout(() => {
+        setIsConsigneeModalOpen(false);
+        setConsigneeForm({ name: "", mobile: "", alternate_mobile: "", email: "", address_line_1: "", address_line_2: "", pincode: "", city: "", state: "" });
+        dispatch(fetchConsignees({ search: debouncedConsigneeSearch, page: 1, limit: 10 }));
+      }, 100);
+
     } catch (err) { 
         toast.error(err?.message || "Failed to save delivery address"); 
     }
@@ -293,10 +294,10 @@ export default function NewOrder() {
         total: Number(p.total),
         package_index: Number(p.package_index)
       })),
+      // UPDATED WEIGHT STRUCTURE
       packages: (packages || []).filter(p => p).map((pkg, idx) => {
         const weightVal = parseFloat(pkg.weight_value) || 0;
-        const physical_weight_kg = pkg.weight_unit === "kg" ? weightVal : weightVal / 1000;
-        const vol_weight_kg = (Number(pkg.length_cm) * Number(pkg.breadth_cm) * Number(pkg.height_cm)) / 2700;
+        const vol_weight = (Number(pkg.length_cm) * Number(pkg.breadth_cm) * Number(pkg.height_cm)) / 2700;
         
         return {
           package_index: idx + 1,
@@ -304,8 +305,9 @@ export default function NewOrder() {
           length_cm: Number(pkg.length_cm) || 0, 
           breadth_cm: Number(pkg.breadth_cm) || 0, 
           height_cm: Number(pkg.height_cm) || 0,
-          physical_weight_kg: Number(physical_weight_kg.toFixed(3)), 
-          vol_weight_kg: Number(vol_weight_kg.toFixed(3))
+          weight_unit: pkg.weight_unit || "kg",
+          physical_weight: Number(weightVal.toFixed(3)), 
+          vol_weight: Number(vol_weight.toFixed(3))
         };
       })
     };
@@ -330,7 +332,17 @@ export default function NewOrder() {
   return (
     <div className="space-y-6 relative pb-24 min-h-screen" onKeyDown={handleKeyDown}>
       <PickupAddressModal isOpen={isPickupModalOpen} onClose={() => setIsPickupModalOpen(false)} pickupForm={pickupForm} handlePickupChange={(e) => setPickupForm({ ...pickupForm, [e.target.name]: e.target.value })} handleSavePickup={handleSavePickupAddress} loading={pickupLoading} inputClass={inputClass} />
-      <ConsigneeModal isOpen={isConsigneeModalOpen} onClose={() => setIsConsigneeModalOpen(false)} consigneeForm={consigneeForm} handleConsigneeChange={(e) => setConsigneeForm({ ...consigneeForm, [e.target.name]: e.target.value })} handleSaveConsignee={handleSaveConsigneeAddress} loading={pickupLoading} inputClass={inputClass} />
+      
+      {/* Consignee Modal with improved stability */}
+      <ConsigneeModal 
+        isOpen={isConsigneeModalOpen} 
+        onClose={() => setIsConsigneeModalOpen(false)} 
+        consigneeForm={consigneeForm} 
+        handleConsigneeChange={(e) => setConsigneeForm({ ...consigneeForm, [e.target.name]: e.target.value })} 
+        handleSaveConsignee={handleSaveConsigneeAddress} 
+        loading={pickupLoading} 
+        inputClass={inputClass} 
+      />
 
       <header>
         <h1 className="text-2xl font-bold">{isEditMode ? `Edit Order (${editOrderData?.order_number || ''})` : "New Order"}</h1>
@@ -396,7 +408,6 @@ export default function NewOrder() {
           <CardContent className="p-6 space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-semibold flex items-center gap-2"><MapPinned size={20} className="text-primary" /> Pickup Location</h2>
-              {/* FIXED: Clear form on Plus click */}
               <Button 
                 variant="ghost" 
                 type="button" 
@@ -452,7 +463,6 @@ export default function NewOrder() {
           <CardContent className="p-6 space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-semibold flex items-center gap-2"><User size={20} className="text-primary" /> Deliver To</h2>
-              {/* FIXED: Clear form on Plus click */}
               <Button 
                 variant="ghost" 
                 type="button" 
