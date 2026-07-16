@@ -83,7 +83,6 @@ export default function NewOrder() {
   const [regionalArea, setRegionalArea] = useState(0); 
   const [isGstExempt, setIsGstExempt] = useState(false);
 
-  // Initializing with empty strings to avoid "undefined" crashes
   const [consigneeData, setConsigneeData] = useState({ id: null, name: "", mobile: "", city: "" });
 
   const [pickupForm, setPickupForm] = useState({
@@ -209,15 +208,16 @@ export default function NewOrder() {
     }
   }, []);
 
-  // FIXED: Address Save Handler with clear success message and state updates
   const handleSavePickupAddress = async () => {
     try {
       let result;
-      if (pickupForm.id) {
+      // Added safety check for ID
+      if (pickupForm.id && pickupForm.id !== "") {
         result = await dispatch(updatePickupAddress({ id: pickupForm.id, data: pickupForm })).unwrap();
         toast.success("Pickup Address Updated Successfully!");
       } else {
-        result = await dispatch(createPickupAddress(pickupForm)).unwrap();
+        const { id, ...createData } = pickupForm; // Remove empty ID if present
+        result = await dispatch(createPickupAddress(createData)).unwrap();
         toast.success("New Pickup Address Added!");
       }
       
@@ -230,24 +230,23 @@ export default function NewOrder() {
     } catch (err) { toast.error(err?.message || "Failed to save pickup address"); }
   };
 
-  // FIXED: Consignee Save Handler with safe data assignment to prevent blank screen
   const handleSaveConsigneeAddress = async () => {
     try {
       let result;
-      if (consigneeForm.id) {
+      // Added safety check for ID to prevent 403 Forbidden
+      if (consigneeForm.id && consigneeForm.id !== "") {
         result = await dispatch(updateConsignee({ id: consigneeForm.id, data: consigneeForm })).unwrap();
         toast.success("Delivery Address Updated!");
       } else {
-        result = await dispatch(createConsignee(consigneeForm)).unwrap();
+        const { id, ...createData } = consigneeForm; // Remove empty ID if present
+        result = await dispatch(createConsignee(createData)).unwrap();
         toast.success("Delivery Address Added Successfully!");
       }
 
-      // Safeguard: Ensure we set valid data or fallback to the form data
       const newConsignee = result?.data || result;
       if (newConsignee && newConsignee.id) {
         setConsigneeData(newConsignee);
       } else {
-        // Fallback search to find the newly created item if result is weird
         dispatch(fetchConsignees({ search: consigneeForm.mobile, page: 1, limit: 5 }));
       }
       
@@ -395,7 +394,22 @@ export default function NewOrder() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-card-bg border-border-subtle overflow-visible relative">
           <CardContent className="p-6 space-y-4">
-            <div className="flex justify-between items-center"><h2 className="text-lg font-semibold flex items-center gap-2"><MapPinned size={20} className="text-primary" /> Pickup Location</h2><Button variant="ghost" type="button" size="sm" onClick={() => setIsPickupModalOpen(true)} className="text-primary hover:bg-primary/10 exclude-tab"><Plus size={16} /></Button></div>
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-semibold flex items-center gap-2"><MapPinned size={20} className="text-primary" /> Pickup Location</h2>
+              {/* FIXED: Clear form on Plus click */}
+              <Button 
+                variant="ghost" 
+                type="button" 
+                size="sm" 
+                onClick={() => {
+                  setPickupForm({ nickname: "", contact_name: "", phone: "", email: "", address_line_1: "", address_line_2: "", pincode: "", city: "", state: "", country: "India" });
+                  setIsPickupModalOpen(true);
+                }} 
+                className="text-primary hover:bg-primary/10 exclude-tab"
+              >
+                <Plus size={16} />
+              </Button>
+            </div>
             <div className="relative">
                 {selectedAddress?.id ? (
                   <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center">
@@ -436,7 +450,22 @@ export default function NewOrder() {
 
         <Card className="bg-card-bg border-border-subtle overflow-visible relative">
           <CardContent className="p-6 space-y-4">
-            <div className="flex justify-between items-center"><h2 className="text-lg font-semibold flex items-center gap-2"><User size={20} className="text-primary" /> Deliver To</h2><Button variant="ghost" type="button" size="sm" onClick={() => setIsConsigneeModalOpen(true)} className="text-primary hover:bg-primary/10 exclude-tab"><Plus size={16} /></Button></div>
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-semibold flex items-center gap-2"><User size={20} className="text-primary" /> Deliver To</h2>
+              {/* FIXED: Clear form on Plus click */}
+              <Button 
+                variant="ghost" 
+                type="button" 
+                size="sm" 
+                onClick={() => {
+                  setConsigneeForm({ name: "", mobile: "", alternate_mobile: "", email: "", address_line_1: "", address_line_2: "", pincode: "", city: "", state: "" });
+                  setIsConsigneeModalOpen(true);
+                }} 
+                className="text-primary hover:bg-primary/10 exclude-tab"
+              >
+                <Plus size={16} />
+              </Button>
+            </div>
             <div className="relative">
                 {consigneeData?.id ? (
                   <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center">
