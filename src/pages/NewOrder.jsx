@@ -83,6 +83,7 @@ export default function NewOrder() {
   const [regionalArea, setRegionalArea] = useState(0); 
   const [isGstExempt, setIsGstExempt] = useState(false);
 
+  // Initializing with empty strings to avoid "undefined" crashes
   const [consigneeData, setConsigneeData] = useState({ id: null, name: "", mobile: "", city: "" });
 
   const [pickupForm, setPickupForm] = useState({
@@ -208,47 +209,53 @@ export default function NewOrder() {
     }
   }, []);
 
-  // FIXED: Improved Address Save Handler
+  // FIXED: Address Save Handler with clear success message and state updates
   const handleSavePickupAddress = async () => {
     try {
       let result;
       if (pickupForm.id) {
         result = await dispatch(updatePickupAddress({ id: pickupForm.id, data: pickupForm })).unwrap();
-        toast.success("Address Updated");
+        toast.success("Pickup Address Updated Successfully!");
       } else {
         result = await dispatch(createPickupAddress(pickupForm)).unwrap();
-        toast.success("Address Created");
+        toast.success("New Pickup Address Added!");
       }
-      // Use result data if available, otherwise just refresh list
-      if (result && result.id) dispatch(setSelectedAddress(result));
-      else if (result?.data?.id) dispatch(setSelectedAddress(result.data));
+      
+      const newAddr = result?.data || result;
+      if (newAddr && newAddr.id) dispatch(setSelectedAddress(newAddr));
       
       setIsPickupModalOpen(false);
       setPickupForm({ nickname: "", contact_name: "", phone: "", email: "", address_line_1: "", address_line_2: "", pincode: "", city: "", state: "", country: "India" });
-    } catch (err) { toast.error(err?.message || err || "Operation failed"); }
+      dispatch(fetchPickupAddresses({ search: "", page: 1, limit: 10 }));
+    } catch (err) { toast.error(err?.message || "Failed to save pickup address"); }
   };
 
-  // FIXED: Improved Consignee Save Handler (The main issue)
+  // FIXED: Consignee Save Handler with safe data assignment to prevent blank screen
   const handleSaveConsigneeAddress = async () => {
     try {
       let result;
       if (consigneeForm.id) {
         result = await dispatch(updateConsignee({ id: consigneeForm.id, data: consigneeForm })).unwrap();
-        toast.success("Consignee Updated");
+        toast.success("Delivery Address Updated!");
       } else {
         result = await dispatch(createConsignee(consigneeForm)).unwrap();
-        toast.success("Consignee Created");
+        toast.success("Delivery Address Added Successfully!");
       }
 
-      // Safeguard against nested API response structures like { data: { ... } }
+      // Safeguard: Ensure we set valid data or fallback to the form data
       const newConsignee = result?.data || result;
       if (newConsignee && newConsignee.id) {
         setConsigneeData(newConsignee);
+      } else {
+        // Fallback search to find the newly created item if result is weird
+        dispatch(fetchConsignees({ search: consigneeForm.mobile, page: 1, limit: 5 }));
       }
       
       setIsConsigneeModalOpen(false);
       setConsigneeForm({ name: "", mobile: "", alternate_mobile: "", email: "", address_line_1: "", address_line_2: "", pincode: "", city: "", state: "" });
-    } catch (err) { toast.error(err?.message || err || "Operation failed"); }
+    } catch (err) { 
+        toast.error(err?.message || "Failed to save delivery address"); 
+    }
   };
 
   const handleSubmit = async () => {
@@ -393,8 +400,8 @@ export default function NewOrder() {
                 {selectedAddress?.id ? (
                   <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center">
                     <div className="cursor-pointer flex-1" onClick={() => setIsAddressDropdownOpen(!isAddressDropdownOpen)}>
-                        <p className="font-bold text-sm">{selectedAddress.nickname}</p>
-                        <p className="text-xs text-text-muted">{selectedAddress.city} - {selectedAddress.pincode}</p>
+                        <p className="font-bold text-sm">{selectedAddress?.nickname || "N/A"}</p>
+                        <p className="text-xs text-text-muted">{selectedAddress?.city || ""} - {selectedAddress?.pincode || ""}</p>
                     </div>
                     <div className="flex gap-2">
                         <Button variant="ghost" type="button" size="sm" onClick={() => { setPickupForm(selectedAddress); setIsPickupModalOpen(true); }} className="h-8 w-8 p-0 text-text-muted exclude-tab"><Edit3 size={14} /></Button>
@@ -434,8 +441,8 @@ export default function NewOrder() {
                 {consigneeData?.id ? (
                   <div className="p-4 border border-primary/20 bg-primary/5 rounded-xl flex justify-between items-center">
                     <div className="cursor-pointer flex-1" onClick={() => setIsConsigneeDropdownOpen(!isConsigneeDropdownOpen)}>
-                        <p className="font-bold text-sm">{consigneeData.name || 'Unnamed'}</p>
-                        <p className="text-xs text-text-muted">{(consigneeData.city || '')} - {(consigneeData.mobile || '')}</p>
+                        <p className="font-bold text-sm">{consigneeData?.name || 'Unnamed'}</p>
+                        <p className="text-xs text-text-muted">{(consigneeData?.city || '')} - {(consigneeData?.mobile || '')}</p>
                     </div>
                     <div className="flex gap-2">
                         <Button variant="ghost" type="button" size="sm" onClick={() => { setConsigneeForm(consigneeData); setIsConsigneeModalOpen(true); }} className="h-8 w-8 p-0 text-text-muted exclude-tab"><Edit3 size={14} /></Button>
