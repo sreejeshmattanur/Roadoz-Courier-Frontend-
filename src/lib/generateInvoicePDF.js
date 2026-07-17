@@ -3,7 +3,6 @@ import JsBarcode from "jsbarcode";
 import roadozLogo from "../assets/images/RO-2.png";
 
 /**
- * Reusable function to draw one invoice block
  * @param {Object} doc - jsPDF instance
  * @param {Object} order - The order data
  * @param {Number} startY - Vertical offset (10 for top, 158.5 for bottom)
@@ -15,6 +14,8 @@ const drawInvoiceBlock = (doc, order, startY, copyLabel) => {
   const WIDTH = RIGHT - LEFT;
   let currY = startY;
 
+
+  
   // Helper to draw the grid lines
   const drawGrid = (x, y, w, h) => doc.rect(x, y, w, h);
 
@@ -77,7 +78,7 @@ const drawInvoiceBlock = (doc, order, startY, copyLabel) => {
   doc.setFontSize(7);
   doc.text(`Service: ${order.serviceType || "Surface"}`, LEFT + 2, currY + 16);
 
-  // --- Payment Logic for Meta Bar ---
+  // Payment Logic
   const payMethod = (order.payment?.method || "").toUpperCase();
   let payLabel = payMethod;
   if (payMethod === "TOPAY") payLabel = "TO PAY";
@@ -128,35 +129,73 @@ const drawInvoiceBlock = (doc, order, startY, copyLabel) => {
   }
 
   doc.setFontSize(7);
+  
+  // --- CONSIGNOR SIDE (Left) ---
   doc.setFont("helvetica", "normal");
-  // Consignor side
   doc.text("CONSIGNOR", LEFT + 2, currY + 4.5);
-  doc.text(order.pickup?.name || "N/A", LEFT + 47, currY + 4.5);
+  // Fixed: Show Nickname or Name for Consignor
+  doc.text(order.pickup?.nickname || order.pickup?.name || "N/A", LEFT + 47, currY + 4.5);
+  
   doc.text("CONTACT NO", LEFT + 2, currY + 11);
   doc.text(order.pickup?.phone || "N/A", LEFT + 47, currY + 11);
-  doc.text("REFERENCE NO", LEFT + 2, currY + 17.5);
-  doc.text(`DLY: ${order.deliveryType || "Door Delivery"}`, LEFT + 47, currY + 17.5);
   
+doc.text("ADDRESS", LEFT + 2, currY + 17.5);
+
+const pickup = order.pickup || {};
+
+doc.setFont("helvetica", "normal");
+doc.setFontSize(6);
+
+const pickupText = [
+  pickup.address1,
+  pickup.address2,
+].filter(Boolean).join(", ");
+
+const pickupLines = doc.splitTextToSize(pickupText, 42).slice(0, 2);
+
+doc.text(pickupLines, LEFT + 47, currY + 17.5, {
+  maxWidth: 42,
+  lineHeightFactor: 0.95,
+});  
+
   doc.setFont("helvetica", "bold");
   doc.text(`Invoice No: ${order.invoiceNo || order.invoice_no || "N/A"}`, LEFT + 2, currY + 24);
-  
-  // FIX: WEIGHT FROM PACKAGES ARRAY
   const totalWeight = (order.packages || []).reduce((sum, pkg) => sum + (pkg.applicable_weight_kg || 0), 0);
   doc.text(`Weight: ${totalWeight.toFixed(2)} kg`, LEFT + 47, currY + 24);
-
   doc.text(`Invoice Amount: ${order.amount || "0.00"}`, LEFT + 2, currY + 30.5);
   doc.text(`Type: ${order.shipmentType || "N/A"}`, LEFT + 47, currY + 30.5);
 
-  // Consignee side
+  // --- CONSIGNEE SIDE (Right) ---
   doc.setFont("helvetica", "normal");
   doc.text("CONSIGNEE", LEFT + 102, currY + 4.5);
-  doc.text(order.customer?.name || "N/A", LEFT + 142, currY + 4.5);
-  doc.text("CONTACT NO", LEFT + 102, currY + 11);
-  doc.text(order.customer?.phone || "N/A", LEFT + 142, currY + 11);
+  doc.text(order.customer?.nickname || order.customer?.name || "N/A", LEFT + 142, currY + 4.5);
+  
+doc.text("ADDRESS", LEFT + 102, currY + 11);
+
+const customer = order.customer || {};
+
+doc.setFont("helvetica", "normal");
+doc.setFontSize(6);
+
+const consigneeText = [
+  customer.address1,
+  customer.address2,
+].filter(Boolean).join(", ");
+
+const consigneeLines = doc.splitTextToSize(consigneeText, 42).slice(0, 2);
+
+doc.text(consigneeLines, LEFT + 142, currY + 11, {
+  maxWidth: 42,
+  lineHeightFactor: 0.95,
+});
+
   doc.text("DISTRICT", LEFT + 102, currY + 17.5);
   doc.text(order.customer?.city || "N/A", LEFT + 142, currY + 17.5);
-  doc.text("STATE", LEFT + 102, currY + 24);
-  doc.text(order.customer?.state || "Kerala", LEFT + 142, currY + 24);
+  
+  doc.text("CONTACT NO", LEFT + 102, currY + 24);
+  // Fixed: Ensure Consignee number is used
+  doc.text(order.customer?.phone || "N/A", LEFT + 142, currY + 24);
+  
   doc.text("Booked By", LEFT + 102, currY + 30.5);
   doc.setFont("helvetica", "bold");
   doc.text(order.creator?.name || "ROADOZ", LEFT + 142, currY + 30.5);
@@ -181,13 +220,12 @@ const drawInvoiceBlock = (doc, order, startY, copyLabel) => {
     doc.text(`${item.product_name} (Qty: ${item.qty})`, LEFT + 2, currY + 11 + (index * 4));
   });
 
-  // --- Dynamic Payment Charges Logic ---
+  // Dynamic Charges
   let chargesBody = [];
   if (Number(order.charges?.freight) > 0) chargesBody.push(["Freight Charges", order.charges.freight]);
   if (!order.is_gst_exempt && Number(order.charges?.freight_gst) > 0) chargesBody.push(["Freight GST", order.charges.freight_gst]);
   if (Number(order.charges?.insurance) > 0) chargesBody.push(["Insurance", order.charges.insurance]);
   
-  // Specific Dynamic Label based on payment method
   const grandTotal = order.charges?.grand_total || 0;
   const m = payMethod;
   if (m === "TOPAY") chargesBody.push(["To Pay Amount", grandTotal]);
@@ -202,11 +240,9 @@ const drawInvoiceBlock = (doc, order, startY, copyLabel) => {
     doc.text(parseFloat(c[1]).toFixed(2), RIGHT - 2, rowY, { align: "right" });
   });
 
-  // Bank & Total
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7);
   doc.text("BANK: HDFC | A/C: 50200116941777 | IFSC: HDFC0002321", LEFT + 2, currY + 38);
-
   doc.setFontSize(9);
   doc.text("TOTAL", LEFT + 152, currY + descH - 3);
   doc.text(`${parseFloat(grandTotal).toFixed(2)}`, RIGHT - 2, currY + descH - 3, { align: "right" });
