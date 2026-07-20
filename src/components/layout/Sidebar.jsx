@@ -21,8 +21,9 @@ import {
   FileBarChart,
   MapPin, // Added for Pickup Address
   RotateCcw, // Added for RTO Address
-  LoaderCircle
-} from "lucide-react";
+  LoaderCircle,
+  Navigation as NavIcon, // Rename it here
+src/App.jsx} from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { NavLink } from "../NavLink";
 import { cn } from "../../lib/utils";
@@ -94,6 +95,12 @@ export function Sidebar({ isOpen, setIsOpen }) {
       { name: "Label Setting", to: `${base}/settings/label`, perm: "profile:edit" },
       { name: "KYC", to: `${base}/settings/kyc`, perm: "profile:edit" },
     ],
+    trip: [
+    // { name: "Drivers", to: `${base}/trip/drivers`, perm: "orders:view" },
+    // { name: "Vehicles", to: `${base}/trip/vehicles`, perm: "orders:view" },
+    { name: "Trip Sheet", to: `${base}/trip/trip-sheet`, perm: "orders:view" },
+],
+
   };
 
   useEffect(() => {
@@ -222,6 +229,8 @@ export function Sidebar({ isOpen, setIsOpen }) {
         <NavDropdown id="admin" label="Administrative" icon={ShieldCheck} items={sections.admin} />
         <NavDropdown id="tools" label="Tools" icon={Wrench} items={sections.tools} />
         <NavDropdown id="finance" label="Finance" icon={CircleDollarSign} items={sections.finance} />
+        <NavDropdown id="trip" label="Trip" icon={NavIcon} items={sections.trip} />
+
 
 
         {hasPerm("pickup-orders:view") && (

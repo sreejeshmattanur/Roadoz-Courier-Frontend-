@@ -550,3 +550,49 @@ export const fetchOrdersByEntityApi = async (params) => {
   const res = await API.get(ENDPOINTS.FILTER_BY_ENTITY, { params });
   return res.data;
 };
+
+export const captureLocationApi = (data) => API.post("/location/capture", data);
+export const getLocationStatusApi = () => API.get("/location/status");
+export const resetLocationApi = (type, id) => API.get(`/location/reset/${type}/${id}`);
+
+// Trip Sheet APIs
+export const fetchTripDriversApi = async (params) => {
+    const res = await API.get(ENDPOINTS.TRIP_SHEET.DRIVERS, { params });
+    return res.data;
+};
+
+export const fetchTripVehiclesApi = async (params) => {
+    const res = await API.get(ENDPOINTS.TRIP_SHEET.VEHICLES, { params });
+    return res.data;
+};
+
+export const fetchTripFranchisesApi = async (params) => {
+    const res = await API.get(ENDPOINTS.TRIP_SHEET.FRANCHISES, { params });
+    return res.data;
+};
+
+export const scanOrderForTripApi = async (barcode) => {
+    const res = await API.get(ENDPOINTS.TRIP_SHEET.SCAN(barcode));
+    return res.data;
+};
+
+export const createTripSheetApi = async (data) => {
+    const res = await API.post(ENDPOINTS.TRIP_SHEET.BASE, data);
+    return res.data;
+};
+
+export const fetchTripSheetsApi = async (params) => {
+    const res = await API.get(ENDPOINTS.TRIP_SHEET.BASE, { params });
+    return res.data;
+};
+
+export const fetchTripSheetDetailsApi = async (id) => {
+    const res = await API.get(ENDPOINTS.TRIP_SHEET.DETAIL(id));
+    return res.data;
+};
+
+export const deleteTripSheetApi = async (id) => {
+    const res = await API.delete(ENDPOINTS.TRIP_SHEET.DELETE(id));
+    return res.data;
+};
+
