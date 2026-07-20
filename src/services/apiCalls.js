@@ -577,22 +577,27 @@ export const scanOrderForTripApi = async (barcode) => {
 };
 
 export const createTripSheetApi = async (data) => {
-    const res = await API.post(ENDPOINTS.TRIP_SHEET.BASE, data);
+  const res = await API.post(ENDPOINTS.TRIP_SHEET.BASE, data);
+  return res.data;
+};
+
+export const updateTripSheetApi = async (id, data) => {
+    const res = await API.put(ENDPOINTS.TRIP_SHEET.DETAIL(id), data);
     return res.data;
 };
 
+// Trip Sheet Operations
 export const fetchTripSheetsApi = async (params) => {
-    const res = await API.get(ENDPOINTS.TRIP_SHEET.BASE, { params });
-    return res.data;
+  const res = await API.get(ENDPOINTS.TRIP_SHEET.BASE, { params });
+  return res.data; // Expecting { items: [], total: 0, page: 1, pages: 1 }
 };
 
 export const fetchTripSheetDetailsApi = async (id) => {
-    const res = await API.get(ENDPOINTS.TRIP_SHEET.DETAIL(id));
-    return res.data;
+  const res = await API.get(ENDPOINTS.TRIP_SHEET.DETAIL(id));
+  return res.data;
 };
 
 export const deleteTripSheetApi = async (id) => {
-    const res = await API.delete(ENDPOINTS.TRIP_SHEET.DELETE(id));
-    return res.data;
+  const res = await API.delete(ENDPOINTS.TRIP_SHEET.DELETE(id));
+  return res.data;
 };
-

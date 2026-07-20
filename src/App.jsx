@@ -49,6 +49,7 @@ import ActivityLogs from "./pages/ActivityLogs";
 import { FranchiseApproval } from "./pages/FranchiseApproval";
 import ChatPlatform from "./pages/ChatPlatform"; 
 import {PickupOrderListing} from "./pages/PickupOrderListing";
+import TripSheetRegistry from "./pages/TripSheetRegistry";
 import TripSheet from "./pages/TripSheet";
 
 export default function App() {
@@ -322,8 +323,9 @@ export default function App() {
                 </PermissionRoute>
               }
             />
-            <Route path="trip/trip-sheet" element={<PermissionRoute permission="trip_sheet:view"><TripSheet /></PermissionRoute>} />
-
+            <Route path="trip/trip-sheet" element={<PermissionRoute permission="trip_sheet:view"><TripSheetRegistry /></PermissionRoute>} />
+            <Route path="trip/create" element={<PermissionRoute permission="trip_sheet:create"><TripSheet /></PermissionRoute>} />
+            <Route path="trip/edit/:id" element={<PermissionRoute permission="trip_sheet:edit"><TripSheet /></PermissionRoute>} />
             {/* CRM & Operations */}
             <Route
               path="consignees"
