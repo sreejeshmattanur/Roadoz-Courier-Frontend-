@@ -23,7 +23,7 @@ import {
   RotateCcw, // Added for RTO Address
   LoaderCircle,
   Navigation as NavIcon, // Rename it here
-src/App.jsx} from "lucide-react";
+} from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { NavLink } from "../NavLink";
 import { cn } from "../../lib/utils";
