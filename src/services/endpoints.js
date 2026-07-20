@@ -92,6 +92,19 @@ export const ENDPOINTS = {
 
   },
   FILTER_BY_ENTITY: "/orders/orders/filter-by-entity",
-
+  LOCATION: {
+    CAPTURE: "/location/capture",
+    STATUS: "/location/status",
+    RESET: (type, id) => `/location/reset/${type}/${id}`,
+  },
+  TRIP_SHEET: {
+    BASE: "/operations/trip-sheet",
+    DRIVERS: "/operations/trip-sheet/drivers",
+    VEHICLES: "/operations/trip-sheet/vehicles",
+    FRANCHISES: "/operations/trip-sheet/franchises",
+    SCAN: (barcode) => `/operations/trip-sheet/scan/${barcode}`,
+    DETAIL: (id) => `/operations/trip-sheet/${id}`,
+    DELETE: (id) => `/operations/trip-sheet/${id}`,
+}
 
 };

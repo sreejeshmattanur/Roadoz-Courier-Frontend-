@@ -49,7 +49,7 @@ import ActivityLogs from "./pages/ActivityLogs";
 import { FranchiseApproval } from "./pages/FranchiseApproval";
 import ChatPlatform from "./pages/ChatPlatform"; 
 import {PickupOrderListing} from "./pages/PickupOrderListing";
-
+import TripSheet from "./pages/TripSheet";
 
 export default function App() {
   const token = Cookies.get("access_token");
@@ -322,6 +322,7 @@ export default function App() {
                 </PermissionRoute>
               }
             />
+            <Route path="trip/trip-sheet" element={<PermissionRoute permission="trip_sheet:view"><TripSheet /></PermissionRoute>} />
 
             {/* CRM & Operations */}
             <Route
