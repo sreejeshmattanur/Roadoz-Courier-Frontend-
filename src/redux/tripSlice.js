@@ -4,12 +4,9 @@ import {
     fetchTripVehiclesApi, 
     fetchTripFranchisesApi, 
     fetchTripSheetsApi,
-    createTripSheetApi,
     deleteTripSheetApi
 } from "../services/apiCalls";
-import { toast } from "react-hot-toast";
 
-// Async Thunks
 export const getTripMasters = createAsyncThunk("trip/getMasters", async () => {
     const [drivers, vehicles, franchises] = await Promise.all([
         fetchTripDriversApi(),
@@ -23,13 +20,22 @@ export const getTripSheets = createAsyncThunk("trip/getTripSheets", async (param
     return await fetchTripSheetsApi(params);
 });
 
+export const removeTripSheet = createAsyncThunk("trip/remove", async (id, { rejectWithValue }) => {
+    try {
+        await deleteTripSheetApi(id);
+        return id;
+    } catch (err) {
+        return rejectWithValue(err.response?.data?.message || "Failed to delete");
+    }
+});
+
 const tripSlice = createSlice({
     name: "trip",
     initialState: {
         drivers: [],
         vehicles: [],
         franchises: [],
-        tripSheets: [],
+        items: [], // Changed from tripSheets to items to match Registry
         pagination: { total: 0, page: 1, pages: 1 },
         loading: false,
     },
@@ -43,13 +49,18 @@ const tripSlice = createSlice({
                 state.franchises = action.payload.franchises;
                 state.loading = false;
             })
+            .addCase(getTripSheets.pending, (state) => { state.loading = true; })
             .addCase(getTripSheets.fulfilled, (state, action) => {
-                state.tripSheets = action.payload.items;
+                state.items = action.payload.items || [];
                 state.pagination = {
                     total: action.payload.total,
                     page: action.payload.page,
                     pages: action.payload.pages
                 };
+                state.loading = false;
+            })
+            .addCase(removeTripSheet.fulfilled, (state, action) => {
+                state.items = state.items.filter(item => item.id !== action.payload);
             });
     }
 });
