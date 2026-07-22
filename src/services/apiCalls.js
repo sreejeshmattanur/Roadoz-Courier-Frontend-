@@ -586,10 +586,10 @@ export const updateTripSheetApi = async (id, data) => {
     return res.data;
 };
 
-// Trip Sheet Operations
 export const fetchTripSheetsApi = async (params) => {
-  const res = await API.get(ENDPOINTS.TRIP_SHEET.BASE, { params });
-  return res.data; // Expecting { items: [], total: 0, page: 1, pages: 1 }
+  // Using the incoming endpoint for the registry list
+  const res = await API.get(ENDPOINTS.TRIP_SHEET.INCOMING, { params });
+  return res.data; 
 };
 
 export const fetchTripSheetDetailsApi = async (id) => {
@@ -600,4 +600,39 @@ export const fetchTripSheetDetailsApi = async (id) => {
 export const deleteTripSheetApi = async (id) => {
   const res = await API.delete(ENDPOINTS.TRIP_SHEET.DELETE(id));
   return res.data;
+};
+
+export const fetchVehiclesApi = async (page = 1, limit = 20) => {
+    // Force page to be a number to avoid [object Object]
+    const pageNum = typeof page === 'number' ? page : 1;
+    const res = await API.get('/fleet/vehicles', {
+        params: {
+            page: pageNum,
+            limit: limit
+        }
+    });
+    return res.data;
+};
+export const createVehicleApi = async (data) => {
+    const res = await API.post(`/fleet/vehicles`, data);
+    return res.data;
+};
+
+export const updateVehicleApi = async (id, data) => {
+    const res = await API.patch(`/fleet/vehicles/${id}`, data);
+    return res.data;
+};
+
+export const deleteVehicleApi = async (id) => {
+    const res = await API.delete(`/fleet/vehicles/${id}`);
+    return res.data;
+};
+
+// Add this alongside your other WS helpers in apiCalls.js
+export const getTripSheetWSUrl = () => {
+  const base = import.meta.env.VITE_APP_BASE_URL || "http://api.roadozcourier.com/api/v1";
+  const wsBase = base.replace(/^http/, "ws");
+  const token = Cookies.get("access_token");
+  // Updated to match the endpoint you provided
+  return `${wsBase}/ws/trip-sheet-notifications${token ? `?token=${token}` : ""}`;
 };

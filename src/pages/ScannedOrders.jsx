@@ -3,7 +3,7 @@ import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import {
     RotateCcw, Loader2, Maximize, StopCircle, MapPin, PackageSearch, Scan, 
-    Usb, Box, Trash2, Eye, X, CheckCircle2, IndianRupee, Scale
+    Usb, Box, Trash2, Eye, X, CheckCircle2, IndianRupee, Scale, LocateFixed, MapPinned
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Html5Qrcode } from "html5-qrcode";
@@ -12,7 +12,10 @@ import {
     getOrderPincodeApi,
     deleteScannedOrderApi,
     fetchDateWiseAddressesApi,
-    fetchOrderDetailsApi
+    fetchOrderDetailsApi,
+    getLocationStatusApi,
+    captureLocationApi,
+    resetLocationApi
 } from "../services/apiCalls";
 import Pagination from "../components/ui/Pagination";
 import { cn } from "../lib/utils";
@@ -58,7 +61,6 @@ const OrderDetailModal = ({ orderNumber, onClose }) => {
                         <X size={24} />
                     </button>
                 </div>
-
                 <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="md:col-span-1 space-y-4">
                         <div className="bg-white p-4 rounded-xl flex flex-col items-center justify-center">
@@ -73,7 +75,6 @@ const OrderDetailModal = ({ orderNumber, onClose }) => {
                             </div>
                         </div>
                     </div>
-
                     <div className="md:col-span-2 space-y-6">
                         <div className="grid grid-cols-2 gap-4">
                             <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
@@ -86,7 +87,6 @@ const OrderDetailModal = ({ orderNumber, onClose }) => {
                                 <p className="text-sm font-bold text-white">{pickup_address?.nickname || 'N/A'}</p>
                             </div>
                         </div>
-                        
                         <div className="border border-white/10 rounded-2xl overflow-hidden">
                             <table className="w-full text-left text-xs">
                                 <thead className="bg-white/5 text-[10px] font-bold text-gray-400 uppercase">
@@ -118,6 +118,7 @@ export default function ScannedOrders() {
     const [isScanning, setIsScanning] = useState(false);
     const [selectedOrderNum, setSelectedOrderNum] = useState(null);
     const [location, setLocation] = useState({ lat: null, lng: null });
+    const [locationStatus, setLocationStatus] = useState(null);
     const [pagination, setPagination] = useState({ page: 1, total_pages: 1 });
 
     const [filters, setFilters] = useState({
@@ -131,10 +132,11 @@ export default function ScannedOrders() {
     // --- REFS ---
     const scannerRef = useRef(null);
     const hiddenInputRef = useRef(null);
-    const processingRef = useRef(false); // Prevents overlapping API calls
-    const lastScanned = useRef({ code: "", time: 0 }); // Prevents rapid double scans
+    const processingRef = useRef(false); 
+    const lastScanned = useRef({ code: "", time: 0 }); 
+    const captureInProgress = useRef(false); // Prevents infinite capture loops
 
-    // --- API CALLS ---
+    // --- INITIAL FETCHERS ---
     const loadScannedOrders = useCallback(async () => {
         setLoading(true);
         try {
@@ -160,13 +162,87 @@ export default function ScannedOrders() {
         }
     }, [filters.date, filters.status]);
 
-    useEffect(() => { loadScannedOrders(); }, [loadScannedOrders]);
-    useEffect(() => { loadAddresses(); }, [loadAddresses]);
+    const checkLocationStatus = useCallback(async () => {
+        try {
+            const res = await getLocationStatusApi();
+            setLocationStatus(res);
+        } catch (error) {
+            console.error("Location status check failed");
+        }
+    }, []);
 
-    // --- HARDWARE SCANNER LOGIC (ALWAYS ACTIVE) ---
+    // --- 1. START GEOLOCATION TRACKING ON MOUNT ---
+    useEffect(() => {
+        if ("geolocation" in navigator) {
+            const watchId = navigator.geolocation.watchPosition(
+                (pos) => setLocation({ 
+                    lat: pos.coords.latitude.toFixed(6), 
+                    lng: pos.coords.longitude.toFixed(6) 
+                }),
+                (err) => {
+                    console.error("GPS Error", err);
+                    toast.error("Please enable GPS for accurate logging");
+                },
+                { enableHighAccuracy: true }
+            );
+            return () => navigator.geolocation.clearWatch(watchId);
+        }
+    }, []);
+
+    // --- 2. RUN STATUS CHECK ON MOUNT ---
+    useEffect(() => {
+        loadScannedOrders();
+        loadAddresses();
+        checkLocationStatus();
+    }, [loadScannedOrders, loadAddresses, checkLocationStatus]);
+
+    // --- 3. AUTO-CAPTURE LOGIC (The "Page Open" Logic) ---
+    // This effect runs whenever location is updated or status is fetched.
+    useEffect(() => {
+        const processAutoCapture = async () => {
+            // Only capture if:
+            // 1. Status says location is needed
+            // 2. We have lat/lng from browser
+            // 3. We aren't already in the middle of a capture call
+            if (locationStatus?.needs_location && location.lat && !captureInProgress.current) {
+                captureInProgress.current = true;
+                const toastId = toast.loading("Auto-linking your location...");
+                try {
+                    const payload = {
+                        latitude: parseFloat(location.lat),
+                        longitude: parseFloat(location.lng)
+                    };
+                    await captureLocationApi(payload);
+                    toast.success("Location captured successfully", { id: toastId });
+                    checkLocationStatus(); // Refresh status to show the 'Reset' button
+                } catch (err) {
+                    toast.error("Failed to auto-capture location", { id: toastId });
+                } finally {
+                    captureInProgress.current = false;
+                }
+            }
+        };
+        processAutoCapture();
+    }, [location, locationStatus, checkLocationStatus]);
+
+    // --- RESET LOCATION HANDLER ---
+    const handleResetLocation = async () => {
+        if (!locationStatus?.entity_type || !locationStatus?.entity_id) return;
+        
+        if (window.confirm("Do you want to reset the stored location for this point?")) {
+            try {
+                await resetLocationApi(locationStatus.entity_type, locationStatus.entity_id);
+                toast.success("Location reset. Re-capturing will start automatically.");
+                checkLocationStatus(); // This will trigger needs_location: true again
+            } catch (err) {
+                toast.error("Reset failed");
+            }
+        }
+    };
+
+    // --- SCANNER LOGIC ---
     useEffect(() => {
         const keepFocus = setInterval(() => {
-            // Keep hidden input focused for USB scanners unless typing in another field
             if (hiddenInputRef.current && 
                 document.activeElement.tagName !== "INPUT" && 
                 document.activeElement.tagName !== "SELECT" && 
@@ -177,29 +253,11 @@ export default function ScannedOrders() {
         return () => clearInterval(keepFocus);
     }, []);
 
-    // --- GPS TRACKER ---
-    useEffect(() => {
-        if ("geolocation" in navigator) {
-            const watchId = navigator.geolocation.watchPosition(
-                (pos) => setLocation({ lat: pos.coords.latitude.toFixed(6), lng: pos.coords.longitude.toFixed(6) }),
-                (err) => console.error("GPS Error", err),
-                { enableHighAccuracy: true }
-            );
-            return () => navigator.geolocation.clearWatch(watchId);
-        }
-    }, []);
-
-    // --- MAIN SCAN HANDLER ---
     const handleScanSuccess = async (decodedText) => {
         if (!decodedText || processingRef.current) return;
-
         const cleanCode = decodedText.trim().replace(/["\n\r\t\s+]/g, "").split("/").pop();
         const now = Date.now();
-
-        // Prevent double scan of same code within 2 seconds
-        if (lastScanned.current.code === cleanCode && (now - lastScanned.current.time) < 2000) {
-            return;
-        }
+        if (lastScanned.current.code === cleanCode && (now - lastScanned.current.time) < 2000) return;
 
         if (!location.lat) {
             toast.error("Waiting for GPS signal...");
@@ -208,7 +266,6 @@ export default function ScannedOrders() {
 
         processingRef.current = true;
         lastScanned.current = { code: cleanCode, time: now };
-        
         const toastId = toast.loading(`Logging ${cleanCode}...`);
         
         try {
@@ -226,17 +283,6 @@ export default function ScannedOrders() {
                 hiddenInputRef.current.focus();
             }
         }
-    };
-
-    // --- FILTERS LOGIC ---
-    const handleStatusChange = (e) => {
-        const newStatus = e.target.value;
-        setFilters(prev => ({
-            ...prev,
-            status: newStatus,
-            location_id: "", // Reset target location on status change
-            page: 1
-        }));
     };
 
     const toggleCameraScanner = async () => {
@@ -259,7 +305,6 @@ export default function ScannedOrders() {
 
     return (
         <div className="space-y-6 p-4 lg:p-6 bg-[#09090b] min-h-screen text-white">
-            {/* HIDDEN INPUT FOR HARDWARE SCANNERS */}
             <input
                 ref={hiddenInputRef}
                 type="text"
@@ -287,9 +332,24 @@ export default function ScannedOrders() {
                         <div className="flex items-center gap-1.5 text-[10px] font-bold text-green-500 border border-green-500/20 bg-green-500/5 px-2 py-0.5 rounded uppercase">
                             <Usb size={12} /> Scanner Active
                         </div>
+                        
+                        {/* DYNAMIC LOCATION BADGES */}
+                        {locationStatus?.needs_location ? (
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-yellow-500 border border-yellow-500/20 bg-yellow-500/5 px-2 py-0.5 rounded uppercase">
+                                <LocateFixed size={12} className="animate-pulse" /> Linking Current GPS...
+                            </div>
+                        ) : (
+                            <button 
+                                onClick={handleResetLocation}
+                                className="flex items-center gap-1.5 text-[10px] font-bold text-blue-400 border border-blue-400/20 bg-blue-400/5 px-2 py-0.5 rounded uppercase hover:bg-blue-400/10 transition-colors"
+                            >
+                                <MapPinned size={12} /> Location Set (Reset)
+                            </button>
+                        )}
+
                         <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500">
                             <MapPin size={12} className="text-primary" /> 
-                            GPS: {location.lat ? `${location.lat}, ${location.lng}` : "Locating..."}
+                            {location.lat ? `${location.lat}, ${location.lng}` : "Locating GPS..."}
                         </div>
                     </div>
                 </div>
@@ -326,7 +386,7 @@ export default function ScannedOrders() {
                             <select
                                 className="w-full bg-[#18181b] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-primary cursor-pointer"
                                 value={filters.status}
-                                onChange={handleStatusChange}
+                                onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value, location_id: "", page: 1 }))}
                             >
                                 <option value="Picked">Picked</option>
                                 <option value="Warehouse">Warehouse</option>
@@ -357,7 +417,6 @@ export default function ScannedOrders() {
                         </Button>
                     </div>
 
-                    {/* TABLE */}
                     <div className="overflow-x-auto relative min-h-[400px]">
                         {loading && (
                             <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-10">
@@ -398,7 +457,6 @@ export default function ScannedOrders() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="text-[10px] font-bold text-primary uppercase mb-1">
-                                                    {/* Handled Dispatched JSON Specifically */}
                                                     {order.status} @ {order.status === "Dispatched" ? (order.franchise_name || "Franchise Hub") : (order.pickup?.nickname || "Station")}
                                                 </div>
                                                 <div className="text-xs font-mono font-bold text-gray-400">
@@ -450,4 +508,4 @@ export default function ScannedOrders() {
             </Card>
         </div>
     );
-}
+}   
