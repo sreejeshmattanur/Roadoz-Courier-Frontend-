@@ -111,7 +111,6 @@ const OrderDetailModal = ({ orderNumber, onClose }) => {
 };
 
 export default function ScannedOrders() {
-    // --- STATE ---
     const [orders, setOrders] = useState([]);
     const [addresses, setAddresses] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -129,14 +128,23 @@ export default function ScannedOrders() {
         limit: 10
     });
 
-    // --- REFS ---
     const scannerRef = useRef(null);
     const hiddenInputRef = useRef(null);
     const processingRef = useRef(false); 
-    const lastScanned = useRef({ code: "", time: 0 }); 
-    const captureInProgress = useRef(false); // Prevents infinite capture loops
+    const captureInProgress = useRef(false); 
 
-    // --- INITIAL FETCHERS ---
+    // API: Load Status
+    const checkLocationStatus = useCallback(async () => {
+        try {
+            const res = await getLocationStatusApi();
+            console.log("Location Status Received:", res);
+            setLocationStatus(res);
+        } catch (error) {
+            console.error("Status Check Error", error);
+        }
+    }, []);
+
+    // API: Load Orders
     const loadScannedOrders = useCallback(async () => {
         setLoading(true);
         try {
@@ -150,132 +158,95 @@ export default function ScannedOrders() {
         }
     }, [filters]);
 
-    const loadAddresses = useCallback(async () => {
-        try {
-            const res = await fetchDateWiseAddressesApi({
-                date: filters.date,
-                status: filters.status
-            });
-            if (res?.success) setAddresses(res.addresses || []);
-        } catch (error) {
-            setAddresses([]);
-        }
-    }, [filters.date, filters.status]);
+    // INITIAL LOAD
+    useEffect(() => {
+        loadScannedOrders();
+        checkLocationStatus();
+    }, [loadScannedOrders, checkLocationStatus]);
 
-    const checkLocationStatus = useCallback(async () => {
-        try {
-            const res = await getLocationStatusApi();
-            setLocationStatus(res);
-        } catch (error) {
-            console.error("Location status check failed");
-        }
-    }, []);
-
-    // --- 1. START GEOLOCATION TRACKING ON MOUNT ---
+    // GEOLOCATION WATCHER
     useEffect(() => {
         if ("geolocation" in navigator) {
             const watchId = navigator.geolocation.watchPosition(
-                (pos) => setLocation({ 
-                    lat: pos.coords.latitude.toFixed(6), 
-                    lng: pos.coords.longitude.toFixed(6) 
-                }),
-                (err) => {
-                    console.error("GPS Error", err);
-                    toast.error("Please enable GPS for accurate logging");
+                (pos) => {
+                    const newLat = pos.coords.latitude.toFixed(6);
+                    const newLng = pos.coords.longitude.toFixed(6);
+                    setLocation({ lat: newLat, lng: newLng });
                 },
+                (err) => toast.error("GPS Access Denied. Enable location to scan."),
                 { enableHighAccuracy: true }
             );
             return () => navigator.geolocation.clearWatch(watchId);
         }
     }, []);
 
-    // --- 2. RUN STATUS CHECK ON MOUNT ---
+    // AUTO-CAPTURE LOGIC (This fix ensures the API is called correctly)
     useEffect(() => {
-        loadScannedOrders();
-        loadAddresses();
-        checkLocationStatus();
-    }, [loadScannedOrders, loadAddresses, checkLocationStatus]);
-
-    // --- 3. AUTO-CAPTURE LOGIC (The "Page Open" Logic) ---
-    // This effect runs whenever location is updated or status is fetched.
-    useEffect(() => {
-        const processAutoCapture = async () => {
-            // Only capture if:
-            // 1. Status says location is needed
-            // 2. We have lat/lng from browser
-            // 3. We aren't already in the middle of a capture call
-            if (locationStatus?.needs_location && location.lat && !captureInProgress.current) {
+        const triggerCapture = async () => {
+            // Check if coordinates exist and status specifically says location is needed
+            if (locationStatus?.needs_location === true && location.lat && location.lng) {
+                if (captureInProgress.current) return; // Prevent double calling
+                
                 captureInProgress.current = true;
-                const toastId = toast.loading("Auto-linking your location...");
+                console.log("Triggering Capture API with:", { lat: location.lat, lng: location.lng });
+                
                 try {
                     const payload = {
                         latitude: parseFloat(location.lat),
                         longitude: parseFloat(location.lng)
                     };
+                    
                     await captureLocationApi(payload);
-                    toast.success("Location captured successfully", { id: toastId });
-                    checkLocationStatus(); // Refresh status to show the 'Reset' button
+                    toast.success("Branch location linked successfully!");
+                    
+                    // Refresh status to hide the "Linking" UI
+                    await checkLocationStatus();
                 } catch (err) {
-                    toast.error("Failed to auto-capture location", { id: toastId });
+                    console.error("Capture API Failure:", err);
+                    toast.error("Failed to link location automatically");
                 } finally {
                     captureInProgress.current = false;
                 }
             }
         };
-        processAutoCapture();
-    }, [location, locationStatus, checkLocationStatus]);
 
-    // --- RESET LOCATION HANDLER ---
+        triggerCapture();
+    }, [location.lat, location.lng, locationStatus, checkLocationStatus]);
+
+    // RESET LOCATION HANDLER
     const handleResetLocation = async () => {
         if (!locationStatus?.entity_type || !locationStatus?.entity_id) return;
         
-        if (window.confirm("Do you want to reset the stored location for this point?")) {
+        if (window.confirm("Do you want to clear stored location and re-capture current GPS?")) {
             try {
                 await resetLocationApi(locationStatus.entity_type, locationStatus.entity_id);
-                toast.success("Location reset. Re-capturing will start automatically.");
-                checkLocationStatus(); // This will trigger needs_location: true again
+                toast.success("Location cleared. Re-capturing...");
+                checkLocationStatus(); 
             } catch (err) {
                 toast.error("Reset failed");
             }
         }
     };
 
-    // --- SCANNER LOGIC ---
-    useEffect(() => {
-        const keepFocus = setInterval(() => {
-            if (hiddenInputRef.current && 
-                document.activeElement.tagName !== "INPUT" && 
-                document.activeElement.tagName !== "SELECT" && 
-                document.activeElement.tagName !== "TEXTAREA") {
-                hiddenInputRef.current.focus();
-            }
-        }, 1000);
-        return () => clearInterval(keepFocus);
-    }, []);
-
+    // SCAN HANDLER
     const handleScanSuccess = async (decodedText) => {
         if (!decodedText || processingRef.current) return;
         const cleanCode = decodedText.trim().replace(/["\n\r\t\s+]/g, "").split("/").pop();
-        const now = Date.now();
-        if (lastScanned.current.code === cleanCode && (now - lastScanned.current.time) < 2000) return;
-
+        
         if (!location.lat) {
-            toast.error("Waiting for GPS signal...");
+            toast.error("Wait for GPS lock before scanning");
             return;
         }
 
         processingRef.current = true;
-        lastScanned.current = { code: cleanCode, time: now };
         const toastId = toast.loading(`Logging ${cleanCode}...`);
         
         try {
             await getOrderPincodeApi(cleanCode, location.lat, location.lng);
-            toast.success(`Order ${cleanCode} Logged Successfully`, { id: toastId });
+            toast.success(`Logged ${cleanCode}`, { id: toastId });
             loadScannedOrders();
-            loadAddresses();
         } catch (error) {
-            const msg = error?.response?.data?.message || "Logging failed";
-            toast.error(msg, { id: toastId });
+            toast.error(error?.response?.data?.message || "Scan failed", { id: toastId });
         } finally {
             processingRef.current = false;
             if (hiddenInputRef.current) {
@@ -284,6 +255,16 @@ export default function ScannedOrders() {
             }
         }
     };
+
+    // USB SCANNER FOCUS
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (hiddenInputRef.current && document.activeElement.tagName === "BODY") {
+                hiddenInputRef.current.focus();
+            }
+        }, 1000);
+        return () => clearInterval(interval);
+    }, []);
 
     const toggleCameraScanner = async () => {
         if (isScanning) {
@@ -322,45 +303,43 @@ export default function ScannedOrders() {
                 <OrderDetailModal orderNumber={selectedOrderNum} onClose={() => setSelectedOrderNum(null)} />
             )}
 
-            {/* HEADER */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <Scan className="text-primary" /> Multi-Point Scan Log
+                        <Scan className="text-primary" /> Scan Log
                     </h1>
                     <div className="flex flex-wrap items-center gap-4 mt-1">
                         <div className="flex items-center gap-1.5 text-[10px] font-bold text-green-500 border border-green-500/20 bg-green-500/5 px-2 py-0.5 rounded uppercase">
-                            <Usb size={12} /> Scanner Active
+                            <Usb size={12} /> USB Scanner Active
                         </div>
                         
-                        {/* DYNAMIC LOCATION BADGES */}
                         {locationStatus?.needs_location ? (
                             <div className="flex items-center gap-1.5 text-[10px] font-bold text-yellow-500 border border-yellow-500/20 bg-yellow-500/5 px-2 py-0.5 rounded uppercase">
-                                <LocateFixed size={12} className="animate-pulse" /> Linking Current GPS...
+                                <LocateFixed size={12} className="animate-pulse" /> Auto-Linking GPS...
                             </div>
                         ) : (
                             <button 
                                 onClick={handleResetLocation}
-                                className="flex items-center gap-1.5 text-[10px] font-bold text-blue-400 border border-blue-400/20 bg-blue-400/5 px-2 py-0.5 rounded uppercase hover:bg-blue-400/10 transition-colors"
+                                className="flex items-center gap-1.5 text-[10px] font-bold text-blue-400 border border-blue-400/20 bg-blue-400/5 px-2 py-0.5 rounded uppercase hover:bg-blue-400/10"
                             >
-                                <MapPinned size={12} /> Location Set (Reset)
+                                <MapPinned size={12} /> Point Set (Reset)
                             </button>
                         )}
 
                         <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500">
                             <MapPin size={12} className="text-primary" /> 
-                            {location.lat ? `${location.lat}, ${location.lng}` : "Locating GPS..."}
+                            GPS: {location.lat ? `${location.lat}, ${location.lng}` : "Locating..."}
                         </div>
                     </div>
                 </div>
 
                 <Button 
                     onClick={toggleCameraScanner} 
-                    className={cn("h-11 px-8 rounded-xl font-bold transition-all", 
-                    isScanning ? "bg-red-600 hover:bg-red-700 text-white" : "bg-primary hover:bg-primary/90 text-black")}
+                    className={cn("h-11 px-8 rounded-xl font-bold", 
+                    isScanning ? "bg-red-600 text-white" : "bg-primary text-black")}
                 >
                     {isScanning ? <StopCircle size={18} className="mr-2" /> : <Maximize size={18} className="mr-2" />}
-                    {isScanning ? "Stop Camera" : "Mobile Camera Scan"}
+                    {isScanning ? "Stop Camera" : "Mobile Scan"}
                 </Button>
             </div>
 
@@ -368,15 +347,14 @@ export default function ScannedOrders() {
                 <div id="reader" className="w-full max-w-md mx-auto rounded-2xl overflow-hidden border-2 border-primary shadow-2xl mb-6 bg-black" />
             )}
 
-            <Card className="bg-[#121212] border-white/10 shadow-2xl overflow-hidden rounded-2xl">
+            <Card className="bg-[#121212] border-white/10 shadow-2xl rounded-2xl overflow-hidden">
                 <CardContent className="p-0">
-                    {/* FILTERS */}
                     <div className="p-5 bg-white/5 border-b border-white/10 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-gray-500 uppercase">Scan Date</label>
                             <input
                                 type="date"
-                                className="w-full bg-[#18181b] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-primary"
+                                className="w-full bg-[#18181b] border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
                                 value={filters.date}
                                 onChange={(e) => setFilters(prev => ({ ...prev, date: e.target.value, page: 1 }))}
                             />
@@ -384,9 +362,9 @@ export default function ScannedOrders() {
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-gray-500 uppercase">Global Status</label>
                             <select
-                                className="w-full bg-[#18181b] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-primary cursor-pointer"
+                                className="w-full bg-[#18181b] border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
                                 value={filters.status}
-                                onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value, location_id: "", page: 1 }))}
+                                onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value, page: 1 }))}
                             >
                                 <option value="Picked">Picked</option>
                                 <option value="Warehouse">Warehouse</option>
@@ -397,27 +375,27 @@ export default function ScannedOrders() {
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-gray-500 uppercase">Target Location</label>
                             <select
-                                className="w-full bg-[#18181b] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-primary"
+                                className="w-full bg-[#18181b] border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
                                 value={filters.location_id}
                                 onChange={(e) => setFilters(prev => ({ ...prev, location_id: e.target.value, page: 1 }))}
                             >
-                                <option value="">All {filters.status} Points</option>
+                                <option value="">All Points</option>
                                 {addresses.map((addr) => (
                                     <option key={addr.id} value={addr.id}>
-                                        {addr.franchise_name || addr.nickname || addr.name} ({addr.city})
+                                        {addr.nickname || addr.name} ({addr.city})
                                     </option>
                                 ))}
                             </select>
                         </div>
                         <Button 
                             onClick={loadScannedOrders} 
-                            className="bg-white/5 hover:bg-white/10 text-white text-xs h-10 border border-white/10 rounded-xl"
+                            className="bg-white/5 text-white text-xs h-10 border border-white/10"
                         >
                             <RotateCcw size={14} className="mr-2" /> Refresh
                         </Button>
                     </div>
 
-                    <div className="overflow-x-auto relative min-h-[400px]">
+                    <div className="overflow-x-auto relative min-h-[300px]">
                         {loading && (
                             <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-10">
                                 <Loader2 className="animate-spin text-primary" size={40} />
@@ -426,8 +404,8 @@ export default function ScannedOrders() {
                         <table className="w-full text-left">
                             <thead className="bg-white/5 text-gray-500 text-[10px] font-bold uppercase border-b border-white/10">
                                 <tr>
-                                    <th className="px-6 py-4">Order Details</th>
-                                    <th className="px-6 py-4">Package Info</th>
+                                    <th className="px-6 py-4">Order</th>
+                                    <th className="px-6 py-4">Info</th>
                                     <th className="px-6 py-4">Scan Point</th>
                                     <th className="px-6 py-4 text-center">Action</th>
                                 </tr>
@@ -435,70 +413,42 @@ export default function ScannedOrders() {
                             <tbody className="divide-y divide-white/5">
                                 {orders.length > 0 ? (
                                     orders.map((order) => (
-                                        <tr key={order.id} className="hover:bg-white/[0.02] transition-all group">
+                                        <tr key={order.id} className="hover:bg-white/[0.02]">
                                             <td className="px-6 py-4">
-                                                <div className="text-sm font-bold text-white group-hover:text-primary transition-colors">
-                                                    {order.order_number}
-                                                </div>
-                                                <div className="text-[10px] text-gray-500 uppercase font-bold">
-                                                    {order.consignee?.name} • {order.consignee?.city}
-                                                </div>
+                                                <div className="text-sm font-bold text-white">{order.order_number}</div>
+                                                <div className="text-[10px] text-gray-500 uppercase">{order.consignee?.city}</div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <div className="flex flex-col gap-1">
-                                                    <div className="flex items-center gap-2 text-[11px] font-bold text-gray-300">
-                                                        <span className="flex items-center gap-1"><Scale size={12} className="text-primary"/> {order.total_weight_kg}kg</span>
-                                                        <span className="flex items-center gap-1"><Box size={12} className="text-primary"/> {order.total_boxes} Pkts</span>
-                                                    </div>
-                                                    <div className="text-[10px] text-gray-500 flex items-center gap-1 font-bold">
-                                                        <IndianRupee size={10} /> {order.order_value} ({order.payment_method})
-                                                    </div>
-                                                </div>
+                                                <div className="text-[11px] text-gray-300 font-bold">{order.total_weight_kg}kg • {order.total_boxes} Pkts</div>
+                                                <div className="text-[10px] text-gray-500">₹{order.order_value}</div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <div className="text-[10px] font-bold text-primary uppercase mb-1">
-                                                    {order.status} @ {order.status === "Dispatched" ? (order.franchise_name || "Franchise Hub") : (order.pickup?.nickname || "Station")}
-                                                </div>
-                                                <div className="text-xs font-mono font-bold text-gray-400">
-                                                    {new Date(order.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                                <div className="text-[10px] font-bold text-primary uppercase">{order.status}</div>
+                                                <div className="text-xs text-gray-400">
+                                                    {new Date(order.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 text-center">
                                                 <div className="flex items-center justify-center gap-2">
-                                                    <button 
-                                                        onClick={() => setSelectedOrderNum(order.order_number)}
-                                                        className="p-2 text-gray-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
-                                                    >
-                                                        <Eye size={18} />
-                                                    </button>
-                                                    <button 
-                                                        onClick={async () => {
-                                                            if (window.confirm("Revert this scan record?")) {
-                                                                await deleteScannedOrderApi(order.id);
-                                                                toast.success("Scan record reverted");
-                                                                loadScannedOrders();
-                                                            }
-                                                        }}
-                                                        className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
-                                                    >
-                                                        <Trash2 size={18} />
-                                                    </button>
+                                                    <button onClick={() => setSelectedOrderNum(order.order_number)} className="p-2 text-gray-400 hover:text-primary"><Eye size={18} /></button>
+                                                    <button onClick={async () => {
+                                                        if (window.confirm("Revert?")) {
+                                                            await deleteScannedOrderApi(order.id);
+                                                            loadScannedOrders();
+                                                        }
+                                                    }} className="p-2 text-gray-400 hover:text-red-500"><Trash2 size={18} /></button>
                                                 </div>
                                             </td>
                                         </tr>
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={4} className="px-6 py-20 text-center">
-                                            <PackageSearch size={48} className="mx-auto opacity-10 mb-4" />
-                                            <p className="text-xs font-bold text-gray-600 uppercase tracking-widest">No scans recorded for this selection</p>
-                                        </td>
+                                        <td colSpan={4} className="px-6 py-20 text-center text-gray-600 uppercase text-xs font-bold">No scans found</td>
                                     </tr>
                                 )}
                             </tbody>
                         </table>
                     </div>
-
                     <Pagination
                         currentPage={pagination.page}
                         totalPages={pagination.total_pages}
@@ -508,4 +458,4 @@ export default function ScannedOrders() {
             </Card>
         </div>
     );
-}   
+}
