@@ -99,6 +99,7 @@ export const ENDPOINTS = {
   },
   TRIP_SHEET: {
     BASE: "/operations/trip-sheet",
+    INCOMING: "/operations/trip-sheet/incoming", // Added for the registry
     DRIVERS: "/operations/trip-sheet/drivers",
     VEHICLES: "/operations/trip-sheet/vehicles",
     FRANCHISES: "/operations/trip-sheet/franchises",
