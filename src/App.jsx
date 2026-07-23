@@ -47,10 +47,12 @@ import RoleWizard from "./components/common/RoleWizard";
 import ScannedOrders from "./pages/ScannedOrders";
 import ActivityLogs from "./pages/ActivityLogs";
 import { FranchiseApproval } from "./pages/FranchiseApproval";
-import ChatPlatform from "./pages/ChatPlatform"; 
-import {PickupOrderListing} from "./pages/PickupOrderListing";
+import ChatPlatform from "./pages/ChatPlatform";
+import { PickupOrderListing } from "./pages/PickupOrderListing";
 import TripSheetRegistry from "./pages/TripSheetRegistry";
 import TripSheet from "./pages/TripSheet";
+import VehicleRegistry from "./pages/VehicleRegistry";
+import DriverRegistry from "./pages/DriverRegistry";
 
 export default function App() {
   const token = Cookies.get("access_token");
@@ -242,12 +244,12 @@ export default function App() {
                 </PermissionRoute>
               }
             />
-            
+
             {/* Using orders:view for all order listing sub-routes */}
             {[
-              "processing-order", "bulk-orders", "all-orders", "manifested", 
-              "not-picked", "in-transit", "pending", "out-for-delivery", 
-              "delivered", "rto-in-transit", "rto-delivered", "returned", 
+              "processing-order", "bulk-orders", "all-orders", "manifested",
+              "not-picked", "in-transit", "pending", "out-for-delivery",
+              "delivered", "rto-in-transit", "rto-delivered", "returned",
               "cancelled", "lost", "scanned-orders"
             ].map(path => (
               <Route
@@ -290,14 +292,14 @@ export default function App() {
                 </PermissionRoute>
               }
             />
-<Route
-  path="chat"
-  element={
-    <PermissionRoute permission="orders:view"> 
-      <ChatPlatform />
-    </PermissionRoute>
-  }
-/>
+            <Route
+              path="chat"
+              element={
+                <PermissionRoute permission="orders:view">
+                  <ChatPlatform />
+                </PermissionRoute>
+              }
+            />
             {/* Finance */}
             <Route
               path="wallet"
@@ -323,10 +325,27 @@ export default function App() {
                 </PermissionRoute>
               }
             />
-            <Route path="trip/trip-sheet" element={<PermissionRoute permission="trip_sheet:view"><TripSheetRegistry /></PermissionRoute>} />
-            <Route path="trip/create" element={<PermissionRoute permission="trip_sheet:create"><TripSheet /></PermissionRoute>} />
-            <Route path="trip/edit/:id" element={<PermissionRoute permission="trip_sheet:edit"><TripSheet /></PermissionRoute>} />
-            {/* CRM & Operations */}
+            {/* Trip & Fleet Management */}
+            <Route
+              path="trip/trip-sheet"
+              element={<PermissionRoute permission="tripsheet:view"><TripSheetRegistry /></PermissionRoute>}
+            />
+            <Route
+              path="trip/create"
+              element={<PermissionRoute permission="tripsheet:create"><TripSheet /></PermissionRoute>}
+            />
+            <Route
+              path="trip/edit/:id"
+              element={<PermissionRoute permission="tripsheet:update"><TripSheet /></PermissionRoute>}
+            />
+            <Route
+              path="trip/vehicles"
+              element={<PermissionRoute permission="fleet:vehicle:view"><VehicleRegistry /></PermissionRoute>}
+            />
+            <Route
+              path="trip/drivers"
+              element={<PermissionRoute permission="fleet:drivers:view"><DriverRegistry /></PermissionRoute>}
+            />
             <Route
               path="consignees"
               element={
@@ -406,8 +425,8 @@ export default function App() {
                 </PermissionRoute>
               }
             />
-           
-           <Route 
+
+            <Route
               path="pickup-orders"
               element={
                 <PermissionRoute permission="pickup_orders:view">
@@ -459,7 +478,7 @@ export default function App() {
                 </PermissionRoute>
               }
             />
-            
+
             <Route
               path="franchise/add"
               element={
@@ -476,7 +495,7 @@ export default function App() {
                 </PermissionRoute>
               }
             />
-            
+
             {/* Staff within Franchise */}
             <Route
               path="franchise/add-staff"

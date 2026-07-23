@@ -4,22 +4,21 @@ import { hasPermission, SUPER_ADMIN_ROLES } from "../lib/permissions";
 
 export function usePermission() {
   const { role, permissions } = useSelector((state) => state.auth || {});
-    const userPerms = useMemo(() => permissions || [], [permissions]);
-  
+  const userPerms = useMemo(() => permissions || [], [permissions]);
+
   const isSuperAdmin = useMemo(() => SUPER_ADMIN_ROLES.includes(role), [role]);
 
- 
   const can = useCallback(
     (permissionCode) => hasPermission(userPerms, role, permissionCode),
-    [userPerms, role],
+    [userPerms, role]
   );
 
   return {
     role,
     permissions: userPerms,
     isSuperAdmin,
-    can, 
-    has: can, 
+    can,
+    has: can,
 
     activityLogs: {
       view: can("activity_logs:view"),
@@ -32,6 +31,7 @@ export function usePermission() {
 
     communication: {
       view: can("communication:view"),
+      send: can("communication:send"),
     },
 
     consignees: {
@@ -39,6 +39,22 @@ export function usePermission() {
       view: can("consignees:view"),
       edit: can("consignees:edit"),
       delete: can("consignees:delete"),
+    },
+
+    fleet: {
+      drivers: {
+        view: can("fleet:drivers:view"),
+        create: can("fleet:drivers:create"),
+        update: can("fleet:drivers:update"),
+        delete: can("fleet:drivers:delete"),
+        approve: can("fleet:drivers:approve"),
+      },
+      vehicles: {
+        view: can("fleet:vehicle:view"),
+        create: can("fleet:vehicle:create"),
+        update: can("fleet:vehicle:update"),
+        delete: can("fleet:vehicle:delete"),
+      },
     },
 
     franchises: {
@@ -51,6 +67,13 @@ export function usePermission() {
     invoices: {
       generate: can("invoices:generate"),
       view: can("invoices:view"),
+      delete: can("invoices:delete"),
+    },
+
+    monthEndClosing: {
+      view: can("month_end_closing:view"),
+      submit: can("month_end_closing:submit"),
+      approve: can("month_end_closing:approve"),
     },
 
     orders: {
@@ -82,11 +105,16 @@ export function usePermission() {
       view: can("remittances:view"),
     },
 
+    reset: {
+      location: can("reset:location"),
+    },
+
     reviews: {
       create: can("reviews:create"),
       delete: can("reviews:delete"),
       edit: can("reviews:edit"),
       view: can("reviews:view"),
+      approve: can("reviews:approve"),
     },
 
     roles: {
@@ -99,6 +127,13 @@ export function usePermission() {
     tickets: {
       create: can("tickets:create"),
       view: can("tickets:view"),
+    },
+
+    tripsheet: {
+      create: can("tripsheet:create"),
+      view: can("tripsheet:view"),
+      update: can("tripsheet:update"),
+      delete: can("tripsheet:delete"),
     },
 
     userRoles: {

@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
-    Menu, Bell, Search, Moon, Sun, Plus, Zap, X, ShoppingBag, List,
-    Calculator, FileText, History, Copy, Download, QrCode, ChevronDown, User, Loader2, Package, Wallet
+    Menu, Bell, Moon, Sun, Plus, Zap, X, ShoppingBag, List,
+    FileText, History, Copy, Download, QrCode, ChevronDown, 
+    Loader2, Package, Wallet, Truck, Printer
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { useTheme } from "../../contexts/ThemeContext";
@@ -13,7 +14,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { fetchProfile } from "../../redux/profileSlice";
 import { bulkUploadOrders, resetOrderState, refreshBulkOrders } from "../../redux/bulkOrderSlice";
 import { fetchOrders, fetchOrderCounts } from "../../redux/orderSlice";
-import { fetchPickupAddressesApi, getNotificationsWSUrl } from "../../services/apiCalls";
+import { 
+    fetchPickupAddressesApi, 
+    getNotificationsWSUrl, 
+    fetchTripSheetDetailsApi 
+} from "../../services/apiCalls";
+import { generateTripSheetPrint } from "../../lib/PrintTripSheet";
 import { toast } from "react-hot-toast";
 import Cookies from "js-cookie";
 
@@ -21,6 +27,8 @@ import { addNotification, markNotificationAsRead, fetchNotifications } from "../
 import { usePermission } from "../../hooks/usePermission";
 
 const IMAGE_BASE_URL = "http://api.roadozcourier.com";
+// Standard notification sound
+const NOTIFY_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3";
 
 export function Header({ toggleSidebar }) {
     const { theme, toggleTheme } = useTheme();
@@ -34,12 +42,12 @@ export function Header({ toggleSidebar }) {
     const { items: notifications, unreadCount } = useSelector((state) => state.notifications);
 
     // Component State
-    const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [activeNotifyTab, setActiveNotifyTab] = useState("Orders");
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
+    const [isPrinting, setIsPrinting] = useState(false);
 
     const [orderType, setOrderType] = useState("B2C");
     const [pickupAddressId, setPickupAddressId] = useState("");
@@ -48,46 +56,97 @@ export function Header({ toggleSidebar }) {
     const [selectedFile, setSelectedFile] = useState(null);
 
     const notificationRef = useRef(null);
+    const audioPlayer = useRef(new Audio(NOTIFY_SOUND_URL));
+
+    // Sound Helper
+    const playNotificationSound = useCallback(() => {
+        audioPlayer.current.play().catch(err => console.log("Audio blocked by browser policy"));
+    }, []);
 
     useEffect(() => {
         dispatch(fetchProfile());
         dispatch(fetchNotifications({ limit: 50 })); 
     }, [dispatch]);
 
+    // WebSocket Management (Standard & Trip Sheets)
     useEffect(() => {
-        const wsUrl = getNotificationsWSUrl();
-        const socket = new WebSocket(wsUrl);
+        const token = Cookies.get("access_token");
+        
+        // 1. Standard Notifications Socket
+        const standardWsUrl = getNotificationsWSUrl();
+        const stdSocket = new WebSocket(standardWsUrl);
 
-        socket.onmessage = (event) => {
+        stdSocket.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
                 dispatch(addNotification(data));
-                toast.success(data.message, { icon: '📦' });
-            } catch (err) {
-                console.error("WS Parsing Error:", err);
-            }
+                playNotificationSound();
+                toast.success(data.message || "New Notification", { icon: '📦' });
+            } catch (err) { console.error("WS Error:", err); }
         };
 
-        socket.onclose = () => console.log("Notification Socket Closed");
-        socket.onerror = (err) => console.error("WS Socket Error", err);
+        // 2. Trip Sheet Specific Socket
+        const tripWsUrl = `ws://127.0.0.1:8000/api/v1/ws/trip-sheet-notifications?token=${token}`;
+        const tripSocket = new WebSocket(tripWsUrl);
 
-        return () => socket.close();
-    }, [dispatch]);
+        tripSocket.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.event === "new_incoming_trip_sheet") {
+                    // Map incoming WS event to Notification format
+                    const formattedNotification = {
+                        id: data.trip_sheet_id, // Use ID for click tracking
+                        type: "trip_sheet",
+                        title: "Incoming Trip Sheet",
+                        message: `New Trip Sheet from ${data.from_franchise_name} (${data.total_packages} Packages)`,
+                        created_at: new Date().toISOString(),
+                        is_read: false,
+                        trip_sheet_id: data.trip_sheet_id
+                    };
+                    dispatch(addNotification(formattedNotification));
+                    playNotificationSound();
+                    toast.success(`New Trip Sheet: ${data.from_franchise_name}`, { icon: '🚛', duration: 5000 });
+                }
+            } catch (err) { console.error("Trip WS Error:", err); }
+        };
 
-    const handleNotifyClick = (notification) => {
+        return () => {
+            stdSocket.close();
+            tripSocket.close();
+        };
+    }, [dispatch, playNotificationSound]);
+
+    const handleNotifyClick = async (notification) => {
         if (!notification.is_read) {
             dispatch(markNotificationAsRead(notification.id));
         }
 
+        // Action: Trip Sheet Printing
+        if (notification.type === "trip_sheet" || notification.trip_sheet_id) {
+            const tripId = notification.trip_sheet_id || notification.id;
+            try {
+                setIsPrinting(true);
+                const data = await fetchTripSheetDetailsApi(tripId);
+                generateTripSheetPrint(data);
+                setIsNotificationsOpen(false);
+            } catch (err) {
+                toast.error("Failed to load trip sheet details");
+            } finally {
+                setIsPrinting(false);
+            }
+            return;
+        }
+
+        // Action: Standard Order Navigation
         if (notification.type === "order" && notification.order_id) {
-            // navigate(`/orders/${notification.order_id}`); 
-            // setIsNotificationsOpen(false);
+             navigate(`/dashboard/all-orders?search=${notification.order_id}`); 
+             setIsNotificationsOpen(false);
         }
     };
 
     const filteredNotifications = notifications.filter(item => {
         const type = item.type?.toLowerCase();
-        if (activeNotifyTab === "Orders") return type === "order" || !type;
+        if (activeNotifyTab === "Orders") return type === "order" || type === "trip_sheet" || !type;
         if (activeNotifyTab === "Wallet") return type === "wallet";
         if (activeNotifyTab === "COD") return type === "cod";
         return true;
@@ -214,7 +273,7 @@ export function Header({ toggleSidebar }) {
 
                     {walletPerms.view && (
                     <div onClick={() => walletPerms.recharge && setIsWalletModalOpen(true)} className={cn("flex items-center gap-0.5 sm:gap-1 bg-dashboard-bg px-1.5 sm:px-2 md:px-3 py-1 sm:py-1.5 rounded-full border border-border-subtle transition-all", walletPerms.recharge && "cursor-pointer hover:border-primary/50")}>
-                        <span className="text-text-main font-bold text-xs">₹{user?.wallet_balance || "689"}</span>
+                        <span className="text-text-main font-bold text-xs">₹{user?.wallet_balance || "0"}</span>
                         {walletPerms.recharge && (
                           <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 bg-primary rounded-full flex items-center justify-center text-black ml-0.5">
                               <Plus size={8} strokeWidth={4} />
@@ -223,6 +282,7 @@ export function Header({ toggleSidebar }) {
                     </div>
                     )}
 
+                    {/* Notification System */}
                     <div className="relative" ref={notificationRef}>
                         <button onClick={() => setIsNotificationsOpen(!isNotificationsOpen)} className="text-text-muted hover:text-text-main p-1.5 sm:p-2 relative group">
                             <Bell size={18} className="sm:w-5 sm:h-5" />
@@ -237,7 +297,7 @@ export function Header({ toggleSidebar }) {
                                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="fixed sm:absolute right-0 left-0 sm:left-auto top-16 sm:top-full mx-4 sm:mx-0 mt-2 w-auto sm:w-80 bg-card-bg border border-border-subtle rounded-xl shadow-2xl overflow-hidden z-50">
                                     <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-dashboard-bg/30">
                                         <h3 className="font-bold text-text-main text-sm">Notifications</h3>
-                                        <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">{unreadCount} Unread</span>
+                                        <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">{unreadCount} New</span>
                                     </div>
                                     <div className="flex border-b border-border-subtle bg-dashboard-bg/10">
                                         {["Orders", "Wallet", "COD"].map((tab) => (
@@ -250,39 +310,58 @@ export function Header({ toggleSidebar }) {
                                             </button>
                                         ))}
                                     </div>
-                                    <div className="max-h-[350px] overflow-y-auto bg-card-bg scrollbar-thin">
+                                    <div className="max-h-[380px] overflow-y-auto bg-card-bg scrollbar-thin">
                                         {filteredNotifications.length > 0 ? (
                                             filteredNotifications.map((item) => (
                                                 <div 
                                                     key={item.id} 
-                                                    onClick={() => handleNotifyClick(item)}
+                                                    onClick={() => !isPrinting && handleNotifyClick(item)}
                                                     className={cn(
-                                                        "p-4 border-b border-border-subtle flex gap-3 cursor-pointer transition-colors hover:bg-dashboard-bg/30",
+                                                        "p-4 border-b border-border-subtle flex gap-3 cursor-pointer transition-colors hover:bg-dashboard-bg/30 relative",
                                                         !item.is_read ? "bg-primary/5" : "opacity-70"
                                                     )}
                                                 >
-                                                    <div className={cn("w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0", 
-                                                        !item.is_read ? "bg-primary/20 text-primary" : "bg-dashboard-bg text-text-muted")}>
-                                                        {item.type === 'wallet' ? <Wallet size={16} /> : <Package size={16} />}
+                                                    <div className={cn("w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm", 
+                                                        item.type === 'trip_sheet' ? "bg-blue-500/10 text-blue-500" :
+                                                        item.type === 'wallet' ? "bg-emerald-500/10 text-emerald-500" : 
+                                                        "bg-primary/10 text-primary")}>
+                                                        {item.type === 'trip_sheet' ? <Truck size={18} /> : 
+                                                         item.type === 'wallet' ? <Wallet size={18} /> : 
+                                                         <Package size={18} />}
                                                     </div>
-                                                    <div className="flex flex-col gap-0.5 overflow-hidden">
-                                                        <p className="text-xs font-bold text-text-main truncate">{item.title}</p>
-                                                        <p className="text-[11px] text-text-muted line-clamp-2 leading-relaxed">{item.message}</p>
-                                                        <p className="text-[9px] text-text-muted mt-1 uppercase font-medium">
-                                                            {new Date(item.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
-                                                        </p>
+                                                    <div className="flex flex-col gap-0.5 overflow-hidden flex-1">
+                                                        <div className="flex items-center justify-between">
+                                                            <p className="text-xs font-bold text-text-main truncate">{item.title}</p>
+                                                            {item.type === 'trip_sheet' && (
+                                                                <Printer size={10} className="text-blue-500 animate-pulse" />
+                                                            )}
+                                                        </div>
+                                                        <p className="text-[11px] text-text-muted line-clamp-2 leading-tight">{item.message}</p>
+                                                        <div className="flex items-center justify-between mt-1.5">
+                                                            <p className="text-[9px] text-text-muted uppercase font-medium">
+                                                                {new Date(item.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                                            </p>
+                                                            {item.type === 'trip_sheet' && (
+                                                                <span className="text-[8px] bg-blue-500/20 text-blue-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">Click to Print</span>
+                                                            )}
+                                                        </div>
                                                     </div>
+                                                    {isPrinting && item.type === 'trip_sheet' && (
+                                                        <div className="absolute inset-0 bg-white/40 flex items-center justify-center backdrop-blur-[1px]">
+                                                            <Loader2 size={16} className="animate-spin text-blue-500" />
+                                                        </div>
+                                                    )}
                                                     {!item.is_read && <div className="w-2 h-2 bg-primary rounded-full mt-2 flex-shrink-0" />}
                                                 </div>
                                             ))
                                         ) : (
-                                            <div className="p-10 text-center">
+                                            <div className="py-12 text-center">
                                                 <p className="text-text-muted text-xs italic">No {activeNotifyTab} notifications</p>
                                             </div>
                                         )}
                                     </div>
                                     <div className="p-3 text-center border-t border-border-subtle bg-dashboard-bg/20">
-                                        <button className="text-[11px] font-bold text-primary uppercase hover:underline">View All Notifications</button>
+                                        <button className="text-[10px] font-bold text-text-muted uppercase tracking-widest hover:text-primary">Close Dropdown</button>
                                     </div>
                                 </motion.div>
                             )}
@@ -308,6 +387,7 @@ export function Header({ toggleSidebar }) {
                 </div>
             </header>
 
+            {/* Bulk Import Modal */}
             <AnimatePresence>
                 {isImportModalOpen && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -356,6 +436,7 @@ export function Header({ toggleSidebar }) {
                 )}
             </AnimatePresence>
 
+            {/* Wallet Recharge Modal */}
             <AnimatePresence>
                 {walletPerms.recharge && isWalletModalOpen && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -372,6 +453,7 @@ export function Header({ toggleSidebar }) {
                 )}
             </AnimatePresence>
 
+            {/* Quick Actions Modal */}
             <AnimatePresence>
                 {isQuickActionsOpen && (
                     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4 backdrop-blur-sm">
