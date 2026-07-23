@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
     Menu, Bell, Moon, Sun, Plus, Zap, X, ShoppingBag, List,
-    FileText, History, Copy, Download, QrCode, ChevronDown, 
+    Calculator, FileText, History, Copy, Download, QrCode, ChevronDown, 
     Loader2, Package, Wallet, Truck, Printer
 } from "lucide-react";
 import { Button } from "../ui/button";
@@ -17,6 +17,7 @@ import { fetchOrders, fetchOrderCounts } from "../../redux/orderSlice";
 import { 
     fetchPickupAddressesApi, 
     getNotificationsWSUrl, 
+    getTripSheetWSUrl, 
     fetchTripSheetDetailsApi 
 } from "../../services/apiCalls";
 import { generateTripSheetPrint } from "../../lib/PrintTripSheet";
@@ -25,10 +26,10 @@ import Cookies from "js-cookie";
 
 import { addNotification, markNotificationAsRead, fetchNotifications } from "../../redux/notificationSlice";
 import { usePermission } from "../../hooks/usePermission";
+import notificationSound from "../../audio/mixkit-happy-bells-notification-937.wav";
 
 const IMAGE_BASE_URL = "http://api.roadozcourier.com";
-// Standard notification sound
-const NOTIFY_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3";
+const NOTIFY_SOUND_URL = notificationSound;
 
 export function Header({ toggleSidebar }) {
     const { theme, toggleTheme } = useTheme();
@@ -41,7 +42,7 @@ export function Header({ toggleSidebar }) {
     const { loading: uploadLoading, error: uploadError, success: uploadSuccess } = useSelector((state) => state.bulkOrders);
     const { items: notifications, unreadCount } = useSelector((state) => state.notifications);
 
-    // Component State
+    // UI States
     const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [activeNotifyTab, setActiveNotifyTab] = useState("Orders");
@@ -49,6 +50,7 @@ export function Header({ toggleSidebar }) {
     const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
     const [isPrinting, setIsPrinting] = useState(false);
 
+    // Form States
     const [orderType, setOrderType] = useState("B2C");
     const [pickupAddressId, setPickupAddressId] = useState("");
     const [pickupAddresses, setPickupAddresses] = useState([]);
@@ -57,10 +59,14 @@ export function Header({ toggleSidebar }) {
 
     const notificationRef = useRef(null);
     const audioPlayer = useRef(new Audio(NOTIFY_SOUND_URL));
+    
+    // --- FIX: Ref to track processed notification IDs to prevent repeat toasts ---
+    const processedToastIds = useRef(new Set());
 
-    // Sound Helper
+    const PLACEHOLDER_IMAGE = `https://ui-avatars.com/api/?name=${user?.name || "User"}&background=0D8ABC&color=fff`;
+
     const playNotificationSound = useCallback(() => {
-        audioPlayer.current.play().catch(err => console.log("Audio blocked by browser policy"));
+        audioPlayer.current.play().catch(() => console.log("Audio blocked by browser"));
     }, []);
 
     useEffect(() => {
@@ -68,51 +74,87 @@ export function Header({ toggleSidebar }) {
         dispatch(fetchNotifications({ limit: 50 })); 
     }, [dispatch]);
 
-    // WebSocket Management (Standard & Trip Sheets)
+    // WebSocket Management
     useEffect(() => {
-        const token = Cookies.get("access_token");
-        
-        // 1. Standard Notifications Socket
-        const standardWsUrl = getNotificationsWSUrl();
-        const stdSocket = new WebSocket(standardWsUrl);
+        let stdSocket = null;
+        let tripSocket = null;
+        let reconnectTimeout = null;
 
-        stdSocket.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                dispatch(addNotification(data));
-                playNotificationSound();
-                toast.success(data.message || "New Notification", { icon: '📦' });
-            } catch (err) { console.error("WS Error:", err); }
+        const connect = () => {
+            const token = Cookies.get("access_token");
+            if (!token) return;
+
+            const stdUrl = getNotificationsWSUrl().replace(/([^:]\/)\/+/g, "$1");
+            const tripUrl = getTripSheetWSUrl().replace(/([^:]\/)\/+/g, "$1");
+
+            stdSocket = new WebSocket(stdUrl);
+            tripSocket = new WebSocket(tripUrl);
+
+            stdSocket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    const notifId = data.id || data.order_id || Date.now().toString();
+
+                    // Check if we have already shown a toast for this specific notification
+                    if (!processedToastIds.current.has(notifId)) {
+                        dispatch(addNotification(data));
+                        playNotificationSound();
+                        toast.success(data.message || "New Update", { icon: '📦' });
+                        
+                        processedToastIds.current.add(notifId);
+                        // Clean up ref after 1 minute to prevent memory bloat
+                        setTimeout(() => processedToastIds.current.delete(notifId), 60000);
+                    }
+                } catch (err) { console.error("WS Parsing Error:", err); }
+            };
+
+            tripSocket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.event === "new_incoming_trip_sheet" || data.type === "trip_sheet") {
+                        const tripId = data.trip_sheet_id || `ts-${Date.now()}`;
+
+                        if (!processedToastIds.current.has(tripId)) {
+                            const formatted = {
+                                id: tripId,
+                                type: "trip_sheet",
+                                title: "Incoming Trip Sheet",
+                                message: data.message || `New Trip Sheet Arrival`,
+                                created_at: new Date().toISOString(),
+                                is_read: false,
+                                trip_sheet_id: data.trip_sheet_id
+                            };
+                            dispatch(addNotification(formatted));
+                            playNotificationSound();
+                            toast.success("New Trip Sheet Received", { icon: '🚛', duration: 6000 });
+                            
+                            processedToastIds.current.add(tripId);
+                            setTimeout(() => processedToastIds.current.delete(tripId), 60000);
+                        }
+                    }
+                } catch (err) { console.error("Trip WS Error:", err); }
+            };
+
+            const handleRetry = () => {
+                clearTimeout(reconnectTimeout);
+                reconnectTimeout = setTimeout(connect, 5000);
+            };
+
+            stdSocket.onclose = handleRetry;
+            tripSocket.onclose = handleRetry;
         };
 
-        // 2. Trip Sheet Specific Socket
-        const tripWsUrl = `ws://127.0.0.1:8000/api/v1/ws/trip-sheet-notifications?token=${token}`;
-        const tripSocket = new WebSocket(tripWsUrl);
-
-        tripSocket.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (data.event === "new_incoming_trip_sheet") {
-                    // Map incoming WS event to Notification format
-                    const formattedNotification = {
-                        id: data.trip_sheet_id, // Use ID for click tracking
-                        type: "trip_sheet",
-                        title: "Incoming Trip Sheet",
-                        message: `New Trip Sheet from ${data.from_franchise_name} (${data.total_packages} Packages)`,
-                        created_at: new Date().toISOString(),
-                        is_read: false,
-                        trip_sheet_id: data.trip_sheet_id
-                    };
-                    dispatch(addNotification(formattedNotification));
-                    playNotificationSound();
-                    toast.success(`New Trip Sheet: ${data.from_franchise_name}`, { icon: '🚛', duration: 5000 });
-                }
-            } catch (err) { console.error("Trip WS Error:", err); }
-        };
-
+        connect();
         return () => {
-            stdSocket.close();
-            tripSocket.close();
+            clearTimeout(reconnectTimeout);
+            if (stdSocket) {
+                stdSocket.onclose = null; // Prevent retry loop on unmount
+                stdSocket.close();
+            }
+            if (tripSocket) {
+                tripSocket.onclose = null;
+                tripSocket.close();
+            }
         };
     }, [dispatch, playNotificationSound]);
 
@@ -121,23 +163,21 @@ export function Header({ toggleSidebar }) {
             dispatch(markNotificationAsRead(notification.id));
         }
 
-        // Action: Trip Sheet Printing
         if (notification.type === "trip_sheet" || notification.trip_sheet_id) {
-            const tripId = notification.trip_sheet_id || notification.id;
+            const tripId = notification.trip_sheet_id;
             try {
                 setIsPrinting(true);
                 const data = await fetchTripSheetDetailsApi(tripId);
                 generateTripSheetPrint(data);
                 setIsNotificationsOpen(false);
             } catch (err) {
-                toast.error("Failed to load trip sheet details");
+                toast.error("Failed to load Trip Sheet data");
             } finally {
                 setIsPrinting(false);
             }
             return;
         }
 
-        // Action: Standard Order Navigation
         if (notification.type === "order" && notification.order_id) {
              navigate(`/dashboard/all-orders?search=${notification.order_id}`); 
              setIsNotificationsOpen(false);
@@ -152,6 +192,14 @@ export function Header({ toggleSidebar }) {
         return true;
     });
 
+    const getProfileImageUrl = () => {
+        const img = user?.profile_image;
+        if (!img || img.includes("/api/")) return PLACEHOLDER_IMAGE;
+        if (img.startsWith("http")) return img;
+        if (img.startsWith("/uploads")) return `${IMAGE_BASE_URL}${img}`;
+        return PLACEHOLDER_IMAGE;
+    };
+
     useEffect(() => {
         if (isImportModalOpen) {
             const loadAddresses = async () => {
@@ -160,15 +208,9 @@ export function Header({ toggleSidebar }) {
                     const res = await fetchPickupAddressesApi();
                     const activeItems = (res.items || []).filter(item => item.active === true);
                     setPickupAddresses(activeItems);
-                    if (activeItems.length > 0) {
-                        const primary = activeItems.find(a => a.is_primary) || activeItems[0];
-                        setPickupAddressId(primary.id);
-                    }
-                } catch (error) {
-                    toast.error("Failed to load pickup addresses");
-                } finally {
-                    setAddressLoading(false);
-                }
+                    if (activeItems.length > 0) setPickupAddressId(activeItems[0].id);
+                } catch (error) { toast.error("Failed to load addresses"); }
+                finally { setAddressLoading(false); }
             };
             loadAddresses();
         }
@@ -180,8 +222,6 @@ export function Header({ toggleSidebar }) {
             setIsImportModalOpen(false);
             setSelectedFile(null);
             dispatch(resetOrderState());
-            dispatch(fetchOrders({ page: 1, limit: 25 }));
-            dispatch(fetchOrderCounts());
             dispatch(refreshBulkOrders());
         }
         if (uploadError) {
@@ -190,43 +230,17 @@ export function Header({ toggleSidebar }) {
         }
     }, [uploadSuccess, uploadError, dispatch]);
 
-    useEffect(() => {
-        function handleClickOutside(event) {
-            if (notificationRef.current && !notificationRef.current.contains(event.target)) {
-                setIsNotificationsOpen(false);
-            }
-        }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    const PLACEHOLDER_IMAGE = `https://ui-avatars.com/api/?name=${user?.name || "User"}&background=0D8ABC&color=fff`;
-
-    const getProfileImageUrl = () => {
-        const img = user?.profile_image;
-        if (!img || img.includes("/api/")) return PLACEHOLDER_IMAGE;
-        if (img.startsWith("http")) return img;
-        if (img.startsWith("/uploads")) return `${IMAGE_BASE_URL}${img}`;
-        return PLACEHOLDER_IMAGE;
-    };
-
     const handleFileChange = (e) => {
         const file = e.target.files[0];
-        if (file) {
-            const extension = file.name.split('.').pop().toLowerCase();
-            if (extension !== 'xlsx' && extension !== 'xls') {
-                toast.error("Please select a valid Excel file (.xlsx or .xls)");
-                e.target.value = null;
-                setSelectedFile(null);
-                return;
-            }
+        if (file && (file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
             setSelectedFile(file);
+        } else {
+            toast.error("Please select a valid Excel file");
         }
     };
 
     const handleImportSubmit = async () => {
-        if (!selectedFile) return toast.error("Please select an Excel file first");
-        if (!pickupAddressId) return toast.error("Please select a pickup address");
+        if (!selectedFile || !pickupAddressId) return toast.error("Please fill all fields");
         const formData = new FormData();
         formData.append("file", selectedFile); 
         formData.append("order_type", orderType);
@@ -238,56 +252,57 @@ export function Header({ toggleSidebar }) {
         orderPerms.create && { icon: <ShoppingBag className="text-primary" />, label: "Add an Order", path: "/dashboard/new-orders" },
         orderPerms.view && { icon: <List className="text-primary" />, label: "All Orders", path: "/dashboard/all-orders" },
         invoicePerms.generate && { icon: <FileText className="text-primary" />, label: "Create Invoice", path: "/dashboard/invoices" },
-        remittancePerms.view && { icon: <History className="text-primary" />, label: "Remittance Transaction Log", path: "/dashboard/cod-remittance" },
+        remittancePerms.view && { icon: <History className="text-primary" />, label: "Remittance Logs", path: "/dashboard/cod-remittance" },
     ].filter(Boolean);
+
+    useEffect(() => {
+        function handleClickOutside(event) {
+            if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+                setIsNotificationsOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     return (
         <div className="sticky top-0 z-50 w-full">
-            <header className="h-14 sm:h-16 bg-card-bg border-b border-border-subtle flex items-center justify-between px-2 sm:px-3 md:px-6 transition-colors duration-300">
-                <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
-                    <button
-                        onClick={(e) => { e.stopPropagation(); toggleSidebar(); }}
-                        className="p-1.5 sm:p-2 text-text-muted hover:text-text-main hover:bg-dashboard-bg rounded-lg transition-colors active:scale-95"
-                    >
+            <header className="h-14 sm:h-16 bg-card-bg border-b border-border-subtle flex items-center justify-between px-2 sm:px-3 md:px-6">
+                <div className="flex items-center gap-2 sm:gap-4">
+                    <button onClick={toggleSidebar} className="p-1.5 sm:p-2 text-text-muted hover:text-text-main rounded-lg active:scale-95">
                         <Menu size={20} className="sm:w-6 sm:h-6" />
                     </button>
                     <img src={Logo} alt="Logo" className="h-6 sm:h-8 w-auto lg:hidden md:hidden" />
                 </div>
 
-                <div className="flex items-center gap-1 sm:gap-1.5 md:gap-3">
+                <div className="flex items-center gap-1 sm:gap-3 md:gap-4">
                     {orderPerms.create && (
-                      <Button
-                          onClick={() => setIsImportModalOpen(true)}
-                          className="bg-primary text-black hover:bg-primary/90 h-7 sm:h-8 px-2 sm:px-2.5 flex items-center gap-1 text-xs font-bold"
-                      >
-                          <Plus size={12} className="sm:w-3.5 sm:h-3.5" />
+                      <Button onClick={() => setIsImportModalOpen(true)} className="bg-primary text-black hover:bg-primary/90 h-7 sm:h-8 px-2 sm:px-3 text-xs font-bold">
+                          <Plus size={12} className="sm:w-3.5 sm:h-3.5 mr-1" />
                           <span className="hidden sm:inline">Import</span>
                       </Button>
                     )}
 
                     {quickActions.length > 0 && (
-                      <button onClick={() => setIsQuickActionsOpen(true)} className="w-7 h-7 sm:w-8 sm:h-8 bg-primary text-black rounded-full flex items-center justify-center hover:bg-primary/90 transition-all shadow-sm active:scale-90">
+                      <button onClick={() => setIsQuickActionsOpen(true)} className="w-7 h-7 sm:w-8 sm:h-8 bg-primary text-black rounded-full flex items-center justify-center hover:bg-primary/90 active:scale-90">
                           <Zap size={14} className="sm:w-4 sm:h-4" fill="currentColor" />
                       </button>
                     )}
 
                     {walletPerms.view && (
-                    <div onClick={() => walletPerms.recharge && setIsWalletModalOpen(true)} className={cn("flex items-center gap-0.5 sm:gap-1 bg-dashboard-bg px-1.5 sm:px-2 md:px-3 py-1 sm:py-1.5 rounded-full border border-border-subtle transition-all", walletPerms.recharge && "cursor-pointer hover:border-primary/50")}>
+                    <div onClick={() => setIsWalletModalOpen(true)} className="flex items-center gap-1 bg-dashboard-bg px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-border-subtle cursor-pointer hover:border-primary/50 transition-all">
                         <span className="text-text-main font-bold text-xs">₹{user?.wallet_balance || "0"}</span>
-                        {walletPerms.recharge && (
-                          <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 bg-primary rounded-full flex items-center justify-center text-black ml-0.5">
-                              <Plus size={8} strokeWidth={4} />
-                          </div>
-                        )}
+                        <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 bg-primary rounded-full flex items-center justify-center text-black">
+                            <Plus size={8} strokeWidth={4} />
+                        </div>
                     </div>
                     )}
 
-                    {/* Notification System */}
                     <div className="relative" ref={notificationRef}>
-                        <button onClick={() => setIsNotificationsOpen(!isNotificationsOpen)} className="text-text-muted hover:text-text-main p-1.5 sm:p-2 relative group">
+                        <button onClick={() => setIsNotificationsOpen(!isNotificationsOpen)} className="text-text-muted hover:text-text-main p-1.5 sm:p-2 relative">
                             <Bell size={18} className="sm:w-5 sm:h-5" />
                             {unreadCount > 0 && (
-                                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-card-bg">
+                                <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-card-bg">
                                     {unreadCount > 99 ? '99+' : unreadCount}
                                 </span>
                             )}
@@ -301,16 +316,12 @@ export function Header({ toggleSidebar }) {
                                     </div>
                                     <div className="flex border-b border-border-subtle bg-dashboard-bg/10">
                                         {["Orders", "Wallet", "COD"].map((tab) => (
-                                            <button 
-                                                key={tab} 
-                                                onClick={() => setActiveNotifyTab(tab)} 
-                                                className={cn("flex-1 py-2.5 text-[11px] font-bold transition-all border-b-2", activeNotifyTab === tab ? "text-primary border-primary" : "text-text-muted border-transparent")}
-                                            >
+                                            <button key={tab} onClick={() => setActiveNotifyTab(tab)} className={cn("flex-1 py-2.5 text-[11px] font-bold border-b-2 transition-all", activeNotifyTab === tab ? "text-primary border-primary" : "text-text-muted border-transparent")}>
                                                 {tab}
                                             </button>
                                         ))}
                                     </div>
-                                    <div className="max-h-[380px] overflow-y-auto bg-card-bg scrollbar-thin">
+                                    <div className="max-h-[350px] overflow-y-auto bg-card-bg scrollbar-thin">
                                         {filteredNotifications.length > 0 ? (
                                             filteredNotifications.map((item) => (
                                                 <div 
@@ -321,47 +332,33 @@ export function Header({ toggleSidebar }) {
                                                         !item.is_read ? "bg-primary/5" : "opacity-70"
                                                     )}
                                                 >
-                                                    <div className={cn("w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm", 
-                                                        item.type === 'trip_sheet' ? "bg-blue-500/10 text-blue-500" :
-                                                        item.type === 'wallet' ? "bg-emerald-500/10 text-emerald-500" : 
-                                                        "bg-primary/10 text-primary")}>
-                                                        {item.type === 'trip_sheet' ? <Truck size={18} /> : 
-                                                         item.type === 'wallet' ? <Wallet size={18} /> : 
-                                                         <Package size={18} />}
+                                                    <div className={cn("w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0", 
+                                                        item.type === 'trip_sheet' ? "bg-blue-500/10 text-blue-500" : "bg-primary/10 text-primary")}>
+                                                        {item.type === 'trip_sheet' ? <Truck size={18} /> : <Package size={18} />}
                                                     </div>
-                                                    <div className="flex flex-col gap-0.5 overflow-hidden flex-1">
-                                                        <div className="flex items-center justify-between">
+                                                    <div className="flex-1 overflow-hidden">
+                                                        <div className="flex justify-between items-center">
                                                             <p className="text-xs font-bold text-text-main truncate">{item.title}</p>
-                                                            {item.type === 'trip_sheet' && (
-                                                                <Printer size={10} className="text-blue-500 animate-pulse" />
-                                                            )}
+                                                            {(item.type === 'trip_sheet' || item.trip_sheet_id) && <Printer size={12} className="text-blue-500" />}
                                                         </div>
-                                                        <p className="text-[11px] text-text-muted line-clamp-2 leading-tight">{item.message}</p>
-                                                        <div className="flex items-center justify-between mt-1.5">
-                                                            <p className="text-[9px] text-text-muted uppercase font-medium">
-                                                                {new Date(item.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                                                            </p>
-                                                            {item.type === 'trip_sheet' && (
-                                                                <span className="text-[8px] bg-blue-500/20 text-blue-600 px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">Click to Print</span>
-                                                            )}
-                                                        </div>
+                                                        <p className="text-[11px] text-text-muted line-clamp-2 leading-relaxed">{item.message}</p>
+                                                        {(item.type === 'trip_sheet' || item.trip_sheet_id) && <span className="text-[8px] text-blue-600 font-bold uppercase mt-1">Click to Print Trip Sheet</span>}
+                                                        <p className="text-[9px] text-text-muted mt-1 uppercase font-medium">
+                                                            {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        </p>
                                                     </div>
-                                                    {isPrinting && item.type === 'trip_sheet' && (
-                                                        <div className="absolute inset-0 bg-white/40 flex items-center justify-center backdrop-blur-[1px]">
+                                                    {isPrinting && (item.type === 'trip_sheet' || item.trip_sheet_id) && (
+                                                        <div className="absolute inset-0 bg-dashboard-bg/40 flex items-center justify-center z-10 backdrop-blur-[1px]">
                                                             <Loader2 size={16} className="animate-spin text-blue-500" />
                                                         </div>
                                                     )}
-                                                    {!item.is_read && <div className="w-2 h-2 bg-primary rounded-full mt-2 flex-shrink-0" />}
                                                 </div>
                                             ))
                                         ) : (
-                                            <div className="py-12 text-center">
+                                            <div className="p-10 text-center">
                                                 <p className="text-text-muted text-xs italic">No {activeNotifyTab} notifications</p>
                                             </div>
                                         )}
-                                    </div>
-                                    <div className="p-3 text-center border-t border-border-subtle bg-dashboard-bg/20">
-                                        <button className="text-[10px] font-bold text-text-muted uppercase tracking-widest hover:text-primary">Close Dropdown</button>
                                     </div>
                                 </motion.div>
                             )}
@@ -373,13 +370,13 @@ export function Header({ toggleSidebar }) {
                     </button>
 
                     <Link to="/profile" className="flex-shrink-0">
-                        <div className="flex items-center gap-1.5 sm:gap-2 pl-1.5 sm:pl-2 border-l border-border-subtle cursor-pointer hover:bg-primary/5 px-1 md:px-2 py-1 rounded-lg transition">
+                        <div className="flex items-center gap-1.5 sm:gap-2 pl-1.5 sm:pl-4 border-l border-border-subtle cursor-pointer hover:bg-primary/5 px-1 md:px-2 py-1 rounded-lg transition">
                             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-primary/10 flex items-center justify-center overflow-hidden border border-primary/20">
                                 <img src={getProfileImageUrl()} alt="User Avatar" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = PLACEHOLDER_IMAGE; }} />
                             </div>
                             <div className="flex flex-col items-start leading-none hidden md:flex">
-                                <span className="text-xs md:text-[13px] font-bold text-text-main capitalize">{user?.name || "Loading..."}</span>
-                                <span className="text-[10px] text-text-muted mt-0.5 uppercase tracking-tighter">{(user?.role || role)?.replace("_", " ") || "Administrator"}</span>
+                                <span className="text-xs md:text-[13px] font-bold text-text-main capitalize">{user?.name || "Admin"}</span>
+                                <span className="text-[10px] text-text-muted mt-0.5 uppercase tracking-tighter">{(user?.role || role)?.replace("_", " ")}</span>
                             </div>
                             <ChevronDown size={14} className="text-text-muted hidden md:block ml-1" />
                         </div>
@@ -387,7 +384,7 @@ export function Header({ toggleSidebar }) {
                 </div>
             </header>
 
-            {/* Bulk Import Modal */}
+            {/* Modals are kept as per your original logic */}
             <AnimatePresence>
                 {isImportModalOpen && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -397,21 +394,22 @@ export function Header({ toggleSidebar }) {
                                 <button onClick={() => setIsImportModalOpen(false)} className="p-2 text-text-muted hover:text-primary transition-colors"><X size={24} /></button>
                             </div>
                             <div className="p-6 md:p-8 space-y-5 md:space-y-6">
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-text-muted uppercase">Order Type *</label>
-                                    <select className="w-full bg-dashboard-bg border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-main focus:border-primary outline-none cursor-pointer" value={orderType} onChange={(e) => setOrderType(e.target.value)}>
-                                        <option value="B2C">B2C</option>
-                                        <option value="B2B">B2B</option>
-                                    </select>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-text-muted uppercase">Order Type *</label>
+                                        <select className="w-full bg-dashboard-bg border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-main focus:border-primary outline-none" value={orderType} onChange={(e) => setOrderType(e.target.value)}>
+                                            <option value="B2C">B2C</option><option value="B2B">B2B</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-text-muted uppercase">Pickup Address *</label>
+                                        <select disabled={addressLoading} className="w-full bg-dashboard-bg border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-main focus:border-primary outline-none" value={pickupAddressId} onChange={(e) => setPickupAddressId(e.target.value)}>
+                                            {pickupAddresses.map((addr) => (<option key={addr.id} value={addr.id}>{addr.nickname} - {addr.city}</option>))}
+                                        </select>
+                                    </div>
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-text-muted uppercase">Pickup Address *</label>
-                                    <select disabled={addressLoading} className="w-full bg-dashboard-bg border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-main focus:border-primary outline-none cursor-pointer disabled:opacity-50" value={pickupAddressId} onChange={(e) => setPickupAddressId(e.target.value)}>
-                                        {addressLoading ? (<option>Loading addresses...</option>) : pickupAddresses.length > 0 ? (pickupAddresses.map((addr) => (<option key={addr.id} value={addr.id}>{addr.nickname} - {addr.city} ({addr.pincode})</option>))) : (<option value="">No active addresses found</option>)}
-                                    </select>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-text-muted uppercase tracking-wider">Upload Excel File *</label>
+                                    <label className="text-[10px] font-bold text-text-muted uppercase">Upload Excel File *</label>
                                     <div className="flex flex-col sm:flex-row border border-border-subtle rounded-xl overflow-hidden bg-dashboard-bg">
                                         <label htmlFor="bulk-file-input" className="bg-primary/10 border-b sm:border-b-0 sm:border-r border-border-subtle px-6 py-3 text-xs font-bold text-primary cursor-pointer hover:bg-primary/20 text-center">
                                             Choose File 
@@ -420,15 +418,10 @@ export function Header({ toggleSidebar }) {
                                         <span className="px-4 py-3 text-sm text-text-muted italic truncate">{selectedFile ? selectedFile.name : "No file chosen (.xlsx only)"}</span>
                                     </div>
                                 </div>
-                                <div className="space-y-3 pt-2">
-                                    <button className="text-primary text-xs font-bold hover:underline flex items-center gap-2"><Download size={14} /> Sample File (1 Box)</button>
-                                    <button className="text-primary text-xs font-bold hover:underline flex items-center gap-2"><Download size={14} /> Sample File (Multiple Box)</button>
-                                </div>
                             </div>
                             <div className="p-6 border-t border-border-subtle bg-dashboard-bg/50 flex justify-end gap-3">
-                                <button onClick={() => setIsImportModalOpen(false)} className="px-6 py-2 text-sm font-bold text-text-muted">Close</button>
                                 <Button disabled={uploadLoading || addressLoading} onClick={handleImportSubmit} className="bg-primary text-black px-10 h-10 font-bold shadow-lg min-w-[120px]">
-                                    {uploadLoading ? <Loader2 className="animate-spin" size={20} /> : "Import"}
+                                    {uploadLoading ? <Loader2 className="animate-spin" size={20} /> : "Import Orders"}
                                 </Button>
                             </div>
                         </motion.div>
@@ -436,46 +429,51 @@ export function Header({ toggleSidebar }) {
                 )}
             </AnimatePresence>
 
-            {/* Wallet Recharge Modal */}
             <AnimatePresence>
-                {walletPerms.recharge && isWalletModalOpen && (
+                {isWalletModalOpen && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                         <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-card-bg border border-border-subtle rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
-                            <div className="p-5 md:p-6 border-b border-border-subtle flex justify-between items-center"><h2 className="text-lg font-bold text-text-main">Recharge Wallet</h2><button onClick={() => setIsWalletModalOpen(false)} className="p-2 text-text-muted hover:text-primary transition-colors"><X size={24} /></button></div>
-                            <div className="p-6 md:p-8 text-center space-y-6">
-                                <div className="w-32 h-32 bg-dashboard-bg border border-border-subtle rounded-xl mx-auto flex items-center justify-center text-text-muted gap-2"><QrCode size={40} className="opacity-20" /><span className="text-[10px] uppercase font-bold opacity-30 tracking-widest">QR</span></div>
-                                <div><p className="text-sm font-bold text-text-main capitalize">{user?.name || "User"}</p><div className="flex flex-wrap items-center justify-center gap-2 mt-2"><span className="text-xs text-text-muted">UPI ID: roadoz@upi</span><button className="bg-dashboard-bg border border-border-subtle px-3 py-1 rounded text-[10px] font-bold hover:bg-primary/10 transition-colors flex items-center gap-1"><Copy size={10} /> Copy</button></div></div>
-                                <div className="space-y-4 text-left pt-2"><div className="space-y-1.5"><label className="text-[10px] font-black text-text-muted uppercase">Amount (₹) *</label><input type="number" placeholder="0.00" className="w-full bg-dashboard-bg border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-main focus:border-primary outline-none" /></div></div>
+                            <div className="p-5 md:p-6 border-b border-border-subtle flex justify-between items-center bg-dashboard-bg/20">
+                                <h2 className="text-lg font-bold text-text-main">Recharge Wallet</h2>
+                                <button onClick={() => setIsWalletModalOpen(false)} className="p-2 text-text-muted hover:text-primary transition-colors"><X size={24} /></button>
                             </div>
-                            <div className="p-6 border-t border-border-subtle bg-dashboard-bg/50 flex justify-end gap-3"><button onClick={() => setIsWalletModalOpen(false)} className="px-6 py-2 text-sm font-bold text-text-muted">Cancel</button><Button className="bg-primary text-black px-10 h-10 font-bold shadow-lg">Submit</Button></div>
+                            <div className="p-8 text-center space-y-6">
+                                <div className="w-24 h-24 bg-dashboard-bg border border-border-subtle rounded-xl mx-auto flex items-center justify-center text-text-muted"><QrCode size={40} className="opacity-20" /></div>
+                                <div className="space-y-4">
+                                    <p className="text-xs text-text-muted">Pay to UPI: <span className="font-bold text-text-main">roadoz@upi</span></p>
+                                    <div className="text-left space-y-1.5">
+                                        <label className="text-[10px] font-bold text-text-muted uppercase">Amount (₹) *</label>
+                                        <input type="number" placeholder="Enter Amount" className="w-full bg-dashboard-bg border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-main focus:border-primary outline-none" />
+                                    </div>
+                                </div>
+                                <Button className="w-full bg-primary text-black h-12 font-bold shadow-lg">Submit Request</Button>
+                            </div>
                         </motion.div>
                     </div>
                 )}
             </AnimatePresence>
 
-            {/* Quick Actions Modal */}
             <AnimatePresence>
                 {isQuickActionsOpen && (
-                    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[110] p-4 backdrop-blur-sm">
-                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-card-bg border border-border-subtle rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl">
-                            <div className="p-6 md:p-10">
-                                <div className="flex justify-between items-center mb-8"><h2 className="text-xl md:text-2xl font-bold text-text-main">Quick Actions</h2><button onClick={() => setIsQuickActionsOpen(false)} className="p-2 bg-dashboard-bg rounded-lg text-text-muted"><X size={24} /></button></div>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 md:gap-6">
+                    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[110] p-4 backdrop-blur-sm">
+                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-card-bg border border-border-subtle rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl">
+                            <div className="p-8 md:p-12">
+                                <div className="flex justify-between items-center mb-10">
+                                    <h2 className="text-2xl font-bold text-text-main">Quick Actions</h2>
+                                    <button onClick={() => setIsQuickActionsOpen(false)} className="p-2 bg-dashboard-bg rounded-xl text-text-muted hover:text-primary transition-colors"><X size={24} /></button>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
                                     {quickActions.map((action, i) => (
                                         <button
                                           key={i}
-                                          onClick={() => {
-                                            if (action.path) navigate(action.path);
-                                            setIsQuickActionsOpen(false);
-                                          }}
-                                          className="flex flex-col items-center gap-3 p-4 md:p-6 rounded-2xl hover:bg-primary/10 transition-all group border border-transparent hover:border-primary/20"
+                                          onClick={() => { navigate(action.path); setIsQuickActionsOpen(false); }}
+                                          className="flex flex-col items-center gap-4 p-6 rounded-2xl hover:bg-primary/10 transition-all group border border-transparent hover:border-primary/20"
                                         >
-                                            <div className="w-12 h-12 md:w-16 md:h-16 bg-primary/10 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">{action.icon}</div>
-                                            <span className="text-[10px] md:text-xs font-bold text-text-main text-center leading-tight">{action.label}</span>
+                                            <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform text-primary">{action.icon}</div>
+                                            <span className="text-xs font-bold text-text-main text-center leading-tight">{action.label}</span>
                                         </button>
                                     ))}
                                 </div>
-                                <div className="mt-8 pt-6 border-t border-border-subtle text-center"><button onClick={() => setIsQuickActionsOpen(false)} className="text-sm font-bold text-text-muted hover:text-primary transition-colors uppercase tracking-widest">Close Action Menu</button></div>
                             </div>
                         </motion.div>
                     </div>

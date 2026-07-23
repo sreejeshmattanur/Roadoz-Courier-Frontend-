@@ -637,15 +637,21 @@ export const fetchVehiclesApi = async (params) => {
 
 
 
-// Add this alongside your other WS helpers in apiCalls.js
 export const getTripSheetWSUrl = () => {
-  const base = import.meta.env.VITE_APP_BASE_URL || "http://api.roadozcourier.com/api/v1";
-  const wsBase = base.replace(/^http/, "ws");
-  const token = Cookies.get("access_token");
-  // Updated to match the endpoint you provided
-  return `${wsBase}/ws/trip-sheet-notifications${token ? `?token=${token}` : ""}`;
-};
+  const base = import.meta.env.VITE_APP_BASE_URL || "https://staging-api.roadozcourier.com/api/v1";
+  
+  let wsBase = base.replace(/^http/, "ws");
 
+  const token = Cookies.get("access_token");
+
+  const cleanBase = wsBase.endsWith('/') ? wsBase.slice(0, -1) : wsBase;
+  const endpoint = ENDPOINTS.TRIP_SHEET_WS.startsWith('/') ? ENDPOINTS.TRIP_SHEET_WS : `/${ENDPOINTS.TRIP_SHEET_WS}`;
+  
+  const finalUrl = `${cleanBase}${endpoint}${token ? `?token=${token}` : ""}`;
+  
+  console.log("Connecting to TripSheet WS:", finalUrl); // Debugging
+  return finalUrl;
+};
 
 // Driver APIs
 export const fetchDriversApi = async (params) => {
