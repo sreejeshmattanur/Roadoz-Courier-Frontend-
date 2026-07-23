@@ -17,7 +17,7 @@ export const ENDPOINTS = {
   GENERATE_BULK_INVOICE: (bulkOrderId) => `/invoices/generate/bulk/${bulkOrderId}`,
   CONSIGNEES: "/orders/consignees",
   ORDERS: "/orders",
-  DELETE_SCANNED_ORDER: (id) => `/orders/delete-scanned-order_with_mistak/${id}/`,
+  DELETE_SCANNED_ORDER: (id) => `/orders/delete-scanned-order_with_mistak/${id}`,
   TRACK_ORDER_DETAILS: (orderNumber) => `/orders/track_orderwithbarcodeand_orderall_detailed/${orderNumber}`,
   SCAN_ORDER: "/orders/scan",
   GET_ORDER_PINCODE: "/orders/get-pincode",
