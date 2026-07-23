@@ -29,6 +29,7 @@ export const ENDPOINTS = {
   BULK_ORDER_UPLOAD: "/orders/bulk",
   BULK_ORDER_DETAILS: (id) => `/orders/bulk-order/${id}`,
   NOTIFICATIONS_WS: "/websocket/ws/notifications",
+  TRIP_SHEET_WS: "/ws/trip-sheet-notifications", 
   READ_NOTIFICATION: (id) => `/notifications/${id}/read`,
   RATE_CALCULATOR: "/rate-calculator/calculate",
   ANALYTICS_DASHBOARD: "/analytics/dashboard",
