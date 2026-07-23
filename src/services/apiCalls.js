@@ -559,8 +559,16 @@ export const captureLocationApi = async (locationData) => {
   return res.data;
 };
 
-// ... keep all other existing exportsexport const getLocationStatusApi = () => API.get("/location/status");
-export const resetLocationApi = (type, id) => API.get(`/location/reset/${type}/${id}`);
+export const resetLocationApi = async (type, id) => {
+    // Note: Use GET if your backend defines it as a GET route
+    const res = await API.post(`/location/reset/${type}/${id}`);
+    return res.data;
+};
+
+export const getLocationStatusApi = async (params) => {
+  const res = await API.get("/location/status", { params });
+  return res.data;
+}
 
 // Trip Sheet APIs
 export const fetchTripDriversApi = async (params) => {
