@@ -550,3 +550,206 @@ export const fetchOrdersByEntityApi = async (params) => {
   const res = await API.get(ENDPOINTS.FILTER_BY_ENTITY, { params });
   return res.data;
 };
+
+// ... existing imports
+
+// In apiCalls.js
+export const captureLocationApi = async (locationData) => {
+  const res = await API.post("/location/capture", locationData);
+  return res.data;
+};
+
+export const resetLocationApi = async (type, id) => {
+    // Note: Use GET if your backend defines it as a GET route
+    const res = await API.post(`/location/reset/${type}/${id}`);
+    return res.data;
+};
+
+export const getLocationStatusApi = async (params) => {
+  const res = await API.get("/location/status", { params });
+  return res.data;
+}
+
+// Trip Sheet APIs
+export const fetchTripDriversApi = async (params) => {
+    const res = await API.get(ENDPOINTS.TRIP_SHEET.DRIVERS, { params });
+    return res.data;
+};
+
+export const fetchTripVehiclesApi = async (params) => {
+    const res = await API.get(ENDPOINTS.TRIP_SHEET.VEHICLES, { params });
+    return res.data;
+};
+
+export const fetchTripFranchisesApi = async (params) => {
+    const res = await API.get(ENDPOINTS.TRIP_SHEET.FRANCHISES, { params });
+    return res.data;
+};
+
+export const scanOrderForTripApi = async (barcode) => {
+    const res = await API.get(ENDPOINTS.TRIP_SHEET.SCAN(barcode));
+    return res.data;
+};
+
+export const createTripSheetApi = async (data) => {
+  const res = await API.post(ENDPOINTS.TRIP_SHEET.BASE, data);
+  return res.data;
+};
+
+export const updateTripSheetApi = async (id, data) => {
+    const res = await API.put(ENDPOINTS.TRIP_SHEET.DETAIL(id), data);
+    return res.data;
+};
+
+// Update this function in your apiCalls.js
+export const fetchTripSheetsApi = async (params) => {
+  const url = params.type === 'incoming' 
+    ? ENDPOINTS.TRIP_SHEET.INCOMING 
+    : ENDPOINTS.TRIP_SHEET.BASE;
+    
+  const res = await API.get(url, { params });
+  return res.data; 
+};
+
+export const fetchTripSheetDetailsApi = async (id) => {
+  const res = await API.get(ENDPOINTS.TRIP_SHEET.DETAIL(id));
+  return res.data;
+};
+
+export const deleteTripSheetApi = async (id) => {
+  const res = await API.delete(ENDPOINTS.TRIP_SHEET.DELETE(id));
+  return res.data;
+};
+
+export const fetchVehiclesApi = async (params) => {
+  const res = await API.get("/website/fleet/vehicles", {
+    params: {
+      page: params.page || 1,
+      limit: params.limit || 20,
+      plate_number: params.plate_number || undefined,
+      model: params.model || undefined,
+      type: params.type || undefined,
+      status: params.status || undefined
+    }
+  });
+  return res.data; 
+};
+
+
+
+export const getTripSheetWSUrl = () => {
+  const base = import.meta.env.VITE_APP_BASE_URL || "https://staging-api.roadozcourier.com/api/v1";
+  
+  let wsBase = base.replace(/^http/, "ws");
+
+  const token = Cookies.get("access_token");
+
+  const cleanBase = wsBase.endsWith('/') ? wsBase.slice(0, -1) : wsBase;
+  const endpoint = ENDPOINTS.TRIP_SHEET_WS.startsWith('/') ? ENDPOINTS.TRIP_SHEET_WS : `/${ENDPOINTS.TRIP_SHEET_WS}`;
+  
+  const finalUrl = `${cleanBase}${endpoint}${token ? `?token=${token}` : ""}`;
+  
+  console.log("Connecting to TripSheet WS:", finalUrl); // Debugging
+  return finalUrl;
+};
+
+// Driver APIs
+export const fetchDriversApi = async (params) => {
+  const { page = 1, limit = 10, search, status } = params;
+  const skip = (page - 1) * limit;
+  const res = await API.get("/int/fleet/drivers", {
+    params: { skip, limit, search, status },
+  });
+  return {
+    items: res.data.items,
+    total: res.data.total,
+    page: page,
+    pages: Math.ceil(res.data.total / limit)
+  };
+};
+
+
+export const fetchDriverByIdApi = async (id) => {
+  const res = await API.get(`/int/fleet/drivers/${id}`);
+  return res.data;
+};
+
+export const createDriverApi = async (data) => {
+  const res = await API.post("/website/fleet/drivers", data);
+  return res.data;
+};
+
+export const updateDriverApi = async (id, data) => {
+  const formData = new FormData();
+  
+  // Append all text fields and files to FormData
+  Object.keys(data).forEach(key => {
+    if (data[key] !== null && data[key] !== undefined) {
+      formData.append(key, data[key]);
+    }
+  });
+
+  const res = await API.patch(`/website/fleet/drivers/${id}`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data;
+};
+
+
+export const uploadDriverDocumentApi = async (driverId, docType, file) => {
+  const formData = new FormData();
+  formData.append("documentType", docType);
+  formData.append("file", file);
+  return await API.post(`/website/fleet/drivers/${driverId}/documents`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
+
+export const updateDriverBankApi = async (driverId, data) => {
+  return await API.post(`/website/fleet/drivers/${driverId}/bank-details`, data);
+};
+
+
+export const deleteDriverApi = async (id) => {
+  return await API.delete(`/website/fleet/drivers/${id}`);
+};
+
+export const approveDriverApi = async (id) => {
+  const res = await API.post(`/int/fleet/drivers/${id}/approve`);
+  return res.data;
+};
+
+export const rejectDriverApi = async (id, reason) => {
+  const res = await API.post(`/int/fleet/drivers/${id}/reject`, {
+    rejection_reason: reason
+  });
+  return res.data;
+};
+
+export const fetchVehicleByIdApi = async (id) => {
+  const res = await API.get(`/website/fleet/vehicles/${id}`);
+  return res.data;
+};
+
+
+export const createVehicleApi = async (data) => {
+  const payload = {
+    vehicleType: data.type,
+    registrationNumber: data.plate_number,
+    make: data.make,
+    model: data.model,
+    year: data.year,
+    color: data.color
+  };
+  return await API.post("/website/fleet/vehicles", payload);
+};
+
+export const updateVehicleApi = async (id, data) => {
+  return await API.patch(`/website/fleet/vehicles/${id}`, data);
+};
+
+export const deleteVehicleApi = async (id) => {
+  const res = await API.delete(`/website/fleet/vehicles/${id}`);
+  return res.data;
+};
+

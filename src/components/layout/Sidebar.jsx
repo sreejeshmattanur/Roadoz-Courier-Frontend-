@@ -19,9 +19,10 @@ import {
   ClipboardCheck,
   MessageSquare,
   FileBarChart,
-  MapPin, // Added for Pickup Address
-  RotateCcw, // Added for RTO Address
-  LoaderCircle
+  MapPin,
+  RotateCcw,
+  LoaderCircle,
+  Navigation as NavIcon,
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { NavLink } from "../NavLink";
@@ -47,6 +48,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
     settings: false,
     admin: false,
     franchise: false,
+    trip: false, // Added trip state
   });
 
   const hasPerm = (perm) => hasPermission(permissions, role, perm);
@@ -94,6 +96,11 @@ export function Sidebar({ isOpen, setIsOpen }) {
       { name: "Label Setting", to: `${base}/settings/label`, perm: "profile:edit" },
       { name: "KYC", to: `${base}/settings/kyc`, perm: "profile:edit" },
     ],
+    trip: [
+      { name: "Drivers", to: `${base}/trip/drivers`, perm: "fleet:drivers:view" },
+      { name: "Vehicles", to: `${base}/trip/vehicles`, perm: "fleet:vehicle:view" },
+      { name: "Trip Sheet", to: `${base}/trip/trip-sheet`, perm: "tripsheet:view" },
+    ],
   };
 
   useEffect(() => {
@@ -120,6 +127,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
       settings: false,
       admin: false,
       franchise: false,
+      trip: false,
       [menu]: !prev[menu],
     }));
   };
@@ -222,14 +230,16 @@ export function Sidebar({ isOpen, setIsOpen }) {
         <NavDropdown id="admin" label="Administrative" icon={ShieldCheck} items={sections.admin} />
         <NavDropdown id="tools" label="Tools" icon={Wrench} items={sections.tools} />
         <NavDropdown id="finance" label="Finance" icon={CircleDollarSign} items={sections.finance} />
-
+        
+        {/* Trip Dropdown with Correct Permissions */}
+        <NavDropdown id="trip" label="Trip" icon={NavIcon} items={sections.trip} />
 
         {hasPerm("pickup-orders:view") && (
           <NavLink to={`${base}/pickup-orders`} icon={<LoaderCircle size={20} />} hideText={!isOpen}>
             Pickup Order Listing 
           </NavLink>
         )}
-        {/* --- Addresses & Consignees --- */}
+
         {hasPerm("consignees:view") && (
           <NavLink to={`${base}/consignees`} icon={<Users size={20} />} hideText={!isOpen}>
             Consignees
@@ -248,8 +258,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
           </NavLink>
         )}
 
-        {/* --- Miscellaneous --- */}
-        {hasPerm("messages:view") && (
+        {hasPerm("communication:view") && (
           <NavLink to={`${base}/chat`} icon={<MessageSquare size={20} />} hideText={!isOpen}>
             Messages
           </NavLink>
@@ -273,7 +282,7 @@ export function Sidebar({ isOpen, setIsOpen }) {
           </NavLink>
         )}
 
-        {hasPerm("reports:view") && (
+        {hasPerm("activity_logs:view") && (
           <NavLink to={`${base}/reports`} icon={<FileBarChart size={20} />} hideText={!isOpen}>
             Reports
           </NavLink>

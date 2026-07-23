@@ -17,7 +17,7 @@ export const ENDPOINTS = {
   GENERATE_BULK_INVOICE: (bulkOrderId) => `/invoices/generate/bulk/${bulkOrderId}`,
   CONSIGNEES: "/orders/consignees",
   ORDERS: "/orders",
-  DELETE_SCANNED_ORDER: (id) => `/orders/delete-scanned-order_with_mistak/${id}/`,
+  DELETE_SCANNED_ORDER: (id) => `/orders/delete-scanned-order_with_mistak/${id}`,
   TRACK_ORDER_DETAILS: (orderNumber) => `/orders/track_orderwithbarcodeand_orderall_detailed/${orderNumber}`,
   SCAN_ORDER: "/orders/scan",
   GET_ORDER_PINCODE: "/orders/get-pincode",
@@ -29,6 +29,7 @@ export const ENDPOINTS = {
   BULK_ORDER_UPLOAD: "/orders/bulk",
   BULK_ORDER_DETAILS: (id) => `/orders/bulk-order/${id}`,
   NOTIFICATIONS_WS: "/websocket/ws/notifications",
+  TRIP_SHEET_WS: "/ws/trip-sheet-notifications", 
   READ_NOTIFICATION: (id) => `/notifications/${id}/read`,
   RATE_CALCULATOR: "/rate-calculator/calculate",
   ANALYTICS_DASHBOARD: "/analytics/dashboard",
@@ -92,6 +93,20 @@ export const ENDPOINTS = {
 
   },
   FILTER_BY_ENTITY: "/orders/orders/filter-by-entity",
-
+  LOCATION: {
+    CAPTURE: "/location/capture",
+    STATUS: "/location/status",
+    RESET: (type, id) => `/location/reset/${type}/${id}`,
+  },
+  TRIP_SHEET: {
+    BASE: "/operations/trip-sheet",
+    INCOMING: "/operations/trip-sheet/incoming", // Added for the registry
+    DRIVERS: "/operations/trip-sheet/drivers",
+    VEHICLES: "/operations/trip-sheet/vehicles",
+    FRANCHISES: "/operations/trip-sheet/franchises",
+    SCAN: (barcode) => `/operations/trip-sheet/scan/${barcode}`,
+    DETAIL: (id) => `/operations/trip-sheet/${id}`,
+    DELETE: (id) => `/operations/trip-sheet/${id}`,
+}
 
 };
