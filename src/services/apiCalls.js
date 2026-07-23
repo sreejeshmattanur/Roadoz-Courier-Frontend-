@@ -551,8 +551,15 @@ export const fetchOrdersByEntityApi = async (params) => {
   return res.data;
 };
 
-export const captureLocationApi = (data) => API.post("/location/capture", data);
-export const getLocationStatusApi = () => API.get("/location/status");
+// ... existing imports
+
+// In apiCalls.js
+export const captureLocationApi = async (locationData) => {
+  const res = await API.post("/location/capture", locationData);
+  return res.data;
+};
+
+// ... keep all other existing exportsexport const getLocationStatusApi = () => API.get("/location/status");
 export const resetLocationApi = (type, id) => API.get(`/location/reset/${type}/${id}`);
 
 // Trip Sheet APIs
