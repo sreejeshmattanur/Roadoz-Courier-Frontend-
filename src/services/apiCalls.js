@@ -601,9 +601,13 @@ export const updateTripSheetApi = async (id, data) => {
     return res.data;
 };
 
+// Update this function in your apiCalls.js
 export const fetchTripSheetsApi = async (params) => {
-  // Using the incoming endpoint for the registry list
-  const res = await API.get(ENDPOINTS.TRIP_SHEET.INCOMING, { params });
+  const url = params.type === 'incoming' 
+    ? ENDPOINTS.TRIP_SHEET.INCOMING 
+    : ENDPOINTS.TRIP_SHEET.BASE;
+    
+  const res = await API.get(url, { params });
   return res.data; 
 };
 
@@ -617,31 +621,21 @@ export const deleteTripSheetApi = async (id) => {
   return res.data;
 };
 
-export const fetchVehiclesApi = async (page = 1, limit = 20) => {
-    // Force page to be a number to avoid [object Object]
-    const pageNum = typeof page === 'number' ? page : 1;
-    const res = await API.get('/fleet/vehicles', {
-        params: {
-            page: pageNum,
-            limit: limit
-        }
-    });
-    return res.data;
-};
-export const createVehicleApi = async (data) => {
-    const res = await API.post(`/fleet/vehicles`, data);
-    return res.data;
+export const fetchVehiclesApi = async (params) => {
+  const res = await API.get("/website/fleet/vehicles", {
+    params: {
+      page: params.page || 1,
+      limit: params.limit || 20,
+      plate_number: params.plate_number || undefined,
+      model: params.model || undefined,
+      type: params.type || undefined,
+      status: params.status || undefined
+    }
+  });
+  return res.data; 
 };
 
-export const updateVehicleApi = async (id, data) => {
-    const res = await API.patch(`/fleet/vehicles/${id}`, data);
-    return res.data;
-};
 
-export const deleteVehicleApi = async (id) => {
-    const res = await API.delete(`/fleet/vehicles/${id}`);
-    return res.data;
-};
 
 // Add this alongside your other WS helpers in apiCalls.js
 export const getTripSheetWSUrl = () => {
@@ -651,3 +645,105 @@ export const getTripSheetWSUrl = () => {
   // Updated to match the endpoint you provided
   return `${wsBase}/ws/trip-sheet-notifications${token ? `?token=${token}` : ""}`;
 };
+
+
+// Driver APIs
+export const fetchDriversApi = async (params) => {
+  const { page = 1, limit = 10, search, status } = params;
+  const skip = (page - 1) * limit;
+  const res = await API.get("/int/fleet/drivers", {
+    params: { skip, limit, search, status },
+  });
+  return {
+    items: res.data.items,
+    total: res.data.total,
+    page: page,
+    pages: Math.ceil(res.data.total / limit)
+  };
+};
+
+
+export const fetchDriverByIdApi = async (id) => {
+  const res = await API.get(`/int/fleet/drivers/${id}`);
+  return res.data;
+};
+
+export const createDriverApi = async (data) => {
+  const res = await API.post("/website/fleet/drivers", data);
+  return res.data;
+};
+
+export const updateDriverApi = async (id, data) => {
+  const formData = new FormData();
+  
+  // Append all text fields and files to FormData
+  Object.keys(data).forEach(key => {
+    if (data[key] !== null && data[key] !== undefined) {
+      formData.append(key, data[key]);
+    }
+  });
+
+  const res = await API.patch(`/website/fleet/drivers/${id}`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data;
+};
+
+
+export const uploadDriverDocumentApi = async (driverId, docType, file) => {
+  const formData = new FormData();
+  formData.append("documentType", docType);
+  formData.append("file", file);
+  return await API.post(`/website/fleet/drivers/${driverId}/documents`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
+
+export const updateDriverBankApi = async (driverId, data) => {
+  return await API.post(`/website/fleet/drivers/${driverId}/bank-details`, data);
+};
+
+
+export const deleteDriverApi = async (id) => {
+  return await API.delete(`/website/fleet/drivers/${id}`);
+};
+
+export const approveDriverApi = async (id) => {
+  const res = await API.post(`/int/fleet/drivers/${id}/approve`);
+  return res.data;
+};
+
+export const rejectDriverApi = async (id, reason) => {
+  const res = await API.post(`/int/fleet/drivers/${id}/reject`, {
+    rejection_reason: reason
+  });
+  return res.data;
+};
+
+export const fetchVehicleByIdApi = async (id) => {
+  const res = await API.get(`/website/fleet/vehicles/${id}`);
+  return res.data;
+};
+
+
+export const createVehicleApi = async (data) => {
+  const payload = {
+    vehicleType: data.type,
+    registrationNumber: data.plate_number,
+    make: data.make,
+    model: data.model,
+    year: data.year,
+    color: data.color
+  };
+  return await API.post("/website/fleet/vehicles", payload);
+};
+
+export const updateVehicleApi = async (id, data) => {
+  return await API.patch(`/website/fleet/vehicles/${id}`, data);
+};
+
+export const deleteVehicleApi = async (id) => {
+  const res = await API.delete(`/website/fleet/vehicles/${id}`);
+  return res.data;
+};
+
